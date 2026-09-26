@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { formatTripDates, type Trip } from "@/lib/trips";
+import { LogoutButton } from "@/components/auth/logout-button";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -14,7 +15,7 @@ export default async function DashboardPage() {
     <main className="min-h-screen bg-canvas dark:bg-[#111713]">
       <header className="border-b border-slate-200/80 bg-white/75 dark:border-slate-800 dark:bg-[#171e19]"><div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-5 sm:px-8">
         <Link href="/dashboard" className="flex items-center gap-2.5 font-bold tracking-tight text-ink dark:text-white"><span className="grid h-9 w-9 place-items-center rounded-xl bg-forest text-lg text-white">✳</span>TripPilot</Link>
-        <span className="max-w-[45%] truncate text-sm text-slate-500 dark:text-slate-400">{user.email}</span>
+        <div className="flex max-w-[60%] items-center gap-4"><span className="hidden max-w-[45%] truncate text-sm text-slate-500 dark:text-slate-400 sm:inline">{user.email}</span><LogoutButton /></div>
       </div></header>
       <div className="mx-auto max-w-6xl px-5 py-10 sm:px-8 sm:py-14">
         <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
