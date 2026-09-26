@@ -47,5 +47,15 @@ export async function createTrip(
     return { error: "We couldn't save your trip. Please try again." };
   }
 
+
+  /*if (error) {
+    console.error(error);
+    return { error: error.message };
+  }
+
+  if (!data) {
+    return { error: "No data returned from Supabase." };
+  }*/
+
   redirect(`/trip/${data.id}`);
 }
