@@ -11,8 +11,8 @@ export function CreateTripForm() {
   return (
     <form action={formAction} className="space-y-7">
       {state.error && (
-        <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-          {state.error}
+        <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
+          {state.error}{state.error.includes("Sign in") && <> <a href="/login" className="font-semibold underline">Sign in</a> or <a href="/signup" className="font-semibold underline">create an account</a>.</>}
         </div>
       )}
 
@@ -27,7 +27,7 @@ export function CreateTripForm() {
           required
           className="form-input"
         />
-        <p className="text-xs text-slate-500">Give this trip a name you’ll recognize.</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400">Give this trip a name you’ll recognize.</p>
       </div>
 
       <div className="space-y-2">

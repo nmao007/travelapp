@@ -47,5 +47,5 @@ export async function createTrip(
     return { error: "We couldn't save your trip. Please try again." };
   }
 
-  redirect(`/trips/${data.id}`);
+  redirect(`/trip/${data.id}`);
 }
