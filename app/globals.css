@@ -5,7 +5,7 @@
 :root { color-scheme: light; }
 * { box-sizing: border-box; }
 body { margin: 0; background: #f7f8f5; color: #17251f; font-family: Arial, Helvetica, sans-serif; }
-button, input { font: inherit; }
+button, input, select, textarea { font: inherit; }
 .form-input { width: 100%; min-height: 52px; border: 1px solid #dce3dd; border-radius: 12px; background: white; padding: 0 15px; color: #17251f; outline: none; transition: border-color 150ms, box-shadow 150ms; }
 .form-input::placeholder { color: #a0aaa3; }
 .form-input:focus { border-color: #438065; box-shadow: 0 0 0 4px rgba(40, 99, 74, .11); }
@@ -16,3 +16,16 @@ button, input { font: inherit; }
   .form-input:focus { border-color: #78b394; box-shadow: 0 0 0 4px rgba(120, 179, 148, .15); }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; } }
+
+@layer components {
+  .primary-button { @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-forest px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#204f3b] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:cursor-wait disabled:opacity-60; }
+  .secondary-button { @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:opacity-60 dark:border-slate-700 dark:hover:bg-slate-800; }
+  .workspace-panel { @apply min-w-0 rounded-3xl border border-slate-200 bg-white p-5 shadow-card dark:border-slate-800 dark:bg-[#171e19] sm:p-7; }
+}
+
+summary { cursor: pointer; }
+summary:focus-visible, a:focus-visible { outline: 2px solid #438065; outline-offset: 4px; }
+input[type="date"], input[type="time"] { min-width: 0; }
+.trip-content { padding-bottom: calc(6rem + env(safe-area-inset-bottom)); }
+.trip-bottom-nav { padding-bottom: env(safe-area-inset-bottom); }
+@media (min-width: 768px) { .trip-content { padding-bottom: 3rem; } }

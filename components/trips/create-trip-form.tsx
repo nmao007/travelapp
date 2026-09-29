@@ -2,10 +2,11 @@
 
 import { useActionState } from "react";
 import { createTrip, type CreateTripState } from "@/app/actions/trips";
+import { currencies } from "@/lib/domain";
 
 const initialState: CreateTripState = {};
 
-export function CreateTripForm() {
+export function CreateTripForm({ workspaceAvailable = true }: { workspaceAvailable?: boolean }) {
   const [state, formAction, isPending] = useActionState(createTrip, initialState);
 
   return (
@@ -17,7 +18,7 @@ export function CreateTripForm() {
       )}
 
       <div className="space-y-2">
-        <label htmlFor="title" className="block text-sm font-semibold text-ink">Trip name</label>
+        <label htmlFor="title" className="block text-sm font-semibold text-ink dark:text-white">Trip name</label>
         <input
           id="title"
           name="title"
@@ -31,7 +32,7 @@ export function CreateTripForm() {
       </div>
 
       <div className="space-y-2">
-        <label htmlFor="destination" className="block text-sm font-semibold text-ink">Where are you going?</label>
+        <label htmlFor="destination" className="block text-sm font-semibold text-ink dark:text-white">Where are you going?</label>
         <div className="relative">
           <span aria-hidden="true" className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-lg">⌖</span>
           <input
@@ -48,17 +49,30 @@ export function CreateTripForm() {
 
       <div className="grid gap-5 sm:grid-cols-2">
         <div className="space-y-2">
-          <label htmlFor="startDate" className="block text-sm font-semibold text-ink">Departure</label>
+          <label htmlFor="startDate" className="block text-sm font-semibold text-ink dark:text-white">Departure</label>
           <input id="startDate" name="startDate" type="date" required className="form-input" />
         </div>
         <div className="space-y-2">
-          <label htmlFor="endDate" className="block text-sm font-semibold text-ink">Return</label>
+          <label htmlFor="endDate" className="block text-sm font-semibold text-ink dark:text-white">Return</label>
           <input id="endDate" name="endDate" type="date" required className="form-input" />
         </div>
       </div>
 
+      {workspaceAvailable && <><div className="space-y-2">
+        <label htmlFor="timeZone" className="block text-sm font-semibold">Destination time zone</label>
+        <select id="timeZone" name="timeZone" defaultValue="UTC" required className="form-input">
+          <option value="UTC">UTC</option>
+          {Intl.supportedValuesOf("timeZone").map((zone) => <option key={zone} value={zone}>{zone.replaceAll("_", " ")}</option>)}
+        </select>
+        <p className="text-xs leading-5 text-slate-500 dark:text-slate-400">Choose your destination’s zone so Today and your plans show the right local day.</p>
+      </div>
+      <div className="grid gap-5 sm:grid-cols-2">
+        <div className="space-y-2"><label htmlFor="currency" className="block text-sm font-semibold">Trip currency</label><select id="currency" name="currency" defaultValue="USD" className="form-input">{currencies.map((currency) => <option key={currency}>{currency}</option>)}</select></div>
+        <div className="space-y-2"><label htmlFor="budget" className="block text-sm font-semibold">Budget (optional)</label><input id="budget" name="budget" inputMode="decimal" className="form-input" placeholder="No limit set" /></div>
+      </div></>}
+
       <div className="flex flex-col-reverse gap-3 border-t border-slate-100 pt-6 sm:flex-row sm:justify-end">
-        <a href="/" className="inline-flex min-h-12 items-center justify-center rounded-xl px-5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50">
+        <a href="/dashboard" className="secondary-button">
           Cancel
         </a>
         <button type="submit" disabled={isPending} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-forest px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-[#204f3b] focus:outline-none focus:ring-4 focus:ring-forest/20 disabled:cursor-wait disabled:opacity-70">

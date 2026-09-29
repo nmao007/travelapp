@@ -1,6 +1,10 @@
 node_modules/
 .next/
+.next-dev/
 out/
 .vercel/
 .env*.local
 *.tsbuildinfo
+
+# Rebuilt from the locked MapLibre dependency by predev/prebuild.
+/public/maps/maplibre-*/

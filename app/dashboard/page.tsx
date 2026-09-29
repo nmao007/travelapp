@@ -8,7 +8,8 @@ export default async function DashboardPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login?next=/dashboard");
-  const { data } = await supabase.from("trips").select("id,title,destination,start_date,end_date").eq("user_id", user.id).order("start_date");
+  const { data, error } = await supabase.from("trips").select("id,title,destination,start_date,end_date").eq("user_id", user.id).order("start_date");
+  if (error) throw new Error("Unable to load your trips.");
   const trips = (data ?? []) as Trip[];
 
   return (

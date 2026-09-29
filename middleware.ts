@@ -21,6 +21,8 @@ export async function middleware(request: NextRequest) {
   return response;
 }
 
+// Public guest planning never waits for a remote account lookup. Account pages still refresh cookies;
+// ownership and authentication remain enforced by server pages/actions and database RLS.
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  matcher: ["/dashboard/:path*", "/trip/:path*", "/trips/:path*", "/login", "/signup", "/auth/:path*"],
 };

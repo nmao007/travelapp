@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { CreateTripForm } from "@/components/trips/create-trip-form";
+import { getWorkspaceAvailability } from "@/lib/trips";
 
-export default function NewTripPage() {
+export default async function NewTripPage() {
+  const workspaceAvailable = await getWorkspaceAvailability();
   return (
     <main className="min-h-screen bg-canvas dark:bg-[#111713]">
       <header className="mx-auto flex max-w-6xl items-center px-5 py-6 sm:px-8">
@@ -29,7 +31,7 @@ export default function NewTripPage() {
               <h2 className="text-xl font-semibold tracking-tight text-ink dark:text-white">The essentials</h2>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">You can always change these later.</p>
             </div>
-            <CreateTripForm />
+            <CreateTripForm workspaceAvailable={workspaceAvailable} />
           </section>
         </div>
       </div>

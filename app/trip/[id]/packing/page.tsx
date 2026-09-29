@@ -1,5 +1,11 @@
-import { TripSection } from "@/components/trips/trip-section";
-export default async function PackingPage({ params }: { params: Promise<{ id: string }> }) {
+import { PendingWorkspace } from "@/components/trips/pending-workspace";
+import { getTrip, getPackingItems } from "@/lib/trips";
+import { PackingView } from "@/components/trips/views/packing";
+
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  return <TripSection tripId={id} active="/packing" title="Packing list" icon="✓" description="Collect the things you want to bring and check them off as you pack." />;
+  const trip = await getTrip(id);
+  if (!trip.workspace_available) return <PendingWorkspace trip={trip} active="/packing" />;
+  const items = await getPackingItems(id);
+  return <PackingView trip={trip} items={items} />;
 }
