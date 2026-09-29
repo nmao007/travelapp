@@ -4,6 +4,8 @@ export type Poi = RealPlace & {category:PoiCategory;distanceKm:number};
 type Element={type?:unknown;id?:unknown;lat?:unknown;lon?:unknown;center?:{lat?:unknown;lon?:unknown};tags?:Record<string,unknown>};
 const categories: [keyof Element | string,RegExp,PoiCategory][]=[['amenity',/^(restaurant|cafe)$/,'Food'],['tourism',/^(museum|gallery)$/,'Culture'],['historic',/^(castle|monument|archaeological_site|memorial)$/,'Culture'],['leisure',/^(park|garden|nature_reserve)$/,'Nature'],['natural',/^(beach|waterfall|peak)$/,'Nature'],['tourism',/^(attraction|viewpoint|zoo|aquarium|theme_park)$/,'Sights']];
 function distanceKm(a:number,b:number,c:number,d:number){const r=Math.PI/180,p=(c-a)*r,l=(d-b)*r,x=Math.sin(p/2)**2+Math.cos(a*r)*Math.cos(c*r)*Math.sin(l/2)**2;return 6371*2*Math.atan2(Math.sqrt(x),Math.sqrt(Math.max(0,1-x)));}
+function safeWebsite(value:unknown):string|undefined{if(typeof value!=='string')return;try{const url=new URL(value.trim());return url.protocol==='https:'&&url.hostname.length>2?url.toString():undefined;}catch{return;}}
+function safePhone(value:unknown):string|undefined{return typeof value==='string'&&/^\+?[\d\s().-]{6,30}$/.test(value.trim())?value.trim():undefined;}
 export function normalizePois(data:unknown,latitude:number,longitude:number,at:string):Poi[]{
   if(!data || typeof data!=='object' || !Array.isArray((data as {elements?:unknown}).elements)) throw new PlaceSearchError('Nearby places returned an unexpected response.',502);
   const seen=new Set<string>();
@@ -18,8 +20,11 @@ export function normalizePois(data:unknown,latitude:number,longitude:number,at:s
     const distance=distanceKm(latitude,longitude,lat,lon);
     if(distance>7)return [];
     const id=`osm:${value.type}:${value.id}`;if(seen.has(id))return [];seen.add(id);
-    const name=tags.name.trim().slice(0,160),address=[tags['addr:street'],tags['addr:city']].filter(item=>typeof item==='string').join(', ').slice(0,300);
-    return [{id,name,address,latitude:lat,longitude:lon,category,sourceUrl:`https://www.openstreetmap.org/${value.type}/${value.id}`,fetchedAt:at,distanceKm:Math.round(distance*10)/10}];
+    const nativeName=tags.name.trim().slice(0,160);
+    const englishName=typeof tags['name:en']==='string'?tags['name:en'].trim().slice(0,160):'';
+    const name=englishName||nativeName,address=[tags['addr:street'],tags['addr:city']].filter(item=>typeof item==='string').join(', ').slice(0,300);
+    const hoursText=typeof tags.opening_hours==='string'?tags.opening_hours.trim().slice(0,160):undefined;
+    return [{id,name,nativeName:name!==nativeName?nativeName:undefined,address,latitude:lat,longitude:lon,category,website:safeWebsite(tags.website??tags['contact:website']),phone:safePhone(tags.phone??tags['contact:phone']),hoursText,sourceUrl:`https://www.openstreetmap.org/${value.type}/${value.id}`,fetchedAt:at,distanceKm:Math.round(distance*10)/10}];
   }).sort((a,b)=>a.distanceKm-b.distanceKm).slice(0,60);
 }
 export class PoiService {

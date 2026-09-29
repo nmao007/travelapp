@@ -20,6 +20,18 @@ test('nearby results are sourced named POIs with valid map positions',()=>{
   assert.throws(()=>normalizePois({},latitude,longitude,''));
 });
 
+test('nearby names prefer a sourced English label and retain the local name and contact details',()=>{
+  const places=normalizePois({elements:[{type:'node',id:5,lat:latitude,lon:longitude,tags:{tourism:'museum',name:'Museu do Azulejo','name:en':'National Tile Museum',website:'https://example.org/visit',phone:'+351 21 000 0000',opening_hours:'Tu-Su 10:00-18:00'}}]},latitude,longitude,'2026-09-28T00:00:00Z');
+  assert.equal(places[0].name,'National Tile Museum');
+  assert.equal(places[0].nativeName,'Museu do Azulejo');
+  assert.equal(places[0].website,'https://example.org/visit');
+  assert.equal(places[0].phone,'+351 21 000 0000');
+  assert.equal(places[0].hoursText,'Tu-Su 10:00-18:00');
+  const unsafe=normalizePois({elements:[{type:'node',id:6,lat:latitude,lon:longitude,tags:{tourism:'museum',name:'Museum',website:'javascript:alert(1)',phone:'not a number'}}]},latitude,longitude,'');
+  assert.equal(unsafe[0].website,undefined);
+  assert.equal(unsafe[0].phone,undefined);
+});
+
 test('nearby provider uses bounded coordinates and caches repeat requests',async()=>{
   let calls=0;
   const fetcher=async (_url,options)=>{calls++;const query=new URLSearchParams(options.body).get('data');assert.match(query,/around:4000,38\.7078,-9\.1366/);return new Response(JSON.stringify(nearby),{status:200});};

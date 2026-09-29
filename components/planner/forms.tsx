@@ -21,7 +21,7 @@ export function ComposerForm({ composer, trip, update, close }: { composer: Comp
   function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault(); const values = input(new FormData(e.currentTarget));
     try {
-      if (composer.type === 'entry') { const next = { ...makeEntry(trip, values, entry?.id), ...(entry?.place ? { place: entry.place } : {}) }; update({ ...trip, entries: entry ? trip.entries.map(item => item.id === entry.id ? next : item) : [...trip.entries, next] }); }
+      if (composer.type === 'entry') { const next = { ...makeEntry(trip, values, entry?.id), ...(entry?.place ? { place: entry.place } : {}), ...(entry?.date === values.date && entry?.order !== undefined ? { order: entry.order } : {}) }; update({ ...trip, entries: entry ? trip.entries.map(item => item.id === entry.id ? next : item) : [...trip.entries, next] }); }
       else if (composer.type === 'cost') update({ ...trip, costs: [...trip.costs, makeCost(trip, values)] });
       else if (composer.type === 'packing') update({ ...trip, packing: [...trip.packing, { id: uid(), title: values.title.trim(), group: values.group, done: false }] });
       else if (composer.type === 'check') update({ ...trip, checks: [...trip.checks, { id: uid(), title: values.title.trim(), group: values.group as 'Before leaving', done: false }] });

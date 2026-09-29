@@ -1,48 +1,66 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Icon } from '@/components/journey/icon';
-import { makeEntry, uid } from '@/lib/planner';
+import { addPlaceToTrip } from '@/lib/itinerary';
 import type { RealPlace } from '@/lib/place-service';
-import { days } from '@/lib/planner';
 import { formatDate } from '@/lib/domain';
+import { dayForArea } from '@/lib/recommendations';
 import type { ScreenProps } from './screens';
 import { Modal } from './forms';
 import { NearbyExplore } from './nearby-explore';
-export function PlaceSearch({ trip, update, day, compose }: ScreenProps) {
-  const [mode,setMode]=useState<'nearby'|'search'>('nearby');
-  const [query, setQuery] = useState(''), [destination, setDestination] = useState(trip.stops[0]), [results, setResults] = useState<RealPlace[]>([]), [searched, setSearched] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState(''), [detail, setDetail] = useState<RealPlace | null>(null), [notice, setNotice] = useState('');
-  const controller = useRef<AbortController | null>(null);
-  useEffect(() => () => controller.current?.abort(), []);
-  async function search(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault(); controller.current?.abort(); const next = new AbortController(); controller.current = next;
-    setBusy(true); setError(''); setNotice(''); setResults([]); setSearched(false);
-    try {
-      const response = await fetch(`/api/places?${new URLSearchParams({ q: query.trim(), destination })}`, { signal: next.signal });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Search is unavailable.');
-      if (!next.signal.aborted) { setResults(data.places); setSearched(true); }
-    } catch (err) { if (!next.signal.aborted) setError(err instanceof Error ? err.message : 'Search could not connect.'); }
-    finally { if (!next.signal.aborted) setBusy(false); }
-  }
+
+const suggestions = ['Museum', 'Viewpoint', 'Park', 'Café'];
+export function PlaceSearch({ trip, update, day, compose, navigate }: ScreenProps) {
+  const [mode, setMode] = useState<'nearby' | 'search'>('nearby');
+  const [query, setQuery] = useState(''), [destination, setDestination] = useState(trip.stops[0] || '');
+  const [results, setResults] = useState<RealPlace[]>([]);
+  const [resultsKey, setResultsKey] = useState('');
+  const [busy, setBusy] = useState(false), [error, setError] = useState('');
+  const [detail, setDetail] = useState<RealPlace | null>(null), [notice, setNotice] = useState('');
+
+  useEffect(() => {
+    if (mode !== 'search' || query.trim().length < 2) { setResults([]); setResultsKey(''); setBusy(false); setError(''); return; }
+    const controller = new AbortController();
+    const requestedKey = `${destination}:${query.trim()}`;
+    const timer = window.setTimeout(async () => {
+      setBusy(true); setError('');
+      try {
+        const response = await fetch(`/api/places?${new URLSearchParams({ q: query.trim(), destination })}`, { signal: controller.signal });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Search is unavailable.');
+        if (!controller.signal.aborted) { setResults(Array.isArray(data.places) ? data.places : []); setResultsKey(requestedKey); }
+      } catch (reason) { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : 'Search could not connect.'); }
+      finally { if (!controller.signal.aborted) setBusy(false); }
+    }, 460);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [mode, query, destination]);
+  useEffect(() => { if (!notice) return; const timer = window.setTimeout(() => setNotice(''), 4200); return () => window.clearTimeout(timer); }, [notice]);
+
   function add(place: RealPlace, date: string) {
-    const existing = trip.entries.find(e => e.place?.id === place.id && e.date === date);
-    if (existing) { setNotice(`${place.name} is already in ${date ? formatDate(date) : 'your saved ideas'}.`); setDetail(null); return; }
-    const entry = { ...makeEntry(trip, { title: place.name, date, location: place.address, notes: '' }, uid()), place };
-    update({ ...trip, entries: [...trip.entries, entry] });
-    setDetail(null); setNotice(`${place.name} added to ${date ? formatDate(date) : 'Ideas'}.`);
+    const result = addPlaceToTrip(trip, place, date);
+    if (result.trip !== trip) update(result.trip);
+    setDetail(null);
+    setNotice(result.action === 'already' ? `${place.name} is already in your trip.` : result.action === 'scheduled' ? `${place.name} moved to ${formatDate(date)}.` : `${place.name} added to ${date ? formatDate(date) : 'Ideas'}.`);
   }
-  const saved = trip.entries.filter(e => e.place);
+  const saved = trip.entries.filter(entry => entry.place);
+  const currentResults = resultsKey === `${destination}:${query.trim()}` ? results : [];
+  const hasSearched = resultsKey === `${destination}:${query.trim()}`;
+  const selectedDestination = trip.destinations?.[trip.stops.indexOf(destination)];
+  const suggestedDay = selectedDestination ? dayForArea(trip, day, selectedDestination) : trip.destinations?.length ? '' : day;
+  const quickAction = suggestedDay ? `Add to ${formatDate(day, { month: 'short', day: 'numeric' })}` : 'Save to Ideas';
   return <section className="m-explore"><div className="m-page-title"><h1>Explore</h1></div>
-    <div className="m-explore-switch" role="group" aria-label="Explore mode"><button type="button" aria-pressed={mode==='nearby'} onClick={()=>setMode('nearby')}>Nearby</button><button type="button" aria-pressed={mode==='search'} onClick={()=>setMode('search')}>Search places</button></div>
-    {mode==='nearby' ? <NearbyExplore trip={trip} update={update} day={day} openDetails={()=>compose({type:'settings'})}/> : <><div className="m-search-heading"><h2>Search places</h2>{trip.stops.length > 1 && <select aria-label="Search destination" value={destination} onChange={e => { setDestination(e.target.value); setResults([]); setSearched(false); }}>{trip.stops.map((stop,i) => <option key={`${stop}-${i}`}>{stop}</option>)}</select>}</div>
-    <form onSubmit={search} className="m-place-search"><label className="p-search-field"><Icon name="search" /><input aria-label="Search real places" value={query} onChange={e => setQuery(e.target.value)} minLength={2} maxLength={160} required placeholder={`Place name or type in ${destination.split(',')[0]}`} /></label><button className="p-primary" disabled={busy} type="submit">{busy ? 'Searching…' : 'Search'}</button></form>
-    <p className="m-provider-label">Public places only · <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap contributors</a></p>
-    {error && <p className="p-error" role="alert">{error}</p>}{notice && <p className="m-success" role="status">{notice}</p>}
-    {busy && <div className="m-place-loading" role="status">Finding places…</div>}
-    {!busy && searched && !results.length && <div className="m-quiet-empty">No matches. Try a specific place name.</div>}
-    {!!results.length && <div className="m-place-results">{results.map(place => <article key={place.id}><span className="m-result-icon"><Icon name="pin" /></span><button className="m-result-summary" onClick={() => setDetail(place)}><strong>{place.name}</strong><span>{place.address}</span></button><button className="p-icon-button" aria-label={`Save ${place.name} to ideas`} onClick={() => add(place, '')}><Icon name="plus" /></button></article>)}</div>}
-    {!searched && !busy && !error && <div className="m-quiet-empty">Search for a museum, café, landmark, or neighborhood.</div>}</>}
-    {!!saved.length && <section className="m-saved-places"><h2>Saved places <span className="p-count">{saved.length}</span></h2>{saved.map(e => <button key={e.id} onClick={() => setDetail(e.place!)}><Icon name="pin" size={17} /><strong>{e.title}</strong><span>{e.date ? formatDate(e.date) : 'Idea'}</span><Icon name="chevron" size={16} /></button>)}</section>}
-    {detail && <Modal title={detail.name} close={() => setDetail(null)}><div className="m-place-detail"><p>{detail.address}</p><dl><dt>Category</dt><dd>{detail.category}</dd><dt>Source</dt><dd><a href={detail.sourceUrl} target="_blank" rel="noreferrer">OpenStreetMap ↗</a></dd></dl><p className="m-detail-note">Hours, tickets, ratings, and availability are not supplied by this lookup.</p><form onSubmit={e => {e.preventDefault();add(detail, String(new FormData(e.currentTarget).get('date') || ''));}}><label className="p-field"><span>Add to</span><select name="date" defaultValue={day || ''}><option value="">Unscheduled ideas</option>{days(trip).map(date => <option key={date} value={date}>{formatDate(date,{weekday:'short',month:'short',day:'numeric'})}</option>)}</select></label><button className="p-primary" type="submit">Add to plan</button></form></div></Modal>}
+    <div className="m-explore-switch" role="group" aria-label="Explore mode"><button type="button" aria-pressed={mode === 'nearby'} onClick={() => setMode('nearby')}>Discover</button><button type="button" aria-pressed={mode === 'search'} onClick={() => setMode('search')}>Search</button></div>
+    {mode === 'nearby' ? <NearbyExplore trip={trip} update={update} day={day} openDetails={() => compose({ type:'settings' })} openPlan={date => navigate('plan', undefined, date || day)}/> : <>
+      <div className="m-search-heading"><h2>Find a place</h2>{trip.stops.length > 1 && <div className="m-destination-picks" role="group" aria-label="Search destination">{trip.stops.map((stop, index) => <button key={`${stop}-${index}`} type="button" aria-pressed={destination === stop} onClick={() => setDestination(stop)}>{stop}</button>)}</div>}</div>
+      <label className="m-live-search"><Icon name="search" size={20}/><input aria-label="Search places" value={query} onChange={event => setQuery(event.target.value)} maxLength={160} autoComplete="off" placeholder={`What sounds good in ${destination.split(',')[0]}?`}/>{query && <button type="button" aria-label="Clear search" onClick={() => setQuery('')}><Icon name="close" size={16}/></button>}</label>
+      {!query.trim() && <div className="m-search-suggestions" aria-label="Try a search">{suggestions.map(value => <button type="button" key={value} onClick={() => setQuery(value)}>{value}</button>)}</div>}
+      {error && <p className="p-error" role="alert">{error}</p>}{notice && <p className="m-nearby-notice" role="status"><Icon name="check" size={16}/>{notice}</p>}
+      {busy && <div className="m-live-status" role="status">Finding matches…</div>}
+      {!busy && hasSearched && !error && !currentResults.length && <div className="m-quiet-empty">No matches. Try a place name or another category.</div>}
+      {!!currentResults.length && <div className="m-place-results">{currentResults.map(place => { const existing = trip.entries.find(entry => entry.place?.id === place.id); return <article key={place.id}><span className="m-result-icon"><Icon name="pin"/></span><button className="m-result-summary" onClick={() => setDetail(place)}><strong>{place.name}</strong><span>{place.address}{existing ? ' · In your trip' : ''}</span></button><button className="p-icon-button" aria-label={existing ? `View ${place.name} in Plan` : `${quickAction}: ${place.name}`} onClick={() => existing ? navigate('plan', undefined, existing.date || day) : add(place, suggestedDay)}><Icon name={existing ? 'check' : 'plus'}/></button></article>; })}</div>}
+      <p className="m-provider-label">Places from <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a></p>
+    </>}
+    {!!saved.length && <section className="m-saved-places"><h2>In your trip <span className="p-count">{saved.length}</span></h2>{saved.slice(0, 4).map(entry => <button key={entry.id} onClick={() => navigate('plan', undefined, entry.date || day)}><Icon name="pin" size={17}/><strong>{entry.title}</strong><span>{entry.date ? formatDate(entry.date) : 'Idea'}</span><Icon name="chevron" size={16}/></button>)}</section>}
+    {detail && <Modal title={detail.name} close={() => setDetail(null)}><div className="m-place-detail"><p>{detail.nativeName && <span className="m-native-name">Locally: {detail.nativeName}<br/></span>}{detail.address}</p><p className="m-detail-note">Hours and ticket availability are not supplied by this lookup.</p><a href={detail.sourceUrl} target="_blank" rel="noreferrer">Source details ↗</a>{trip.entries.some(entry => entry.place?.id === detail.id && entry.date) ? <button className="p-primary" onClick={() => navigate('plan', undefined, trip.entries.find(entry => entry.place?.id === detail.id)?.date || day)}>View in Plan</button> : <div className="m-place-quick-actions"><button className="p-primary" onClick={() => add(detail, suggestedDay)}>{quickAction} <Icon name="plus" size={16}/></button>{suggestedDay && <button className="p-secondary" onClick={() => add(detail, '')}>Save for later</button>}</div>}</div></Modal>}
   </section>;
 }

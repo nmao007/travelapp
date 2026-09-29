@@ -4,6 +4,8 @@ import "@/components/planner/planner.css";
 import "@/components/planner/minimal.css";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "@/components/planner/destination.css";
+import "@/components/planner/plan-interactions.css";
+import "@/components/planner/map-discovery.css";
 
 export const metadata: Metadata = {
   title: "TripPilot — Your whole trip, together",

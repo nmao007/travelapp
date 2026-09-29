@@ -15,6 +15,10 @@ test('provider data is validated and source links cannot inject arbitrary URLs',
   assert.equal(places.length,1);assert.equal(places[0].id,'osm:way:123');assert.equal(places[0].sourceUrl,'https://www.openstreetmap.org/way/123');assert.equal(places[0].latitude,35.5);
   assert.throws(() => normalizePlaces({},''));
 });
+test('the same named result is not shown twice when the provider returns multiple geometry records', () => {
+  const places=normalizePlaces([record,{...record,osm_type:'node',osm_id:124}], '2026-09-28T00:00:00Z');
+  assert.equal(places.length,1);
+});
 test('search terms are bounded and combined with the selected destination', () => {
   assert.equal(placeQuery('  museum  ','Tokyo, Japan'),'museum, Tokyo, Japan');
   assert.equal(placeQuery('museum, Tokyo, Japan','Tokyo, Japan'),'museum, Tokyo, Japan');

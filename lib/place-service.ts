@@ -2,6 +2,7 @@
 export type RealPlace = {
   id: string; name: string; address: string; latitude: number; longitude: number;
   category: string; sourceUrl: string; fetchedAt: string; country?: string; region?: string;
+  nativeName?: string; website?: string; phone?: string; hoursText?: string;
 };
 export class PlaceSearchError extends Error {
   status: number;
@@ -10,6 +11,7 @@ export class PlaceSearchError extends Error {
 export function normalizePlaces(data: unknown, fetchedAt: string): RealPlace[] {
   if (!Array.isArray(data)) throw new PlaceSearchError('The place service returned an unexpected response.', 502);
   const seen = new Set<string>();
+  const seenNames = new Set<string>();
   return data.slice(0, 8).flatMap((raw: unknown) => {
     if (!raw || typeof raw !== 'object') return [];
     const value = raw as Record<string, unknown>;
@@ -20,6 +22,9 @@ export function normalizePlaces(data: unknown, fetchedAt: string): RealPlace[] {
     const id = `osm:${value.osm_type}:${value.osm_id}`;
     if (seen.has(id)) return [];
     seen.add(id);
+    const labelKey = value.display_name.toLocaleLowerCase('en').replace(/\s+/g, ' ').trim();
+    if (seenNames.has(labelKey)) return [];
+    seenNames.add(labelKey);
     const address = value.address && typeof value.address === 'object' ? value.address as Record<string, unknown> : {};
     return [{ country: typeof address.country === 'string' ? address.country.slice(0, 100) : undefined, region: typeof address.state === 'string' ? address.state.slice(0, 100) : undefined, id, name: (typeof value.name === 'string' && value.name.trim() ? value.name : value.display_name.split(',')[0]).slice(0, 160), address: value.display_name.slice(0, 300), latitude, longitude, category: typeof value.type === 'string' ? value.type.replaceAll('_', ' ').slice(0, 50) : 'Place', sourceUrl: `https://www.openstreetmap.org/${value.osm_type}/${value.osm_id}`, fetchedAt }];
   });

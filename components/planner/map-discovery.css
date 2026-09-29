@@ -1,0 +1,94 @@
+.m-map-discovery { position:relative; }
+.m-search-area { position:absolute; z-index:4; top:13px; left:50%; transform:translateX(-50%); display:inline-flex; align-items:center; gap:7px; white-space:nowrap; min-height:40px; padding:0 15px; border:1px solid #d5dfed; border-radius:999px; background:#fff; box-shadow:0 5px 18px #1d2b4250; color:#243e67; font:inherit; font-size:12px; font-weight:650; cursor:pointer; }
+.m-search-area:hover { background:#f3f7fd; }
+.m-area-reset { margin:12px 0 2px; padding:8px 0; border:0; background:transparent; color:#355985; font:inherit; font-size:12px; font-weight:600; cursor:pointer; }
+.m-poi-pin,.m-poi-pin.m-trip-pin { display:inline-flex; align-items:center; gap:0; width:auto; height:42px; padding:4px 10px 4px 4px; border:1px solid #fff; border-radius:999px; background:#fff; box-shadow:0 3px 15px #172b4860; color:#243346; font:600 11px/1.1 'DM Sans',system-ui,sans-serif; white-space:nowrap; cursor:pointer; transform:none; transition:box-shadow .18s ease,transform .18s ease; }
+.m-poi-pin-icon { display:grid; place-items:center; flex:none; width:32px; height:32px; border-radius:50%; background:#3d679d; color:#fff; }
+.m-poi-food .m-poi-pin-icon { background:#b75f47; }
+.m-poi-culture .m-poi-pin-icon { background:#76519a; }
+.m-poi-nature .m-poi-pin-icon { background:#3c896a; }
+.m-poi-pin-label { display:block; overflow:hidden; max-width:118px; margin-left:7px; text-overflow:ellipsis; }
+.m-poi-pin.compact { width:42px; padding:4px; }
+.m-poi-pin.compact .m-poi-pin-label { display:none; }
+.m-poi-pin.m-trip-pin { border:2px solid #243f70; padding:3px 9px 3px 3px; }
+.m-poi-pin.m-trip-pin .m-poi-pin-icon { background:#243f70; }
+.m-poi-pin.m-trip-pin.idea { border-color:#6b7888; background:#fff; }
+.m-poi-pin.m-trip-pin.idea .m-poi-pin-icon { background:#6b7888; }
+.m-poi-pin:hover,.m-poi-pin:focus-visible,.m-poi-pin.selected { transform:translateY(-3px); box-shadow:0 7px 20px #172b4880; outline:2px solid #203f73; outline-offset:2px; z-index:2; }
+.m-poi-pin.compact:hover .m-poi-pin-label,.m-poi-pin.compact:focus-visible .m-poi-pin-label { display:block; }
+.m-poi-pin.compact:hover,.m-poi-pin.compact:focus-visible { width:auto; padding-right:10px; }
+.m-nearby-map { height:500px; }
+.p-plan-map>.m-google-map { width:100%; height:100%; border-radius:0; }
+.m-nearby-cards article:has(button[title="In your trip"]) .m-nearby-card-main strong { color:#274779; }
+.m-nearby-top { margin-bottom:18px; }
+.m-nearby-top p { margin-top:5px; }
+.m-nearby-top-actions { display:flex; align-items:center; gap:9px; flex-wrap:wrap; justify-content:flex-end; }
+.m-near-me { display:inline-flex; align-items:center; gap:5px; min-height:36px; padding:5px 10px; border:1px solid #cedbea; border-radius:999px; background:#eef5fd; color:#315d8b; font:700 11px 'DM Sans',system-ui,sans-serif; white-space:nowrap; cursor:pointer; }
+.m-near-me:hover { background:#deecfa; }.m-near-me:disabled { opacity:.55; cursor:wait; }
+.m-location-error { margin:0 0 10px; color:#925344; font-size:11px; }
+.m-destination-picks { display:flex; align-items:center; gap:5px; flex-wrap:wrap; }
+.m-destination-picks button { min-height:36px; border:1px solid #e3e9ee; border-radius:999px; background:#fff; color:#607086; padding:5px 12px; font:600 12px 'DM Sans',system-ui,sans-serif; cursor:pointer; }
+.m-destination-picks button[aria-pressed=true] { background:#23426e; color:#fff; border-color:#23426e; }
+.m-nearby-categories { padding-bottom:6px; margin-bottom:18px; }
+.m-nearby-section-head { display:flex; justify-content:space-between; align-items:baseline; gap:9px; margin:0 0 10px; }
+.m-nearby-section-head h3 { margin:0; font-size:14px; font-weight:700; letter-spacing:-.2px; color:#253349; }
+.m-nearby-section-head span { color:#8490a0; font-size:10px; line-height:1.4; text-align:right; }
+.m-pick-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+.m-pick-card { display:flex; flex-direction:column; min-height:178px; border:1px solid #e4e9ee; border-radius:12px; overflow:hidden; background:#f8fafc; transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease; }
+.m-pick-card:hover { transform:translateY(-2px); box-shadow:0 8px 22px #233c5b16; border-color:#c9d8e6; }
+.m-pick-main { flex:1; display:flex; flex-direction:column; align-items:flex-start; gap:6px; width:100%; padding:13px 11px 7px; border:0; background:transparent; text-align:left; color:#23364f; cursor:pointer; }
+.m-pick-icon { display:grid; place-items:center; width:29px; height:29px; border-radius:9px; background:#e5eef9; color:#3c689e; }
+.m-pick-food .m-pick-icon { background:#fbeae3; color:#a75742; }
+.m-pick-culture .m-pick-icon { background:#eee6f5; color:#76519a; }
+.m-pick-nature .m-pick-icon { background:#e1f2e9; color:#3c896a; }
+.m-pick-main small { color:#758397; font-size:9px; line-height:1.25; }
+.m-pick-main strong { display:-webkit-box; overflow:hidden; -webkit-line-clamp:2; -webkit-box-orient:vertical; font-size:12px; line-height:1.3; font-weight:700; }
+.m-native-name { color:#7e8998; font-size:10px; line-height:1.3; }
+.m-pick-action { min-height:37px; padding:8px 11px; border:0; border-top:1px solid #e3eaf0; background:#fff; color:#294e7c; font:700 10px 'DM Sans',system-ui,sans-serif; text-align:left; cursor:pointer; }
+.m-pick-action:hover { background:#eef4fa; }
+.m-nearby-more { margin-top:22px; }
+.m-nearby-cards { max-height:none; overflow:visible; }
+.m-nearby-cards article { gap:9px; min-height:67px; }
+.m-list-place-icon { display:grid; place-items:center; flex:none; width:31px; height:31px; border-radius:9px; background:#e5eef9; color:#3c689e; }
+.m-list-food { background:#fbeae3; color:#a75742; }.m-list-culture { background:#eee6f5; color:#76519a; }.m-list-nature { background:#e1f2e9; color:#3c896a; }
+.m-nearby-card-main { padding:10px 0; gap:3px; }
+.m-nearby-card-main strong { font-size:12px; }.m-nearby-card-main small { font-size:10px; }
+.m-nearby-cards article>button:last-child { display:grid; place-items:center; min-width:38px; min-height:40px; padding:8px; }
+.m-show-more { display:flex; align-items:center; gap:5px; min-height:40px; margin-top:7px; border:0; background:transparent; color:#315984; font:600 11px 'DM Sans',system-ui,sans-serif; cursor:pointer; }
+.m-nearby-progress { color:#4d6c95; font-size:11px; margin:4px 0 11px; }
+.m-nearby-notice { display:flex; align-items:center; gap:6px; padding:9px 10px; border-radius:8px; background:#edf7ef; color:#357249; font-size:11px; }
+.m-nearby-error { display:flex; align-items:center; justify-content:space-between; gap:7px; margin:0 0 12px; padding:10px 11px; }
+.m-nearby-error button { border:0; background:transparent; color:inherit; font:700 11px 'DM Sans',system-ui,sans-serif; cursor:pointer; }
+.m-place-links { display:flex; gap:13px; flex-wrap:wrap; margin-top:8px; }
+.m-place-links a { color:#3e628e; font-size:11px; }
+.m-nearby-selected .m-native-name { color:#748092; font-size:11px; margin:1px 0 5px; }
+.m-nearby-selected>.p-primary { margin-top:13px; }
+.m-detail-secondary { display:block; width:100%; min-height:34px; margin-top:7px; border:0; background:transparent; color:#3a5d89; font:600 11px 'DM Sans',system-ui,sans-serif; cursor:pointer; }
+.m-live-search { display:flex; align-items:center; gap:11px; min-height:54px; width:100%; padding:8px 15px; border:1px solid #cad5e3; border-radius:13px; background:#fff; box-shadow:0 4px 18px #223b5c0b; color:#4b6688; }
+.m-live-search:focus-within { border-color:#527eaf; box-shadow:0 0 0 3px #dceafa; }
+.m-live-search input { flex:1; min-width:0; border:0; outline:0; background:transparent; font:500 15px 'DM Sans',system-ui,sans-serif; color:#24374f; }
+.m-live-search input::placeholder { color:#9aa6b6; }
+.m-live-search button { display:grid; place-items:center; width:30px; height:30px; border:0; border-radius:50%; background:#f1f4f7; color:#6a7b90; cursor:pointer; }
+.m-search-suggestions { display:flex; flex-wrap:wrap; gap:7px; margin-top:14px; }
+.m-search-suggestions button { min-height:37px; padding:6px 12px; border:1px solid #e0e7ee; border-radius:999px; background:#fff; color:#4c6380; font:600 12px 'DM Sans',system-ui,sans-serif; cursor:pointer; }
+.m-search-suggestions button:hover { background:#f0f5fb; }
+.m-live-status { color:#607795; font-size:12px; padding:18px 0 0; }
+.m-place-quick-actions { display:flex; gap:8px; margin-top:20px; }
+.m-place-quick-actions>.p-primary { flex:1; justify-content:space-between; }
+.m-place-detail>a { display:inline-block; margin:4px 0; font-size:12px; }
+@container planner (min-width:721px) {
+  .m-nearby-layout aside>.m-nearby-selected { position:absolute; left:12px; top:12px; width:min(340px,calc(100% - 24px)); z-index:3; margin:0; box-shadow:0 10px 32px #172b4833; animation:m-place-sheet-in .2s ease-out; }
+}
+@keyframes m-place-sheet-in { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+@container planner (max-width:720px) { .m-search-area { top:10px; min-height:38px; } .m-nearby-map { height:320px; } .m-poi-pin:not(.m-trip-pin) .m-poi-pin-label { display:none; } .m-poi-pin:not(.m-trip-pin) { width:42px; padding:4px; } .m-poi-pin:not(.m-trip-pin):focus-visible .m-poi-pin-label { display:block; } .m-pick-grid { gap:6px; } .m-pick-card { min-height:159px; } .m-pick-main { padding:10px 8px 6px; } .m-pick-main strong { font-size:11px; } .m-pick-action { padding:7px 8px; } .m-nearby-top-actions { justify-content:flex-start; width:100%; } .m-destination-picks { max-width:calc(100% - 94px); overflow:auto; flex-wrap:nowrap; } .m-destination-picks button { white-space:nowrap; } }
+@media (prefers-reduced-motion:reduce) { .m-poi-pin.selected { transition:none; } }
+@media (prefers-reduced-motion:reduce) { .m-nearby-layout aside>.m-nearby-selected { animation:none; } }
+.m-pick-grid { grid-template-columns:1fr; gap:7px; }
+.m-pick-card { flex-direction:row; align-items:stretch; min-height:70px; }
+.m-pick-main { display:grid; grid-template-columns:36px minmax(0,1fr); grid-template-rows:auto auto; align-content:center; column-gap:10px; row-gap:2px; padding:10px 12px; min-width:0; }
+.m-pick-icon { grid-row:1/3; width:34px; height:34px; }
+.m-pick-main small { font-size:10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.m-pick-main strong { grid-column:2; display:block; min-width:0; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.m-pick-main .m-native-name { display:none; }
+.m-pick-action { flex:none; width:119px; min-height:70px; border-top:0; border-left:1px solid #e3eaf0; font-size:11px; text-align:center; }
+@container planner (max-width:720px) { .m-pick-card { min-height:69px; } .m-pick-main { padding:9px; } .m-pick-main strong { font-size:12px; } .m-pick-action { width:104px; min-height:69px; padding:8px; } }
