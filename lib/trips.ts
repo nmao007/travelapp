@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { type Trip, type Activity, type Expense, type PackingItem } from "@/lib/domain";
+import { type Trip, type Activity, type Expense, type PackingItem, type TripDestination, type TransportSegment } from "@/lib/domain";
 export { formatTripDates } from "@/lib/domain";
 
 export type { Trip } from "@/lib/domain";
@@ -11,6 +11,19 @@ export async function getWorkspaceAvailability(): Promise<boolean> {
   if (!error) return true;
   if (["42703", "PGRST204"].includes(error.code)) return false;
   throw new Error("Unable to check trip availability.");
+}
+
+export async function getItineraryAvailability(): Promise<boolean> {
+  const supabase = await createClient();
+  const { error } = await supabase.from("trip_destinations").select("id").limit(0);
+  if (!error) {
+    const transport = await supabase.from("transport_segments").select("id").limit(0);
+    if (!transport.error) return true;
+    if (["42P01", "PGRST205"].includes(transport.error.code)) return false;
+    throw new Error("Unable to check itinerary availability.");
+  }
+  if (["42P01", "PGRST205"].includes(error.code)) return false;
+  throw new Error("Unable to check itinerary availability.");
 }
 
 export async function getTrip(id: string): Promise<Trip & { workspace_available: boolean }> {
@@ -49,3 +62,5 @@ async function getRecords<T>(tripId: string, table: string, columns: string, ord
 export const getActivities = (tripId: string) => getRecords<Activity>(tripId, "activities", "id,trip_id,title,category,date,time,time_zone,location,notes", "date");
 export const getExpenses = (tripId: string) => getRecords<Expense>(tripId, "expenses", "id,trip_id,title,amount_minor,category,date,notes", "date");
 export const getPackingItems = (tripId: string) => getRecords<PackingItem>(tripId, "packing_items", "id,trip_id,name,category,packed", "category");
+export const getTripDestinations = (tripId: string) => getRecords<TripDestination>(tripId, "trip_destinations", "id,trip_id,name,date,is_primary", "date");
+export const getTransportSegments = (tripId: string) => getRecords<TransportSegment>(tripId, "transport_segments", "id,trip_id,mode,service_id,departure_location,arrival_location,departure_date,departure_time,departure_time_zone,arrival_date,arrival_time,arrival_time_zone,notes", "departure_date");
