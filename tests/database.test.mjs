@@ -23,7 +23,7 @@ before(async () => {
     grant execute on function auth.uid() to authenticated, anon;
     alter default privileges in schema public grant select, insert, update, delete on tables to authenticated;
     insert into auth.users values ('${alice}'),('${bob}');`);
-  for (const file of ["202609250001_create_trips.sql", "202609260001_ensure_trips_table.sql", "202609270001_trip_workspace.sql"]) {
+  for (const file of ["202609250001_create_trips.sql", "202609260001_ensure_trips_table.sql", "202609270001_trip_workspace.sql", "202609290001_trip_itinerary.sql"]) {
     await db.exec(await readFile(new URL(`../supabase/migrations/${file}`, import.meta.url), "utf8"));
   }
   await asUser(alice);
@@ -31,6 +31,8 @@ before(async () => {
   await db.query("insert into activities(id,trip_id,title,category,date,time,time_zone) values ($1,$2,'Museum','Activity','2026-09-28','10:00','Asia/Tokyo')", [activity, trip]);
   await db.query("insert into expenses(id,trip_id,title,amount_minor,currency,category,date) values ($1,$2,'Lunch',1250,'USD','Food','2026-09-28')", [expense, trip]);
   await db.query("insert into packing_items(id,trip_id,name,category) values ($1,$2,'Passport','Essentials')", [item, trip]);
+  await db.query("insert into trip_destinations(trip_id,name,date) values ($1,'Porto','2026-09-29')", [trip]);
+  await db.query("insert into transport_segments(trip_id,mode,service_id,departure_location,arrival_location,departure_date,departure_time,departure_time_zone,arrival_date,arrival_time,arrival_time_zone) values ($1,'Train','IC 720','Lisbon Santa Apolónia','Porto Campanhã','2026-09-29','09:00','Europe/Lisbon','2026-09-29','11:45','Europe/Lisbon')", [trip]);
   await asUser(bob);
   await db.query("insert into trips(id,user_id,title,destination,start_date,end_date) values ($1,$2,'Other trip','Rome','2026-09-27','2026-10-01')", [other, bob]);
 });
@@ -41,6 +43,12 @@ test("owners can read and update their trip records", async () => {
   assert.equal((await db.query("select * from activities")).rows.length, 1);
   assert.equal((await db.query("select * from expenses")).rows.length, 1);
   assert.equal((await db.query("update packing_items set packed=true where id=$1 returning packed", [item])).rows[0].packed, true);
+  assert.equal((await db.query("select name from trip_destinations where trip_id=$1 order by is_primary desc, date", [trip])).rows.map((row) => row.name).join(","), "Tokyo,Porto");
+  assert.equal((await db.query("select service_id from transport_segments where trip_id=$1", [trip])).rows[0].service_id, "IC 720");
+  await assert.rejects(db.query("delete from trip_destinations where trip_id=$1 and is_primary", [trip]), /main trip destination cannot be removed/);
+  await assert.rejects(db.query("insert into trip_destinations(trip_id,name,date) values ($1,'Outside','2026-10-05')", [trip]), /Destination date must be inside trip dates/);
+  await db.query("update trips set destination='Portugal' where id=$1", [trip]);
+  assert.equal((await db.query("select name from trip_destinations where trip_id=$1 and is_primary", [trip])).rows[0].name, "Portugal");
 });
 
 test("another user cannot read, update, delete or insert records on a foreign trip", async () => {
@@ -49,15 +57,21 @@ test("another user cannot read, update, delete or insert records on a foreign tr
     assert.equal((await db.query(`select * from ${table} where trip_id=$1`, [trip])).rows.length, 0);
     assert.equal((await db.query(`delete from ${table} where trip_id=$1 returning id`, [trip])).rows.length, 0);
   }
+  assert.equal((await db.query("select * from trip_destinations where trip_id=$1", [trip])).rows.length, 0);
+  assert.equal((await db.query("select * from transport_segments where trip_id=$1", [trip])).rows.length, 0);
   assert.equal((await db.query("update activities set title='Stolen' where id=$1 returning id", [activity])).rows.length, 0);
   await assert.rejects(db.query("insert into packing_items(trip_id,name,category) values ($1,'Intruder','Essentials')", [trip]));
   await assert.rejects(db.query("insert into activities(trip_id,title,category,date,time_zone) values ($1,'Intruder','Activity','2026-09-28','UTC')", [trip]));
   await assert.rejects(db.query("insert into expenses(trip_id,title,amount_minor,currency,category,date) values ($1,'Intruder',100,'USD','Other','2026-09-28')", [trip]));
+  await assert.rejects(db.query("insert into trip_destinations(trip_id,name,date) values ($1,'Intruder','2026-09-28')", [trip]));
+  await assert.rejects(db.query("insert into transport_segments(trip_id,mode,service_id,departure_location,arrival_location,departure_date,departure_time,departure_time_zone,arrival_date,arrival_time,arrival_time_zone) values ($1,'Train','IC 1','A','B','2026-09-28','10:00','UTC','2026-09-28','11:00','UTC')", [trip]));
 });
 
 test("unauthenticated users cannot access workspace tables", async () => {
   await db.exec("reset role; set role anon;");
   await assert.rejects(db.query("select * from packing_items"), /permission denied/);
+  await assert.rejects(db.query("select * from trip_destinations"), /permission denied/);
+  await assert.rejects(db.query("select * from transport_segments"), /permission denied/);
 });
 
 test("records cannot be reassigned between trips, even for the same owner", async () => {
