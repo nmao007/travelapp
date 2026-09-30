@@ -12,6 +12,13 @@ export type Activity = {
   id: string; trip_id: string; title: string; category: string; date: string;
   time: string | null; time_zone: string; location: string; notes: string;
 };
+export type TripDestination = { id: string; trip_id: string; name: string; date: string; is_primary: boolean };
+export type TransportSegment = {
+  id: string; trip_id: string; mode: "Flight" | "Train"; service_id: string;
+  departure_location: string; arrival_location: string; departure_date: string;
+  departure_time: string; departure_time_zone: string; arrival_date: string;
+  arrival_time: string; arrival_time_zone: string; notes: string;
+};
 export type Expense = {
   id: string; trip_id: string; title: string; amount_minor: number;
   category: string; date: string; notes: string;

@@ -1,11 +1,156 @@
+# PRODUCT.md
+
 # TripPilot
 
-**Redesign approved September 27, 2026. Implementation is underway.**
+## Vision
 
-The comprehensive coverage specification is [docs/MASTER_PLAN.md](docs/MASTER_PLAN.md). The latest [assistant-first revision](docs/ASSISTANT_FIRST_REVISION.md) takes precedence for interaction, navigation, contextual home, commerce acceptance and milestone order: **Today · Explore · Trip · You**, selection/import before manual entry, and genuine in-app purchasing for supported services. The existing implementation does not yet match those revised flows.
+TripPilot is a collaborative travel planning app focused on organizing and executing trips—not booking them.
 
-The new guest workspace is at `/workspace`; `/preview` provides development-only desktop and iPhone layout review. This is the first web foundation of the approved product, not completion of its native apps or provider integrations. See [docs/MINIMAL_UI_AND_REAL_DATA.md](docs/MINIMAL_UI_AND_REAL_DATA.md) for the prior implementation milestone, and [docs/REDESIGN_PROGRESS.md](docs/REDESIGN_PROGRESS.md) for earlier behavior, validation, and outstanding work. The assistant-first correction guides the implementation milestones; no flight tracking or booking capability is claimed.
+The MVP helps groups plan trips together with a visual itinerary, drag-and-drop scheduling, and a clean overview of everything happening each day.
 
-The latest implementation checkpoint is [map and discovery polish](docs/GOOGLE_MAPS_DISCOVERY.md): larger labeled pins, distance-based suggestions, live place search, fewer forms, and an optional Google Maps renderer that still needs authorized credentials for live verification. The prior [day planning](docs/PLAN_WORKFLOW_MILESTONE.md) and [multi-city and nearby](docs/MULTI_CITY_AND_NEARBY_MILESTONE.md) checkpoints cover the connected planning flow. The complete [Wanderlog/TripIt parity register](docs/WANDERLOG_TRIPIT_PARITY.md) tracks every requested capability and its honest implementation state. The contextual Today dashboard, native apps, cloud sync, reservation import, live flights and production marketplace remain incomplete.
+---
 
-Supabase administration is unavailable in this setup. Continue local work without weakening account authorization or claiming that cloud synchronization is connected.
+## MVP Features
+
+### Flight / Train Manager
+
+Users can add transportation between destinations.
+
+Each booking includes:
+
+- Flight/train ID
+- Departure location
+- Arrival location
+- Local departure time
+- Local arrival time
+
+Transportation automatically appears in the trip itinerary. Show local departure time and local arrival time.
+
+---
+
+### Interactive Map
+
+Every trip has a map showing:
+
+- Planned destinations
+- Hotels
+- Activities
+- Suggested nearby attractions for open days
+
+The map helps users discover things to do while planning.
+
+---
+
+### Trip Itinerary
+
+The main planning view.
+
+Features:
+
+- List or calendar view
+- Multiple destinations per trip
+- Flights/trains displayed between destinations
+- Days organized chronologically
+- Each day contains its scheduled events
+
+---
+
+### Single Day View
+
+Dedicated page for one day of the trip.
+
+Displays:
+
+- Timeline of events
+- Transportation
+- Reservations
+- Custom activities
+
+Designed for easy viewing while traveling.
+
+---
+
+### Collaboration
+
+Trips can have multiple members.
+
+Features:
+
+- Shared editing
+- Multiple collaborators
+- User roles and permissions
+
+---
+
+### Drag-and-Drop Planning
+
+Core interaction of the app.
+
+Users can:
+
+- Drag custom events between days
+- Reorder events within a day
+- Rearrange the trip itinerary visually
+
+Transportation bookings (flights/trains) are fixed and cannot be dragged.
+
+Temporary events can be moved freely until they become confirmed reservations.
+
+---
+
+### Transportation & Booking Cards
+
+Flights, trains, hotels, and reservations are displayed as standardized cards throughout the itinerary and day views.
+
+Each card contains relevant booking information and integrates into the trip timeline.
+
+---
+
+## Tech Stack
+
+- Next.js (App Router)
+- TypeScript
+- Tailwind CSS
+- Supabase
+- PostgreSQL
+- Vercel
+
+---
+
+## Design Principles
+
+- Mobile-first
+- Responsive
+- Minimal UI
+- Fast interactions
+- Drag-and-drop everywhere appropriate
+- Beautiful, polished experience
+- Collaboration-first
+
+---
+
+## Coding Rules
+
+- Use strict TypeScript
+- Build reusable components
+- Keep code modular
+- Minimize dependencies
+- Preserve project architecture
+- Do not modify unrelated files
+- Explain implementation plan before coding
+
+---
+
+## Out of Scope (MVP)
+
+Do **not** implement:
+
+- AI features
+- Email/Gmail import
+- Automatic itinerary generation
+- Payments
+- Booking services
+- Budget tracking
+- Packing lists
+- Social feed
+- Reviews
