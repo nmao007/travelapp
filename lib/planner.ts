@@ -2,7 +2,7 @@ import type { Destination } from './destination.ts';
 import type { RealPlace } from './place-service.ts';
 import { isDate, isTimeZone, parseMoney, activityInstant, currencyDigits, dateInZone } from './domain.ts';
 
-export type View = 'trip' | 'plan' | 'explore' | 'essentials';
+export type View = 'itinerary' | 'transportation' | 'explore' | 'trip' | 'plan' | 'essentials';
 export type Resource = 'reservations' | 'documents' | 'readiness' | 'packing' | 'money' | 'connectivity' | 'basics';
 export type Entry = { id: string; title: string; kind: 'Activity' | 'Flight' | 'Stay' | 'Transport' | 'Food'; date: string; time: string; zone: string; location: string; notes: string; reference: string; booked: boolean; place?: RealPlace; order?: number };
 export type Check = { id: string; title: string; group: 'Before leaving' | 'On the trip' | 'Coming home'; done: boolean };

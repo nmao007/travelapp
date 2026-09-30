@@ -74,6 +74,62 @@ export function PlanScreen({ trip, day, setDay, compose, update, navigate }: Scr
   </>;
 }
 export function ExploreScreen(props: ScreenProps) { return <PlaceSearch {...props} />; }
+
+type CalendarMonth = { key: string; label: string; weeks: string[][] };
+function itineraryMonths(dates: string[]): CalendarMonth[] {
+  const grouped = new Map<string, string[]>();
+  for (const date of dates) {
+    const key = date.slice(0, 7);
+    grouped.set(key, [...(grouped.get(key) ?? []), date]);
+  }
+  return [...grouped].map(([key, monthDates]) => {
+    const first = new Date(`${key}-01T12:00:00Z`);
+    const cells = [...Array(first.getUTCDay()).fill(''), ...monthDates];
+    while (cells.length % 7) cells.push('');
+    const weeks: string[][] = [];
+    for (let index = 0; index < cells.length; index += 7) weeks.push(cells.slice(index, index + 7));
+    return { key, label: new Intl.DateTimeFormat('en', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(first), weeks };
+  });
+}
+
+export function ItineraryScreen(props: ScreenProps) {
+  const { trip, compose, update, day, setDay } = props;
+  const [mode, setMode] = useState<'list' | 'calendar'>('list');
+  const dates = days(trip);
+  const ideas = trip.entries.filter(entry => !entry.date);
+  const edit = (entry: Entry) => compose({ type: 'entry', entry });
+  const remove = (entry: Entry) => update({ ...trip, entries: trip.entries.filter(item => item.id !== entry.id) });
+  const add = (date?: string) => compose({ type: 'entry', ...(date ? { date } : {}) });
+  const orderedEntries = (date: string) => entriesForDay(trip, date);
+  const selectedDate = dates.includes(day) ? day : dates[0] ?? '';
+
+  return <div className="i-itinerary">
+    <div className="i-heading"><div><h1>Itinerary</h1><p>Plan your trip here. Each day and its plans are shown below.</p></div><button className="p-primary" onClick={() => add(selectedDate || undefined)}><Icon name="plus" size={18} />Add plan</button></div>
+    <div className="i-toolbar"><div className="i-view-toggle" role="group" aria-label="Itinerary view"><button type="button" aria-pressed={mode === 'list'} className={mode === 'list' ? 'active' : ''} onClick={() => setMode('list')}>List</button><button type="button" aria-pressed={mode === 'calendar'} className={mode === 'calendar' ? 'active' : ''} onClick={() => setMode('calendar')}>Calendar</button></div><span>{dates.length ? `${dates.length} ${dates.length === 1 ? 'day' : 'days'}` : 'Dates not set'}</span></div>
+
+    {!dates.length ? <section className="i-no-dates"><h2>Choose your trip dates to start planning by day</h2><p>Your saved plans will stay here until you add dates.</p><button className="p-secondary" onClick={() => compose({ type: 'settings' })}>Set trip dates</button></section> : mode === 'list' ? <div className="i-day-list">{dates.map(date => {
+      const entries = orderedEntries(date);
+      return <section className="i-day" key={date}>
+        <header className="i-day-heading"><div><span>{new Intl.DateTimeFormat('en', { weekday: 'long', timeZone: 'UTC' }).format(new Date(`${date}T12:00:00Z`))}</span><h2>{formatDate(date, { month: 'long', day: 'numeric', year: 'numeric' })}</h2></div><button className="p-text-button" onClick={() => add(date)}><Icon name="plus" size={16} />Add plan</button></header>
+        {entries.length ? <div className="i-day-entries">{entries.map(entry => <div className="i-event" key={entry.id}><div className="i-event-time">{entry.time || (entry.booked ? 'Booked' : 'Flexible')}</div><EntryRow entry={entry} edit={() => edit(entry)} remove={() => remove(entry)} /></div>)}</div> : <button className="i-empty-day" onClick={() => add(date)}>No plans yet <span>Add the first plan for this day <Icon name="arrow" size={15} /></span></button>}
+      </section>;
+    })}</div> : <div className="i-calendar-list">{itineraryMonths(dates).map(month => <section className="i-month" key={month.key}><h2>{month.label}</h2><div className="i-weekdays" aria-hidden="true">{['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(name => <span key={name}>{name}</span>)}</div><div className="i-calendar-grid">{month.weeks.flatMap((week, weekIndex) => week.map((date, column) => {
+      if (!date) return <span className="i-calendar-blank" aria-hidden="true" key={`${month.key}-${weekIndex}-${column}`} />;
+      const entries = orderedEntries(date);
+      const number = Number(date.slice(-2));
+      return <button type="button" key={date} className={`i-calendar-day ${selectedDate === date ? 'selected' : ''} ${entries.length ? 'has-events' : ''}`} aria-pressed={selectedDate === date} aria-label={`${formatDate(date)}${entries.length ? `, ${entries.length} plans` : ', no plans'}`} onClick={() => setDay(date)}><span className="i-calendar-number">{number}</span>{entries.length > 0 && <span className="i-calendar-count">{entries.length} {entries.length === 1 ? 'plan' : 'plans'}</span>}{entries.slice(0, 2).map(entry => <span className="i-calendar-title" key={entry.id}>{entry.time ? `${entry.time} ` : ''}{entry.title}</span>)}{entries.length > 2 && <span className="i-calendar-more">+{entries.length - 2} more</span>}</button>;
+    }))}</div></section>)}
+      {selectedDate && <section className="i-selected-day"><div className="i-day-heading"><div><span>Selected day</span><h2>{formatDate(selectedDate, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</h2></div><button className="p-text-button" onClick={() => add(selectedDate)}><Icon name="plus" size={16} />Add plan</button></div>{orderedEntries(selectedDate).length ? <div className="i-day-entries">{orderedEntries(selectedDate).map(entry => <div className="i-event" key={entry.id}><div className="i-event-time">{entry.time || (entry.booked ? 'Booked' : 'Flexible')}</div><EntryRow entry={entry} edit={() => edit(entry)} remove={() => remove(entry)} /></div>)}</div> : <button className="i-empty-day" onClick={() => add(selectedDate)}>No plans yet <span>Add the first plan for this day <Icon name="arrow" size={15} /></span></button>}</section>}
+    </div>}
+
+    {ideas.length > 0 && <section className="i-ideas"><div className="i-day-heading"><div><span>Not scheduled</span><h2>Ideas</h2></div><span className="i-idea-count">{ideas.length} {ideas.length === 1 ? 'plan' : 'plans'}</span></div><div className="i-day-entries">{ideas.map(entry => <div className="i-event" key={entry.id}><div className="i-event-time">Unscheduled</div><EntryRow entry={entry} edit={() => edit(entry)} remove={() => remove(entry)} /></div>)}</div></section>}
+  </div>;
+}
+
+export function TransportationScreen() {
+  return <div className="i-itinerary"><div className="i-heading"><div><h1>Transportation</h1></div></div></div>;
+}
+
 const resources: { id: Resource; icon: IconName; description: string }[] = [
   { id:'reservations',icon:'document',description:'Flights, stays, transport, and booking references' },{ id:'documents',icon:'shield',description:'Document reminders and ticket locations' },{ id:'readiness',icon:'check',description:'Before leaving, on the trip, and coming home' },{ id:'packing',icon:'bag',description:'What to bring, and what’s already packed' },{ id:'money',icon:'wallet',description:'Trip budget and recorded expenses' },{ id:'connectivity',icon:'globe',description:'Language notes, SIM plans, and offline preparation' },{ id:'basics',icon:'pin',description:'Local addresses, practical details, and useful contacts' },
 ];
