@@ -1,0 +1,11 @@
+{
+  "name": "trippilot-site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "predev": "node --disable-warning=ExperimentalWarning prepare-shared.mjs",
+    "dev": "node server.mjs",
+    "pretest": "node --disable-warning=ExperimentalWarning prepare-shared.mjs",
+    "test": "node --test tests/*.test.mjs"
+  }
+}
