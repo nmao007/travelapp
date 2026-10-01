@@ -78,3 +78,10 @@ export function movePlace(trip, itemId, day) {
   if (trip.items?.some(item => item.id === itemId && fixedItem(item))) return trip;
   return { ...trip, items: (trip.items || []).map(item => item.id === itemId ? { ...item, day } : item) };
 }
+
+export const tripTitle = trip => trip.title?.trim() || tripStops(trip).map(stop => stop.name).join(' → ');
+export function renameTrip(trip, title) {
+  const value = String(title || '').trim();
+  if (!value || value.length > 120) throw new Error('Use a trip title between 1 and 120 characters.');
+  return { ...trip, title: value };
+}
