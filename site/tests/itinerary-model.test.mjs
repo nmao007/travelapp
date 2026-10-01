@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { datesForTrip, monthsForTrip, eventsForDay, makePlan, makeTransport, upsertTransport, reorderPlan } from '../dist/itinerary-model.js';
+import { datesForTrip, monthsForTrip, calendarDisplayCells, eventsForDay, makePlan, makeTransport, upsertTransport, reorderPlan, insertPlan } from '../dist/itinerary-model.js';
 import { saveTrip, readTrips, movePlace } from '../dist/trip-store.js';
 
 const trip = { id: 'trip', name: 'Lisbon', placeId: 'lisbon', latitude: 38.7, longitude: -9.1, timeZone: 'Europe/Lisbon', startDate: '2026-10-30', endDate: '2026-11-02', items: [] };
@@ -59,4 +59,36 @@ test('custom plans edit in place, flexible items can reorder, and fixed plans ca
   assert.equal(edited.id, first.id);
   assert.throws(() => makePlan(trip, { name: 'Outside', day: '2026-11-10' }), /trip/);
   assert.throws(() => makePlan(trip, { name: 'Timed idea', day: 'ideas', time: '12:00' }), /trip day/);
+});
+
+test('calendar shows only relevant weeks while preserving alignment and leap dates', () => {
+  const [october, november] = monthsForTrip(trip);
+  const cells = calendarDisplayCells(october);
+  assert.equal(cells.length, 7);
+  assert.equal(cells[0].date, '2026-10-25');
+  assert.equal(cells[0].inTrip, false);
+  assert.equal(cells[5].date, '2026-10-30');
+  assert.equal(cells[5].inTrip, true);
+  assert.deepEqual(cells.filter(cell => cell?.inTrip).map(cell => cell.date), ['2026-10-30', '2026-10-31']);
+  assert.equal(calendarDisplayCells(november)[0].date, '2026-11-01');
+  const [february] = monthsForTrip({ ...trip, startDate: '2028-02-28', endDate: '2028-02-29' });
+  assert.equal(calendarDisplayCells(february)[2].date, '2028-02-29');
+  const [fullMonth] = monthsForTrip({ ...trip, startDate: '2026-10-01', endDate: '2026-10-31' });
+  assert.equal(calendarDisplayCells(fullMonth).filter(Boolean).length, 31);
+});
+
+test('insertion gaps commit the visible order across days and preserve fixed reservations', () => {
+  const a = makePlan(trip, { name: 'Walk', day: '2026-10-30' });
+  const b = makePlan(trip, { name: 'Lunch', day: '2026-10-31' });
+  const c = makePlan(trip, { name: 'Dinner', day: '2026-10-31' });
+  const fixed = makePlan(trip, { name: 'Booking', day: '2026-10-31', booked: true });
+  const before = { ...trip, items: [a, b, c, fixed] };
+  const moved = insertPlan(before, a.id, c.day, c.id);
+  assert.deepEqual(eventsForDay(moved, c.day).map(event => event.item.id), [b.id, a.id, c.id, fixed.id]);
+  assert.equal(eventsForDay(moved, a.day).length, 0);
+  assert.equal(insertPlan(before, fixed.id, a.day, a.id), before);
+  assert.equal(insertPlan(before, a.id, '2026-11-09'), before);
+  assert.equal(insertPlan(before, a.id, c.day, 'missing'), before);
+  const appended = insertPlan(moved, a.id, c.day);
+  assert.deepEqual(eventsForDay(appended, c.day).map(event => event.item.id), [b.id, c.id, fixed.id, a.id]);
 });

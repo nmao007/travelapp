@@ -22,7 +22,7 @@ export function makePlan(trip, input, existing = null) {
   if (!isTimeZone(timeZone)) throw new Error('Choose a valid time zone.');
   if (time && activityInstant({ date: day, time, time_zone: timeZone }) === null) throw new Error('That time does not exist when the clocks change.');
   if ((input.notes || '').length > 4000 || (input.address || '').length > 300 || (input.reference || '').length > 160) throw new Error('Shorten the notes, location, or booking reference.');
-  return { ...existing, id: existing?.id || crypto.randomUUID(), name, day, time, timeZone, kind: ['Activity', 'Food', 'Stay', 'Flight', 'Train', 'Transport'].includes(input.kind) ? input.kind : 'Activity', booked: Boolean(input.booked), address: input.address?.trim() || '', notes: input.notes?.trim() || '', reference: input.reference?.trim() || '' };
+  return { ...existing, ...(input.placeId && mappedPlace(input) ? { placeId: input.placeId, latitude: input.latitude, longitude: input.longitude } : {}), id: existing?.id || crypto.randomUUID(), name, day, time, timeZone, kind: ['Activity', 'Food', 'Stay', 'Flight', 'Train', 'Transport'].includes(input.kind) ? input.kind : 'Activity', booked: Boolean(input.booked), address: input.address?.trim() || '', notes: input.notes?.trim() || '', reference: input.reference?.trim() || '' };
 }
 
 export function makeTransport(trip, input, id = crypto.randomUUID()) {
@@ -56,4 +56,34 @@ export function reorderPlan(trip, sourceId, targetId) {
   items.splice(items.indexOf(source), 1);
   items.splice(items.findIndex(item => item.id === target.id), 0, moved);
   return { ...trip, items };
+}
+
+export function insertPlan(trip, sourceId, day, beforeId = null) {
+  const source = (trip.items || []).find(item => item.id === sourceId);
+  if (!source || fixedItem(source) || !datesForTrip(trip).includes(day) || sourceId === beforeId) return trip;
+  const remaining = trip.items.filter(item => item.id !== sourceId);
+  const before = beforeId ? remaining.findIndex(item => item.id === beforeId && item.day === day) : -1;
+  if (beforeId && before < 0) return trip;
+  let position = before;
+  if (!beforeId) { position = remaining.findLastIndex(item => item.day === day) + 1; if (!position) position = remaining.length; }
+  remaining.splice(position, 0, { ...source, day });
+  if (source.day === day && remaining.every((item, index) => item.id === trip.items[index].id)) return trip;
+  return { ...trip, items: remaining };
+}
+
+// Show complete weeks containing the trip, without weeks that cannot hold its plans.
+export function calendarDisplayCells(month) {
+  const [year, number] = month.key.split('-').map(Number);
+  const offset = new Date(Date.UTC(year, number - 1, 1)).getUTCDay();
+  const count = new Date(Date.UTC(year, number, 0)).getUTCDate();
+  const tripDays = new Set(month.cells.filter(Boolean));
+  const first = month.cells.findIndex(Boolean);
+  let last = month.cells.length - 1; while (last >= 0 && !month.cells[last]) last--;
+  const firstWeek = Math.floor(first / 7) * 7, lastWeek = Math.floor(last / 7) * 7 + 7;
+  return month.cells.map((_, index) => {
+    const day = index - offset + 1;
+    if (day < 1 || day > count) return null;
+    const date = `${month.key}-${String(day).padStart(2, '0')}`;
+    return { date, inTrip: tripDays.has(date) };
+  }).slice(firstWeek, lastWeek);
 }

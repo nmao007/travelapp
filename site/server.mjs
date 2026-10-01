@@ -3,12 +3,14 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, extname } from 'node:path';
 import { createRequire } from 'node:module';
+import { createFlightService } from './flight-service.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PORT || 3010);
 const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml' };
 const wikiHeaders = { 'user-agent': 'TripPilotLocal/0.1 (local travel planning prototype)' };
 const photoCache = new Map();
+const lookupFlight = createFlightService();
 const require = createRequire(import.meta.url);
 let zoneLookup;
 try { zoneLookup = require('geo-tz').find; } catch { /* Time zones remain editable without the optional lookup. */ }
@@ -22,13 +24,14 @@ function distanceKm(a, b) {
 
 async function wikimediaPhoto(title, lat, lng, width) {
   const url = new URL('https://en.wikipedia.org/w/api.php');
-  url.search = new URLSearchParams({ action: 'query', prop: 'pageimages|coordinates', titles: title, redirects: '1', piprop: 'thumbnail|name', pithumbsize: String(width), format: 'json' }).toString();
+  url.search = new URLSearchParams({ action: 'query', prop: 'pageimages|coordinates|extracts', titles: title, redirects: '1', piprop: 'thumbnail|name', pithumbsize: String(width), exintro: '1', explaintext: '1', exchars: '600', format: 'json' }).toString();
   const response = await fetch(url, { headers: wikiHeaders, signal: AbortSignal.timeout(7000) });
   if (!response.ok) throw new Error('Wikimedia unavailable');
   const data = await response.json();
   const page = Object.values(data.query?.pages || {})[0];
   const point = page?.coordinates?.[0];
-  if (!page?.thumbnail?.source || !point || distanceKm({ lat, lng }, { lat: point.lat, lng: point.lon }) > 60) return null;
+  const locality = !/\d/.test(title) && !/street|temple|museum|park|tower|hotel|bridge|shrine/i.test(title);
+  if (!point || distanceKm({ lat, lng }, { lat: point.lat, lng: point.lon }) > (locality ? 35 : 2)) return null;
   const filename = page.pageimage;
   const commonsUrl = filename ? `https://commons.wikimedia.org/wiki/File:${encodeURIComponent(filename.replaceAll(' ', '_'))}` : `https://en.wikipedia.org/wiki/${encodeURIComponent(page.title.replaceAll(' ', '_'))}`;
   let artist = 'Wikimedia Commons', license = '', licenseUrl = '';
@@ -44,21 +47,37 @@ async function wikimediaPhoto(title, lat, lng, width) {
       licenseUrl = meta.LicenseUrl?.value || '';
     } catch { /* Keep a link to the Commons file when extended credits are unavailable. */ }
   }
-  return { src: page.thumbnail.source, artist, license, licenseUrl, creditUrl: commonsUrl };
+  return { src: page.thumbnail?.source || null, artist, license, licenseUrl, creditUrl: commonsUrl, description: page.extract || '', descriptionUrl: `https://en.wikipedia.org/wiki/${encodeURIComponent(page.title.replaceAll(' ', '_'))}` };
 }
 
-async function localConfig() {
+async function localSettings() {
   let contents = '';
   try { contents = await readFile(join(root, '.env.local'), 'utf8'); } catch { /* Setup is intentionally optional. */ }
   const values = Object.fromEntries(contents.split(/\r?\n/).map(line => {
     const match = /^([A-Z_]+)=(.*)$/.exec(line.trim());
     return match ? [match[1], match[2].trim().replace(/^['"]|['"]$/g, '')] : [];
   }).filter(parts => parts.length));
-  return { mapsKey: values.GOOGLE_MAPS_BROWSER_KEY || null, mapId: values.GOOGLE_MAP_ID || 'DEMO_MAP_ID' };
+  return values;
+}
+async function localConfig() {
+  const values = await localSettings();
+  return { mapsKey: values.GOOGLE_MAPS_BROWSER_KEY || null, mapId: values.GOOGLE_MAP_ID || 'DEMO_MAP_ID', flightLookup: Boolean(values.AERODATABOX_API_KEY || process.env.AERODATABOX_API_KEY) };
 }
 
 createServer(async (request, response) => {
   const pathname = new URL(request.url || '/', 'http://localhost').pathname;
+  if (pathname === '/api/flights') {
+    const params = new URL(request.url, 'http://localhost').searchParams;
+    try {
+      const values = await localSettings();
+      const flights = await lookupFlight(params.get('number'), params.get('date'), { key: values.AERODATABOX_API_KEY || process.env.AERODATABOX_API_KEY, gateway: values.AERODATABOX_GATEWAY || process.env.AERODATABOX_GATEWAY || 'direct' });
+      response.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' }); response.end(JSON.stringify({ flights }));
+    } catch (error) {
+      response.writeHead(error.status || 502, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+      response.end(JSON.stringify({ error: error.status ? error.message : 'Flight lookup unavailable.', code: error.code || 'UNAVAILABLE' }));
+    }
+    return;
+  }
   if (pathname === '/api/timezone') {
     const params = new URL(request.url, 'http://localhost').searchParams;
     const lat = Number(params.get('lat')), lng = Number(params.get('lng'));
@@ -108,7 +127,7 @@ createServer(async (request, response) => {
     response.end(body);
     return;
   }
-  const assets = new Map([['/', 'index.html'], ['/index.html', 'index.html'], ['/app.css', 'app.css'], ['/app.js', 'app.js'], ['/trip-store.js', 'trip-store.js'], ['/date-range.js', 'date-range.js'], ['/domain.js', 'domain.js'], ['/trip-itinerary.js', 'trip-itinerary.js'], ['/itinerary-model.js', 'itinerary-model.js'], ['/itinerary-ui.js', 'itinerary-ui.js']]);
+  const assets = new Map([['/', 'index.html'], ['/index.html', 'index.html'], ['/app.css', 'app.css'], ['/app.js', 'app.js'], ['/trip-store.js', 'trip-store.js'], ['/date-range.js', 'date-range.js'], ['/domain.js', 'domain.js'], ['/trip-itinerary.js', 'trip-itinerary.js'], ['/itinerary-model.js', 'itinerary-model.js'], ['/itinerary-ui.js', 'itinerary-ui.js'], ['/place-model.js', 'place-model.js'], ['/motion.js', 'motion.js'], ['/flight-model.js', 'flight-model.js'], ['/planning-drag.js', 'planning-drag.js']]);
   const asset = assets.get(pathname);
   if (!asset) { response.writeHead(404); response.end('Not found'); return; }
   try {

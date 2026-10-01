@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { STORAGE_KEY, readTrips, saveTrip, deleteTrip, addPlace, movePlace, removePlace, addStop, moveStop, removeStop, tripStops } from '../dist/trip-store.js';
+import { STORAGE_KEY, readTrips, saveTrip, deleteTrip, addPlace, movePlace, removePlace, addStop, moveStop, removeStop, tripStops, tripTitle, renameTrip } from '../dist/trip-store.js';
 
 function memory() {
   const values = new Map();
@@ -53,4 +53,30 @@ test('a real place can move from saved ideas to a day and be removed', () => {
   assert.deepEqual(readTrips(storage)[0].items, []);
   deleteTrip(lisbon.id, storage);
   assert.deepEqual(readTrips(storage), []);
+});
+
+test('renaming a trip preserves destinations, plans and the title across route edits and reloads', () => {
+  const storage = memory();
+  const trip = { ...lisbon, items: [{ id: 'dinner', name: 'Dinner', day: '2026-10-10' }], transport: [{ id: 'flight' }] };
+  const named = renameTrip(trip, '  Autumn escape  ');
+  assert.equal(tripTitle(named), 'Autumn escape');
+  assert.equal(named.name, 'Lisbon');
+  assert.deepEqual(named.items, trip.items);
+  assert.deepEqual(named.transport, trip.transport);
+  const porto = { placeId: 'porto', name: 'Porto', latitude: 41.1, longitude: -8.6 };
+  const reordered = moveStop(addStop(named, porto), 1, -1);
+  saveTrip(reordered, storage);
+  assert.equal(tripTitle(readTrips(storage)[0]), 'Autumn escape');
+  assert.equal(readTrips(storage)[0].name, 'Porto');
+  assert.equal(tripTitle(lisbon), 'Lisbon');
+  assert.throws(() => renameTrip(trip, '   '));
+  assert.throws(() => renameTrip(trip, 'x'.repeat(121)));
+});
+
+test('automatic trip names follow all stops and update after route changes', () => {
+  const porto = { placeId: 'porto', name: 'Porto', latitude: 41.1, longitude: -8.6 };
+  const routed = addStop(lisbon, porto);
+  assert.equal(tripTitle(routed), 'Lisbon → Porto');
+  assert.equal(tripTitle(moveStop(routed, 1, -1)), 'Porto → Lisbon');
+  assert.equal(tripTitle(removeStop(routed, 'porto')), 'Lisbon');
 });
