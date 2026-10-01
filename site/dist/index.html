@@ -45,6 +45,7 @@
       <a class="brand" href="/" aria-label="TripPilot home"><span>TRIP<span class="slash">/</span>PILOT</span></a>
       <button class="mobile-back" id="mobile-back" type="button"><svg class="icon"><use href="#i-back"/></svg>BACK</button>
       <button class="my-trips" id="my-trips" type="button" hidden>Trips <span id="trip-count"></span></button>
+      <div class="account-actions"><span class="account-email-label" id="account-email-label" hidden></span><button class="account-button" id="account-button" type="button">Sign in</button><button class="account-signout" id="account-signout" type="button" hidden>Sign out</button></div>
     </header>
 
     <main>
@@ -101,6 +102,18 @@
       </section>
     </main>
   </div>
+  <dialog id="account-dialog" class="account-dialog" aria-labelledby="account-title">
+    <form id="account-form" novalidate>
+      <div class="account-dialog-heading"><div><span class="section-label">YOUR PROFILE</span><h2 id="account-title">Sign in</h2></div><button class="small-action" type="button" id="account-close" aria-label="Close account dialog"><svg class="icon"><use href="#i-close"/></svg></button></div>
+      <p id="account-description">Keep your trips together in this browser.</p>
+      <label>Email<input id="account-email" name="email" type="email" autocomplete="email" required maxlength="254" placeholder="you@example.com"></label>
+      <label>Password<input id="account-password" name="password" type="password" autocomplete="current-password" required minlength="8" placeholder="At least 8 characters"></label>
+      <p class="account-message" id="account-message" role="status" aria-live="polite"></p>
+      <button type="submit" class="primary-action" id="account-submit">Sign in</button>
+      <button type="button" class="account-mode-toggle" id="account-mode-toggle">Create an account</button>
+      <p class="account-local-note">Trips sync to your Supabase account. Your sign-in session stays in this browser. No email verification is required when confirmations are disabled in Supabase.</p>
+    </form>
+  </dialog>
   <dialog id="day-preview" class="day-preview" aria-labelledby="day-preview-title">
     <div class="day-preview-top"><div class="preview-date-stamp" aria-hidden="true"><span id="day-preview-month"></span><strong id="day-preview-number"></strong></div><div><h2 id="day-preview-title"></h2><p id="day-preview-context"></p></div><button id="close-day-preview" type="button" class="small-action" aria-label="Close day preview"><svg class="icon"><use href="#i-close"/></svg></button></div>
     <div id="day-preview-events" class="day-preview-events"></div>

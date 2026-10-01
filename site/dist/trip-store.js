@@ -1,5 +1,163 @@
 import { fixedItem } from './itinerary-model.js';
 export const STORAGE_KEY = 'trippilot-site-trips-v1';
+const SESSION_KEY = 'trippilot-site-supabase-session-v1';
+let configPromise;
+let cloudWrites = Promise.resolve();
+
+function getSupabaseConfig() {
+  configPromise ||= fetch('/api/config', { cache: 'no-store' }).then(async response => {
+    if (!response.ok) throw new Error('Could not load Supabase settings.');
+    const config = await response.json();
+    if (!config.supabaseUrl || !config.supabaseAnonKey) throw new Error('Supabase is not configured for this prototype.');
+    return config;
+  });
+  return configPromise;
+}
+
+function readSession() {
+  try { const value = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); return value?.access_token && value?.refresh_token && value?.user?.id ? value : null; }
+  catch { return null; }
+}
+
+function saveSession(session) {
+  const saved = { access_token: session.access_token, refresh_token: session.refresh_token, expires_at: session.expires_at || Math.floor(Date.now() / 1000) + Number(session.expires_in || 3600), user: session.user };
+  localStorage.setItem(SESSION_KEY, JSON.stringify(saved));
+  return saved;
+}
+
+async function authRequest(path, body, accessToken = null) {
+  const config = await getSupabaseConfig();
+  const headers = { apikey: config.supabaseAnonKey, 'content-type': 'application/json' };
+  if (accessToken) headers.authorization = `Bearer ${accessToken}`;
+  const response = await fetch(`${config.supabaseUrl}/auth/v1/${path}`, { method: 'POST', headers, body: JSON.stringify(body) });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(result.msg || result.message || result.error_description || result.error || 'Supabase could not complete that request.');
+  return result;
+}
+
+async function ensureSession() {
+  let session = readSession();
+  if (!session) return null;
+  if (session.expires_at <= Math.floor(Date.now() / 1000) + 45) {
+    try { session = saveSession(await authRequest('token?grant_type=refresh_token', { refresh_token: session.refresh_token })); }
+    catch { localStorage.removeItem(SESSION_KEY); return null; }
+  }
+  return session;
+}
+
+export function currentAccount() {
+  const session = readSession();
+  return session?.user ? { id: session.user.id, email: session.user.email || '' } : null;
+}
+
+function tripStorageKey() {
+  const account = currentAccount();
+  return account ? `${STORAGE_KEY}:user:${account.id}` : STORAGE_KEY;
+}
+
+export async function createAccount(email, password) {
+  const result = await authRequest('signup', { email: String(email).trim().toLowerCase(), password: String(password) });
+  if (!result.access_token || !result.refresh_token || !result.user?.id) throw new Error('Supabase requires email confirmation for this project. Disable email confirmations in Supabase Auth settings to sign in immediately.');
+  saveSession(result);
+  return currentAccount();
+}
+
+export async function signIn(email, password) {
+  const result = await authRequest('token?grant_type=password', { email: String(email).trim().toLowerCase(), password: String(password) });
+  if (!result.access_token || !result.refresh_token || !result.user?.id) throw new Error('Supabase did not return a signed-in session.');
+  saveSession(result);
+  return currentAccount();
+}
+
+export async function signOut() {
+  await cloudWrites;
+  const session = await ensureSession();
+  if (session) { try { await authRequest('logout?scope=local', {}, session.access_token); } catch { /* Clear the local session even if the network is unavailable. */ } }
+  localStorage.removeItem(SESSION_KEY);
+}
+
+export async function restoreSession() { return ensureSession(); }
+
+async function restRequest(path, options = {}) {
+  const config = await getSupabaseConfig();
+  const session = await ensureSession();
+  if (!session) throw new Error('Your session expired. Sign in again to sync trips.');
+  const response = await fetch(`${config.supabaseUrl}/rest/v1/${path}`, {
+    ...options,
+    headers: { apikey: config.supabaseAnonKey, authorization: `Bearer ${session.access_token}`, 'content-type': 'application/json', ...(options.headers || {}) },
+  });
+  if (!response.ok) {
+    const result = await response.json().catch(() => ({}));
+    throw new Error(result.message || result.hint || 'Supabase could not sync this trip. Check the planner_trips table and row-level security migration.');
+  }
+  return response.status === 204 ? null : response.json().catch(() => null);
+}
+
+export async function loadCloudTrips() {
+  const session = await ensureSession();
+  if (!session) return [];
+  await flushPendingCloudChanges(session.user.id);
+  const rows = await restRequest('planner_trips?select=id,trip&order=updated_at.desc');
+  const trips = Array.isArray(rows) ? rows.map(row => row.trip).filter(isTrip).map(trip => ({ ...trip, stops: tripStops(trip), items: Array.isArray(trip.items) ? trip.items : [] })) : [];
+  localStorage.setItem(tripStorageKey(), JSON.stringify(trips));
+  return trips;
+}
+
+function queueCloudWrite(operation) {
+  cloudWrites = cloudWrites.catch(() => {}).then(operation).catch(() => {
+    window.dispatchEvent(new CustomEvent('trippilot-cloud-save-error', { detail: 'Your change is saved on this device but could not sync to Supabase.' }));
+  });
+}
+
+function pendingKey(userId) { return `${STORAGE_KEY}:user:${userId}:pending`; }
+
+function readPending(userId) {
+  try { const value = JSON.parse(localStorage.getItem(pendingKey(userId)) || '[]'); return Array.isArray(value) ? value : []; }
+  catch { return []; }
+}
+
+function enqueuePending(entry, userId) {
+  const values = readPending(userId).filter(item => item.id !== entry.id);
+  values.push(entry);
+  localStorage.setItem(pendingKey(userId), JSON.stringify(values));
+}
+
+function clearPendingIfCurrent(entry, userId) {
+  const values = readPending(userId).filter(item => item.id !== entry.id || item.version !== entry.version);
+  if (values.length) localStorage.setItem(pendingKey(userId), JSON.stringify(values));
+  else localStorage.removeItem(pendingKey(userId));
+}
+
+async function writeCloudChange(entry, userId) {
+  const session = await ensureSession();
+  if (!session || session.user.id !== userId) throw new Error('Your session changed before this trip could sync.');
+  if (entry.type === 'delete') {
+    await restRequest(`planner_trips?id=eq.${encodeURIComponent(entry.id)}&user_id=eq.${encodeURIComponent(userId)}`, { method: 'DELETE', headers: { Prefer: 'return=minimal' } });
+  } else {
+    await restRequest('planner_trips?on_conflict=user_id,id', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify({ user_id: userId, id: entry.id, trip: entry.trip, updated_at: entry.updated_at }) });
+  }
+  clearPendingIfCurrent(entry, userId);
+}
+
+async function flushPendingCloudChanges(userId) {
+  for (const entry of readPending(userId)) await writeCloudChange(entry, userId);
+}
+
+function saveTripToCloud(trip) {
+  const account = currentAccount();
+  if (!account) return;
+  const entry = { type: 'upsert', id: trip.id, trip, updated_at: new Date().toISOString(), version: crypto.randomUUID() };
+  enqueuePending(entry, account.id);
+  queueCloudWrite(() => writeCloudChange(entry, account.id));
+}
+
+function deleteTripFromCloud(id) {
+  const account = currentAccount();
+  if (!account) return;
+  const entry = { type: 'delete', id, version: crypto.randomUUID() };
+  enqueuePending(entry, account.id);
+  queueCloudWrite(() => writeCloudChange(entry, account.id));
+}
 
 export function isTrip(value) {
   return Boolean(value && typeof value === 'object' && typeof value.id === 'string' &&
@@ -45,7 +203,8 @@ export function removeStop(trip, placeId) {
 
 export function readTrips(storage = localStorage) {
   try {
-    const value = JSON.parse(storage.getItem(STORAGE_KEY) || '[]');
+    const key = typeof localStorage !== 'undefined' && storage === localStorage ? tripStorageKey() : STORAGE_KEY;
+    const value = JSON.parse(storage.getItem(key) || '[]');
     return Array.isArray(value) ? value.filter(isTrip).map(trip => ({ ...trip, stops: tripStops(trip), items: Array.isArray(trip.items) ? trip.items : [] })) : [];
   } catch { return []; }
 }
@@ -54,13 +213,17 @@ export function saveTrip(trip, storage = localStorage) {
   if (!isTrip(trip)) throw new Error('Choose a destination first.');
   const trips = readTrips(storage);
   const next = [{ ...trip, stops: tripStops(trip), items: Array.isArray(trip.items) ? trip.items : [] }, ...trips.filter(item => item.id !== trip.id)];
-  storage.setItem(STORAGE_KEY, JSON.stringify(next));
+  const isBrowserStorage = typeof localStorage !== 'undefined' && storage === localStorage;
+  storage.setItem(isBrowserStorage ? tripStorageKey() : STORAGE_KEY, JSON.stringify(next));
+  if (isBrowserStorage) saveTripToCloud(trip);
   return next;
 }
 
 export function deleteTrip(id, storage = localStorage) {
   const next = readTrips(storage).filter(trip => trip.id !== id);
-  storage.setItem(STORAGE_KEY, JSON.stringify(next));
+  const isBrowserStorage = typeof localStorage !== 'undefined' && storage === localStorage;
+  storage.setItem(isBrowserStorage ? tripStorageKey() : STORAGE_KEY, JSON.stringify(next));
+  if (isBrowserStorage) deleteTripFromCloud(id);
   return next;
 }
 

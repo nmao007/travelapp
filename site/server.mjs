@@ -61,7 +61,7 @@ async function localSettings() {
 }
 async function localConfig() {
   const values = await localSettings();
-  return { mapsKey: values.GOOGLE_MAPS_BROWSER_KEY || null, mapId: values.GOOGLE_MAP_ID || 'DEMO_MAP_ID', flightLookup: Boolean(values.AERODATABOX_API_KEY || process.env.AERODATABOX_API_KEY) };
+  return { mapsKey: values.GOOGLE_MAPS_BROWSER_KEY || null, mapId: values.GOOGLE_MAP_ID || 'DEMO_MAP_ID', flightLookup: Boolean(values.AERODATABOX_API_KEY || process.env.AERODATABOX_API_KEY), supabaseUrl: values.NEXT_PUBLIC_SUPABASE_URL || null, supabaseAnonKey: values.NEXT_PUBLIC_SUPABASE_ANON_KEY || null };
 }
 
 createServer(async (request, response) => {

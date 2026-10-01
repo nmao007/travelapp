@@ -1,5 +1,5 @@
 import { playMotion, revealSequence, reducedMotion } from './motion.js';
-import { readTrips, saveTrip, deleteTrip, addPlace, removePlace, movePlace, addStop, moveStop, removeStop, tripStops, tripTitle, renameTrip } from './trip-store.js';
+import { readTrips, saveTrip, deleteTrip, addPlace, removePlace, movePlace, addStop, moveStop, removeStop, tripStops, tripTitle, renameTrip, currentAccount, createAccount, signIn, signOut, restoreSession, loadCloudTrips } from './trip-store.js';
 import { calendarMonth, presetRange, rangeLength, selectDateRange } from './date-range.js';
 import { datesForTrip, mappedPlace, fixedItem } from './itinerary-model.js';
 import { createItineraryUI } from './itinerary-ui.js';
@@ -38,7 +38,8 @@ function updateTripTitle() {
 
 function updateRecent() {
   const trips = readTrips();
-  $('my-trips').hidden = !trips.length;
+  $('my-trips').hidden = !trips.length && !currentAccount();
+  $('my-trips').firstChild.textContent = currentAccount() ? 'My trips ' : 'Trips ';
   $('trip-count').textContent = String(trips.length);
   $('recent').hidden = !trips.length;
   $('recent-items').replaceChildren();
@@ -51,6 +52,51 @@ function updateRecent() {
     $('recent-items').append(button);
   }
 }
+
+function updateAccountBar() {
+  const account = currentAccount();
+  $('account-button').hidden = Boolean(account);
+  $('account-email-label').hidden = !account;
+  $('account-email-label').textContent = account?.email || '';
+  $('account-signout').hidden = !account;
+  updateRecent();
+}
+
+function setAccountMode(signup) {
+  $('account-dialog').dataset.mode = signup ? 'signup' : 'login';
+  $('account-title').textContent = signup ? 'Create your account' : 'Sign in';
+  $('account-submit').textContent = signup ? 'Create account' : 'Sign in';
+  $('account-description').textContent = signup ? 'Create a profile for your trips on this browser.' : 'Open the trips saved to your profile on this browser.';
+  $('account-password').autocomplete = signup ? 'new-password' : 'current-password';
+  $('account-mode-toggle').textContent = signup ? 'Already have an account? Sign in' : 'Create an account';
+  $('account-message').textContent = '';
+}
+
+$('account-button').addEventListener('click', () => { setAccountMode(false); $('account-dialog').showModal(); $('account-email').focus(); });
+$('account-mode-toggle').addEventListener('click', () => setAccountMode($('account-dialog').dataset.mode !== 'signup'));
+$('account-close').addEventListener('click', () => $('account-dialog').close());
+$('account-dialog').addEventListener('click', event => { if (event.target === $('account-dialog')) $('account-dialog').close(); });
+$('account-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  const form = event.currentTarget, submit = $('account-submit');
+  submit.disabled = true; $('account-message').classList.remove('error'); $('account-message').textContent = 'Opening your profile…';
+  try {
+    const email = $('account-email').value, password = $('account-password').value;
+    if ($('account-dialog').dataset.mode === 'signup') await createAccount(email, password); else await signIn(email, password);
+    let syncError = '';
+    try { await loadCloudTrips(); } catch (error) { syncError = error.message || 'Your trip list could not sync from Supabase.'; }
+    $('account-dialog').close(); form.reset(); showHome(); updateAccountBar();
+    if (syncError) status('home-status', syncError);
+  } catch (error) {
+    $('account-message').classList.add('error'); $('account-message').textContent = error.message || 'Could not open this profile.';
+  } finally { submit.disabled = false; }
+});
+$('account-signout').addEventListener('click', async event => {
+  const button = event.currentTarget;
+  button.disabled = true;
+  try { await signOut(); showHome(); updateAccountBar(); }
+  finally { button.disabled = false; }
+});
 
 function showHome({ focus = false } = {}) {
   $('trip-title-input').hidden = true; $('edit-trip-title').hidden = false;
@@ -785,9 +831,19 @@ document.addEventListener('keydown', event => {
 });
 
 updateRecent();
+updateAccountBar();
 const tripId = new URLSearchParams(location.search).get('trip');
-const current = readTrips().find(trip => trip.id === tripId);
-if (current) openTrip(current);
+window.addEventListener('trippilot-cloud-save-error', event => status(state.trip ? 'trip-status' : 'home-status', event.detail || 'Your change could not sync to Supabase.'));
+async function initializeAccountWorkspace() {
+  try {
+    const session = await restoreSession();
+    if (session) await loadCloudTrips();
+  } catch { status('home-status', 'Could not load your Supabase trips. Your saved browser copy is still available.'); }
+  updateAccountBar();
+  const current = readTrips().find(trip => trip.id === tripId);
+  if (current) openTrip(current);
+}
+initializeAccountWorkspace();
 fetch('/api/config', { cache: 'no-store' })
   .then(response => response.ok ? response.json() : Promise.reject())
   .then(async config => {
