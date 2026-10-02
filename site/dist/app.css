@@ -8,6 +8,9 @@ button{cursor:pointer;color:inherit;border:0;background:none;transition:backgrou
 button:active:not(:disabled){filter:brightness(.95)}
 button:disabled{cursor:default;opacity:.45}
 button:focus-visible,input:focus-visible,a:focus-visible,select:focus-visible,summary:focus-visible,textarea:focus-visible{outline:3px solid #ffaf8f;outline-offset:3px}
+.removal-notice{position:fixed;z-index:160;bottom:20px;left:20px;display:flex;align-items:center;gap:12px;max-width:calc(100vw - 40px);padding:10px 12px;background:#fff;border:1px solid var(--line);box-shadow:4px 4px 0 var(--ink)}
+.removal-notice p{margin:0;max-width:340px;font-size:14px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.removal-notice .primary-action{flex:none}
 [hidden]{display:none!important}
 .svg-defs,.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
 .icon{width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
@@ -281,6 +284,29 @@ a{color:var(--blue)}
 .plan-sheet h2{font-family:var(--display);font-size:30px;letter-spacing:-.055em;margin:0 0 16px}
 .sheet-day-chips,.plan-tools,.plan-position{display:flex;gap:7px;flex-wrap:wrap;margin:14px 0}
 .sheet-day-chips{max-height:94px;overflow:auto}
+.duplicate-label{display:flex;align-items:center;font-size:14px;font-weight:500;margin-right:4px}
+.coded-dropdown{display:block;min-width:0;max-width:100%}
+.dropdown-trigger{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-height:40px;padding:9px 10px;background:#fff;border:1px solid var(--line);text-align:left;font-size:14px;font-weight:400;color:var(--ink)}
+.dropdown-trigger:hover,.dropdown-trigger[aria-expanded=true]{border-color:var(--accent);background:var(--tint)}
+.dropdown-value{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.dropdown-trigger .icon{flex:none;width:16px;height:16px;transition:transform .18s}
+.dropdown-trigger[aria-expanded=true] .icon{transform:rotate(180deg)}
+.dropdown-menu{position:fixed;inset:auto;margin:0;padding:5px;border:1px solid var(--line);border-radius:0;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;background:#fff;color:var(--ink);box-shadow:3px 4px 0 #20201f22,0 12px 28px #20201f18;z-index:1000;font-family:inherit;font-size:14px;font-weight:400}
+.editable-dropdown{position:relative}
+.editable-dropdown>input{width:100%;padding-right:34px!important}
+.dropdown-input-chevron{position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none;display:flex}
+.dropdown-input-chevron .icon{width:16px;height:16px;transition:transform .18s}
+.editable-dropdown:has(input[aria-expanded=true]) .dropdown-input-chevron .icon{transform:rotate(180deg)}
+.dropdown-option{display:flex;align-items:center;justify-content:space-between;gap:14px;min-height:38px;padding:9px 10px;cursor:pointer;white-space:nowrap}
+.dropdown-option span{overflow:hidden;text-overflow:ellipsis}
+.dropdown-option .icon{flex:none;width:16px;height:16px;opacity:0;color:var(--blue)}
+.dropdown-option[aria-selected=true]{font-weight:600}
+.dropdown-option[aria-selected=true] .icon{opacity:1}
+.dropdown-option:hover,.dropdown-option.highlighted{background:var(--tint);color:var(--blue)}
+.dropdown-option[aria-disabled=true]{opacity:.4;pointer-events:none}
+.dropdown-empty{padding:9px 10px;margin:0;color:var(--muted)}
+.explore-day .coded-dropdown{flex:1}
+.explore-day .dropdown-trigger{border:0;min-height:34px;background:var(--tint);color:var(--blue);padding:7px 10px}
 .detail-chip,.quiet-action,.primary-action{display:inline-flex;align-items:center;justify-content:center;gap:7px;text-decoration:none;border-radius:0;padding:9px 12px;font-size:13px;font-weight:700;line-height:1.3}
 .detail-chip,.quiet-action{background:var(--soft);color:var(--muted)}
 .detail-chip:hover,.quiet-action:hover{background:var(--tint);color:var(--blue)}

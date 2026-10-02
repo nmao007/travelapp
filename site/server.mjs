@@ -127,7 +127,7 @@ createServer(async (request, response) => {
     response.end(body);
     return;
   }
-  const assets = new Map([['/', 'index.html'], ['/index.html', 'index.html'], ['/app.css', 'app.css'], ['/app.js', 'app.js'], ['/trip-store.js', 'trip-store.js'], ['/date-range.js', 'date-range.js'], ['/domain.js', 'domain.js'], ['/trip-itinerary.js', 'trip-itinerary.js'], ['/itinerary-model.js', 'itinerary-model.js'], ['/itinerary-ui.js', 'itinerary-ui.js'], ['/place-model.js', 'place-model.js'], ['/motion.js', 'motion.js'], ['/flight-model.js', 'flight-model.js'], ['/planning-drag.js', 'planning-drag.js']]);
+  const assets = new Map([['/', 'index.html'], ['/index.html', 'index.html'], ['/app.css', 'app.css'], ['/app.js', 'app.js'], ['/trip-store.js', 'trip-store.js'], ['/date-range.js', 'date-range.js'], ['/domain.js', 'domain.js'], ['/trip-itinerary.js', 'trip-itinerary.js'], ['/itinerary-model.js', 'itinerary-model.js'], ['/itinerary-ui.js', 'itinerary-ui.js'], ['/place-model.js', 'place-model.js'], ['/motion.js', 'motion.js'], ['/flight-model.js', 'flight-model.js'], ['/planning-drag.js', 'planning-drag.js'], ['/dropdowns.js', 'dropdowns.js']]);
   const asset = assets.get(pathname);
   if (!asset) { response.writeHead(404); response.end('Not found'); return; }
   try {

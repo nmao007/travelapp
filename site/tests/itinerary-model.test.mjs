@@ -1,10 +1,88 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { datesForTrip, monthsForTrip, calendarDisplayCells, eventsForDay, makePlan, makeTransport, upsertTransport, reorderPlan, insertPlan } from '../dist/itinerary-model.js';
+import { datesForTrip, monthsForTrip, calendarDisplayCells, eventsForDay, makePlan, makeTransport, upsertTransport, reorderPlan, insertPlan, removeItineraryEvent, restoreItineraryEvent, duplicatePlan } from '../dist/itinerary-model.js';
 import { saveTrip, readTrips, movePlace } from '../dist/trip-store.js';
 
 const trip = { id: 'trip', name: 'Lisbon', placeId: 'lisbon', latitude: 38.7, longitude: -9.1, timeZone: 'Europe/Lisbon', startDate: '2026-10-30', endDate: '2026-11-02', items: [] };
 const service = { mode: 'Train', service_id: 'IC 720', departure_location: 'Lisbon', arrival_location: 'Porto', departure_date: '2026-10-30', departure_time: '09:00', departure_time_zone: 'Europe/Lisbon', arrival_date: '2026-10-30', arrival_time: '11:45', arrival_time_zone: 'Europe/Lisbon' };
+
+test('duplicating a flexible plan preserves its location and notes with a separate identity', () => {
+  const source = { ...makePlan(trip, { name: 'Breakfast', kind: 'Food', day: '2026-10-30', notes: 'Vegetarian options', reference: 'OLD-REFERENCE' }), placeId: 'cafe', latitude: 38.72, longitude: -9.14, address: 'Lisbon', rating: 4.7 };
+  const original = { ...trip, items: [source] };
+  const { trip: copied, copy } = duplicatePlan(original, source.id, '2026-10-31');
+  assert.notEqual(copy.id, source.id);
+  assert.equal(copy.day, '2026-10-31');
+  for (const key of ['name', 'kind', 'notes', 'placeId', 'latitude', 'longitude', 'address', 'rating', 'timeZone']) assert.equal(copy[key], source[key]);
+  assert.equal(copy.booked, false);
+  assert.equal(copy.reference, '');
+  assert.equal(original.items.length, 1);
+  const edited = makePlan(copied, { ...copy, name: 'Late breakfast' }, copy);
+  assert.equal(edited.id, copy.id);
+  assert.equal(source.name, 'Breakfast');
+  let value;
+  const storage = { getItem: () => value, setItem: (_, data) => { value = data; } };
+  saveTrip(copied, storage);
+  const reopened = readTrips(storage)[0];
+  assert.equal(eventsForDay(reopened, source.day)[0].id, source.id);
+  assert.equal(eventsForDay(reopened, copy.day)[0].id, copy.id);
+  assert.ok(monthsForTrip(reopened)[0].cells.includes(copy.day));
+});
+
+test('fixed commitments cannot be copied and targets must be different real trip days', () => {
+  const source = makePlan(trip, { name: 'Walk', day: '2026-10-30' });
+  for (const patch of [{ booked: true }, { time: '09:00' }, { kind: 'Flight' }, { kind: 'Train' }]) assert.throws(() => duplicatePlan({ ...trip, items: [{ ...source, ...patch }] }, source.id, '2026-10-31'), /flexible/);
+  for (const day of [source.day, 'ideas', '2026-11-03', '2026-02-30']) assert.throws(() => duplicatePlan({ ...trip, items: [source] }, source.id, day), /another day/);
+  assert.throws(() => duplicatePlan(trip, 'missing', '2026-10-31'), /no longer/);
+});
+
+test('repeating the same duplicate does not create identical entries or alter existing events', () => {
+  const source = { ...makePlan(trip, { name: 'Walk', day: '2026-10-30', notes: 'By the river' }), placeId: 'walk', latitude: 38.7, longitude: -9.1 };
+  const result = duplicatePlan({ ...trip, items: [source] }, source.id, '2026-10-31');
+  assert.throws(() => duplicatePlan(result.trip, source.id, '2026-10-31'), /already/);
+  const differentVisit = { ...result.trip, items: result.trip.items.map(item => item.id === result.copy.id ? { ...item, notes: 'Sunset visit' } : item) };
+  assert.equal(duplicatePlan(differentVisit, source.id, '2026-10-31').trip.items.length, 3);
+});
+
+test('undo restores a reservation and its position without losing edits made after removal', () => {
+  const first = makePlan(trip, { name: 'Walk', day: '2026-10-30' });
+  const dinner = { ...makePlan(trip, { name: 'Dinner', day: '2026-10-30', time: '19:00', booked: true, reference: 'BOOK-123', notes: 'Vegetarian menu' }), placeId: 'restaurant', latitude: 38.72, longitude: -9.13 };
+  const last = makePlan(trip, { name: 'Concert', day: '2026-10-30' });
+  const original = { ...trip, items: [first, dinner, last] };
+  const removed = removeItineraryEvent(original, 'items', dinner.id);
+  const newPlan = makePlan(trip, { name: 'Coffee', day: '2026-10-31' });
+  const edited = { ...removed.trip, title: 'Autumn break', items: [{ ...first, notes: 'Bring a jacket' }, last, newPlan] };
+  const restored = restoreItineraryEvent(edited, removed.removal);
+  assert.deepEqual(restored.items.map(item => item.id), [first.id, dinner.id, last.id, newPlan.id]);
+  assert.deepEqual(restored.items[1], dinner);
+  assert.equal(restored.items[0].notes, 'Bring a jacket');
+  assert.equal(restored.title, 'Autumn break');
+  assert.equal(original.items.length, 3);
+});
+
+test('undo restores both transport legs and provider data, and survives saving and reopening', () => {
+  const train = { ...makeTransport(trip, service, 'train'), notes: 'Carriage 4', flightData: { status: 'Confirmed', departure_gate: '8' } };
+  const removed = removeItineraryEvent({ ...trip, transport: [train] }, 'transport', train.id);
+  assert.equal(eventsForDay(removed.trip, service.departure_date).length, 0);
+  const restored = restoreItineraryEvent(removed.trip, removed.removal);
+  let data = null;
+  const storage = { getItem: () => data, setItem: (_, value) => { data = value; } };
+  saveTrip(restored, storage);
+  assert.deepEqual(readTrips(storage)[0].transport[0], train);
+  assert.equal(eventsForDay(readTrips(storage)[0], service.departure_date)[0].id, train.id);
+});
+
+test('undo cannot duplicate events, affect another trip, or restore outside changed trip dates', () => {
+  const plan = makePlan(trip, { name: 'Walk', day: '2026-10-30' });
+  const original = { ...trip, items: [plan] }, removed = removeItineraryEvent(original, 'items', plan.id);
+  assert.equal(restoreItineraryEvent(original, removed.removal), original);
+  const other = { ...removed.trip, id: 'other' };
+  assert.equal(restoreItineraryEvent(other, removed.removal), other);
+  assert.throws(() => restoreItineraryEvent({ ...removed.trip, startDate: '2026-10-31' }, removed.removal), /trip dates/);
+  const train = makeTransport(trip, service, 'train');
+  const removedTrain = removeItineraryEvent({ ...trip, transport: [train] }, 'transport', train.id);
+  assert.throws(() => restoreItineraryEvent({ ...removedTrain.trip, startDate: '2026-10-31' }, removedTrain.removal), /trip dates/);
+  assert.throws(() => removeItineraryEvent(original, 'items', 'missing'), /no longer/);
+});
 
 test('HTML calendar keeps backend alignment, month boundaries, and open days', () => {
   assert.deepEqual(datesForTrip(trip), ['2026-10-30', '2026-10-31', '2026-11-01', '2026-11-02']);

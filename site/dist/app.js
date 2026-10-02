@@ -4,6 +4,7 @@ import { calendarMonth, presetRange, rangeLength, selectDateRange } from './date
 import { datesForTrip, mappedPlace, fixedItem } from './itinerary-model.js';
 import { createItineraryUI } from './itinerary-ui.js';
 import { mapEntries, scheduleUnassigned, googlePlaceRecord, destinationForDay } from './place-model.js';
+import { enhanceDropdowns } from './dropdowns.js';
 
 
 const $ = id => document.getElementById(id);
@@ -99,6 +100,7 @@ $('account-signout').addEventListener('click', async event => {
 });
 
 function showHome({ focus = false } = {}) {
+  itinerary.clearRemoval();
   $('trip-title-input').hidden = true; $('edit-trip-title').hidden = false;
   cancelAnimationFrame(state.animation);
   state.photoRequest++;
@@ -712,6 +714,7 @@ const itinerary = createItineraryUI({ state, commit: commitTrip,
   onModeChange: mode => { if ($('plan-controls').dataset.mode === mode) return; $('plan-controls').dataset.mode = mode; if (state.map) requestAnimationFrame(() => google.maps.event.trigger(state.map, 'resize')); },
   chooseDates: () => { $('edit-date-picker').hidden = true; openCalendar(); $('save-dates').focus({ preventScroll: true }); },
   focusPlace: place => { animateMap(place, 15); document.querySelectorAll('[data-place-id]').forEach(element => element.classList.toggle('selected', element.dataset.placeId === place.placeId)); }, hydratePlace, icon });
+enhanceDropdowns();
 for (const button of document.querySelectorAll('[data-workspace-view]')) button.addEventListener('click', () => setWorkspaceView(button.dataset.workspaceView));
 for (const leg of ['departure', 'arrival']) {
   $(`${leg}-search`).addEventListener('input', event => { delete event.target.dataset.placeId; });

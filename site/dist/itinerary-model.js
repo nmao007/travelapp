@@ -49,6 +49,19 @@ export function upsertTransport(trip, segment) {
   return { ...trip, transport: transport.some(item => item.id === segment.id) ? transport.map(item => item.id === segment.id ? segment : item) : [...transport, segment] };
 }
 
+export function duplicatePlan(trip, id, day) {
+  const source = (trip.items || []).find(item => item.id === id);
+  if (!source) throw new Error('This plan is no longer in the trip.');
+  if (fixedItem(source)) throw new Error('Only flexible plans can be duplicated.');
+  if (!datesForTrip(trip).includes(day) || day === source.day) throw new Error('Choose another day within your trip.');
+  const snapshot = { ...structuredClone(source), id: crypto.randomUUID() };
+  delete snapshot.flightData;
+  const copy = makePlan(trip, { ...source, day, booked: false, reference: '' }, snapshot);
+  const identity = ['day', 'name', 'kind', 'placeId', 'time', 'timeZone', 'notes', 'reference', 'booked'];
+  if ((trip.items || []).some(item => identity.every(key => (item[key] || '') === (copy[key] || '')))) throw new Error('That plan is already on this day.');
+  return { trip: { ...trip, items: [...(trip.items || []), copy] }, copy };
+}
+
 export function reorderPlan(trip, sourceId, targetId) {
   const items = [...(trip.items || [])], source = items.find(item => item.id === sourceId), target = items.find(item => item.id === targetId);
   if (!source || !target || source.id === target.id || fixedItem(source) || fixedItem(target)) return trip;
@@ -56,6 +69,31 @@ export function reorderPlan(trip, sourceId, targetId) {
   items.splice(items.indexOf(source), 1);
   items.splice(items.findIndex(item => item.id === target.id), 0, moved);
   return { ...trip, items };
+}
+
+export function removeItineraryEvent(trip, collection, id) {
+  if (!['items', 'transport'].includes(collection)) throw new Error('Unknown itinerary event.');
+  const records = trip[collection] || [], index = records.findIndex(record => record.id === id);
+  if (index < 0) throw new Error('This event is no longer in the trip.');
+  return {
+    trip: { ...trip, [collection]: records.filter(record => record.id !== id) },
+    removal: { tripId: trip.id, collection, record: structuredClone(records[index]), index, previousId: records[index - 1]?.id, nextId: records[index + 1]?.id },
+  };
+}
+
+export function restoreItineraryEvent(trip, removal) {
+  if (!removal || trip?.id !== removal.tripId) return trip;
+  const { collection, record } = removal;
+  if (!['items', 'transport'].includes(collection)) throw new Error('Unknown itinerary event.');
+  const records = [...(trip[collection] || [])];
+  if (records.some(item => item.id === record.id)) return trip;
+  const days = datesForTrip(trip);
+  const validDates = collection === 'items' ? record.day === 'ideas' || days.includes(record.day) : [record.departure_date, record.arrival_date].every(day => days.includes(day));
+  if (!validDates) throw new Error('Restore the original trip dates to undo this removal.');
+  const next = records.findIndex(item => item.id === removal.nextId), previous = records.findIndex(item => item.id === removal.previousId);
+  const position = next >= 0 ? next : previous >= 0 ? previous + 1 : Math.min(removal.index, records.length);
+  records.splice(position, 0, structuredClone(record));
+  return { ...trip, [collection]: records };
 }
 
 export function insertPlan(trip, sourceId, day, beforeId = null) {
