@@ -1,3 +1,4 @@
+import { tourDetails } from './tour-model.js';
 import { activityInstant, isDate, isTimeZone } from './domain.js';
 import { eventsForTripDay, tripCalendarMonths, tripDates } from './trip-itinerary.js';
 
@@ -22,7 +23,7 @@ export function makePlan(trip, input, existing = null) {
   if (!isTimeZone(timeZone)) throw new Error('Choose a valid time zone.');
   if (time && activityInstant({ date: day, time, time_zone: timeZone }) === null) throw new Error('That time does not exist when the clocks change.');
   if ((input.notes || '').length > 4000 || (input.address || '').length > 300 || (input.reference || '').length > 160) throw new Error('Shorten the notes, location, or booking reference.');
-  return { ...existing, ...(input.placeId && mappedPlace(input) ? { placeId: input.placeId, latitude: input.latitude, longitude: input.longitude } : {}), id: existing?.id || crypto.randomUUID(), name, day, time, timeZone, kind: ['Activity', 'Food', 'Stay', 'Flight', 'Train', 'Transport'].includes(input.kind) ? input.kind : 'Activity', booked: Boolean(input.booked), address: input.address?.trim() || '', notes: input.notes?.trim() || '', reference: input.reference?.trim() || '' };
+  return { ...existing, ...(input.placeId && mappedPlace(input) ? { placeId: input.placeId, latitude: input.latitude, longitude: input.longitude } : {}), tour: input.kind === 'Tour' ? tourDetails(input.tour) : undefined, id: existing?.id || crypto.randomUUID(), name, day, time, timeZone, kind: ['Activity', 'Food', 'Stay', 'Flight', 'Train', 'Transport', 'Tour'].includes(input.kind) ? input.kind : 'Activity', booked: Boolean(input.booked), address: input.address?.trim() || '', notes: input.notes?.trim() || '', reference: input.reference?.trim() || '' };
 }
 
 export function makeTransport(trip, input, id = crypto.randomUUID()) {

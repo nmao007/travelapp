@@ -148,6 +148,7 @@ function enhance(source) {
 }
 
 export function enhanceDropdowns(root = document) {
+  if (!document.body) return;
   if (!installed) {
     installed = true;
     document.addEventListener('pointerdown', event => { if (active && !active.host.contains(event.target)) active.close(); });

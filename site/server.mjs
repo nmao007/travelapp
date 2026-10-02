@@ -3,7 +3,9 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, extname } from 'node:path';
 import { createRequire } from 'node:module';
+import { createRouteService } from './route-service.mjs';
 import { createFlightService } from './flight-service.mjs';
+import { matchingPhotoPage } from './wiki-photo-match.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PORT || 3010);
@@ -11,6 +13,7 @@ const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=u
 const wikiHeaders = { 'user-agent': 'TripPilotLocal/0.1 (local travel planning prototype)' };
 const photoCache = new Map();
 const lookupFlight = createFlightService();
+const lookupRoute = createRouteService();
 const require = createRequire(import.meta.url);
 let zoneLookup;
 try { zoneLookup = require('geo-tz').find; } catch { /* Time zones remain editable without the optional lookup. */ }
@@ -22,16 +25,31 @@ function distanceKm(a, b) {
   return 6371 * 2 * Math.atan2(Math.sqrt(arc), Math.sqrt(1 - arc));
 }
 
-async function wikimediaPhoto(title, lat, lng, width) {
+async function wikimediaPhoto(title, lat, lng, width, destination = false) {
   const url = new URL('https://en.wikipedia.org/w/api.php');
-  url.search = new URLSearchParams({ action: 'query', prop: 'pageimages|coordinates|extracts', titles: title, redirects: '1', piprop: 'thumbnail|name', pithumbsize: String(width), exintro: '1', explaintext: '1', exchars: '600', format: 'json' }).toString();
+  url.search = new URLSearchParams({ action: 'query', prop: 'pageimages|coordinates', titles: title, redirects: '1', converttitles: '1', piprop: 'thumbnail|name', pithumbsize: String(width), format: 'json' }).toString();
   const response = await fetch(url, { headers: wikiHeaders, signal: AbortSignal.timeout(7000) });
   if (!response.ok) throw new Error('Wikimedia unavailable');
   const data = await response.json();
-  const page = Object.values(data.query?.pages || {})[0];
+  let page = Object.values(data.query?.pages || {})[0];
+  // Google names often differ from article titles (Jinja/Shrine, diacritics,
+  // translated names). Search nearby articles, but never use a random neighbor.
+  if (!page?.thumbnail?.source || !page.coordinates?.[0]) {
+    const nearby = new URL('https://en.wikipedia.org/w/api.php');
+    nearby.search = new URLSearchParams({ action: 'query', generator: 'geosearch', ggscoord: `${lat}|${lng}`, ggsradius: '1500', ggslimit: '12', prop: 'pageimages|coordinates', piprop: 'thumbnail|name', pithumbsize: String(width), format: 'json' }).toString();
+    const nearbyResponse = await fetch(nearby, { headers: wikiHeaders, signal: AbortSignal.timeout(7000) });
+    if (nearbyResponse.ok) {
+      const nearbyData = await nearbyResponse.json();
+      const match = Object.values(nearbyData.query?.pages || {}).find(candidate => matchingPhotoPage(candidate, title, lat, lng, distanceKm));
+      if (match) page = match;
+    }
+  }
   const point = page?.coordinates?.[0];
-  const locality = !/\d/.test(title) && !/street|temple|museum|park|tower|hotel|bridge|shrine/i.test(title);
-  if (!point || distanceKm({ lat, lng }, { lat: point.lat, lng: point.lon }) > (locality ? 35 : 2)) return null;
+  if (!point || distanceKm({ lat, lng }, { lat: point.lat, lng: point.lon }) > (destination ? 35 : 2)) return commonsPlacePhoto(title, lat, lng, width);
+  if (!page.thumbnail?.source) {
+    const image = await commonsPlacePhoto(title, lat, lng, width);
+    if (image) return image;
+  }
   const filename = page.pageimage;
   const commonsUrl = filename ? `https://commons.wikimedia.org/wiki/File:${encodeURIComponent(filename.replaceAll(' ', '_'))}` : `https://en.wikipedia.org/wiki/${encodeURIComponent(page.title.replaceAll(' ', '_'))}`;
   let artist = 'Wikimedia Commons', license = '', licenseUrl = '';
@@ -47,7 +65,27 @@ async function wikimediaPhoto(title, lat, lng, width) {
       licenseUrl = meta.LicenseUrl?.value || '';
     } catch { /* Keep a link to the Commons file when extended credits are unavailable. */ }
   }
-  return { src: page.thumbnail?.source || null, artist, license, licenseUrl, creditUrl: commonsUrl, description: page.extract || '', descriptionUrl: `https://en.wikipedia.org/wiki/${encodeURIComponent(page.title.replaceAll(' ', '_'))}` };
+  return { src: page.thumbnail?.source || null, artist, license, licenseUrl, creditUrl: commonsUrl };
+}
+
+async function commonsPlacePhoto(title, lat, lng, width) {
+  for (const search of [
+    { generator: 'search', gsrsearch: title, gsrnamespace: '6', gsrlimit: '20' },
+    { generator: 'geosearch', ggscoord: `${lat}|${lng}`, ggsradius: '500', ggslimit: '30', ggsnamespace: '6' },
+  ]) {
+    const url = new URL('https://commons.wikimedia.org/w/api.php');
+    url.search = new URLSearchParams({ action: 'query', ...search, prop: 'coordinates|imageinfo', iiprop: 'url|extmetadata', iiurlwidth: String(width), format: 'json' }).toString();
+    let data;
+    try { const response = await fetch(url, { headers: wikiHeaders, signal: AbortSignal.timeout(7000) }); if (!response.ok) continue; data = await response.json(); } catch { continue; }
+    for (const page of Object.values(data.query?.pages || {})) {
+      const info = page.imageinfo?.[0], meta = info?.extmetadata || {};
+      const license = meta.LicenseShortName?.value || '';
+      if (!/CC BY|CC0|public domain/i.test(license)) continue;
+      if (!matchingPhotoPage({ ...page, thumbnail: { source: info.thumburl } }, title, lat, lng, distanceKm)) continue;
+      return { src: info.thumburl, artist: (meta.Artist?.value || 'Wikimedia Commons').replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim().slice(0, 100), license, licenseUrl: meta.LicenseUrl?.value || '', creditUrl: info.descriptionurl };
+    }
+  }
+  return null;
 }
 
 async function localSettings() {
@@ -66,6 +104,21 @@ async function localConfig() {
 
 createServer(async (request, response) => {
   const pathname = new URL(request.url || '/', 'http://localhost').pathname;
+  if (pathname === '/api/route') {
+    try {
+      if (request.method !== 'POST') throw Object.assign(new Error('Use POST for directions.'), { status: 405 });
+      const chunks = []; let bytes = 0;
+      for await (const chunk of request) { bytes += chunk.length; if (bytes > 16384) throw Object.assign(new Error('Route request is too large.'), { status: 413 }); chunks.push(chunk); }
+      let input; try { input = JSON.parse(Buffer.concat(chunks).toString()); } catch { throw Object.assign(new Error('Invalid route request.'), { status: 400 }); }
+      const values = await localSettings();
+      const route = await lookupRoute(input, values.GOOGLE_MAPS_ROUTES_KEY || process.env.GOOGLE_MAPS_ROUTES_KEY || values.GOOGLE_MAPS_BROWSER_KEY);
+      response.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' }); response.end(JSON.stringify(route));
+    } catch (error) {
+      response.writeHead(error.status || 502, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+      response.end(JSON.stringify({ error: error.status ? error.message : 'Directions unavailable. Try again.' }));
+    }
+    return;
+  }
   if (pathname === '/api/flights') {
     const params = new URL(request.url, 'http://localhost').searchParams;
     try {
@@ -99,14 +152,15 @@ createServer(async (request, response) => {
     const title = (params.get('title') || '').trim();
     const lat = Number(params.get('lat')), lng = Number(params.get('lng'));
     const width = Math.max(320, Math.min(1600, Number(params.get('width')) || 800));
+    const destination = params.get('scope') === 'destination';
     if (!title || title.length > 100 || !Number.isFinite(lat) || !Number.isFinite(lng)) {
       response.writeHead(400); response.end('Invalid place'); return;
     }
     try {
-      const cacheKey = `${title}|${lat.toFixed(3)}|${lng.toFixed(3)}|${width}`;
+      const cacheKey = `${title}|${lat.toFixed(5)}|${lng.toFixed(5)}|${width}|${destination}`;
       let cached = photoCache.get(cacheKey);
       if (!cached || cached.expires < Date.now()) {
-        const promise = wikimediaPhoto(title, lat, lng, width);
+        const promise = wikimediaPhoto(title, lat, lng, width, destination);
         cached = { promise, expires: Date.now() + 30_000 };
         photoCache.set(cacheKey, cached);
         if (photoCache.size > 200) photoCache.delete(photoCache.keys().next().value);
@@ -127,7 +181,7 @@ createServer(async (request, response) => {
     response.end(body);
     return;
   }
-  const assets = new Map([['/', 'index.html'], ['/index.html', 'index.html'], ['/app.css', 'app.css'], ['/app.js', 'app.js'], ['/trip-store.js', 'trip-store.js'], ['/date-range.js', 'date-range.js'], ['/domain.js', 'domain.js'], ['/trip-itinerary.js', 'trip-itinerary.js'], ['/itinerary-model.js', 'itinerary-model.js'], ['/itinerary-ui.js', 'itinerary-ui.js'], ['/place-model.js', 'place-model.js'], ['/motion.js', 'motion.js'], ['/flight-model.js', 'flight-model.js'], ['/planning-drag.js', 'planning-drag.js'], ['/dropdowns.js', 'dropdowns.js']]);
+  const assets = new Map([['/', 'index.html'], ['/index.html', 'index.html'], ['/app.css', 'app.css'], ['/app.js', 'app.js'], ['/trip-store.js', 'trip-store.js'], ['/date-range.js', 'date-range.js'], ['/domain.js', 'domain.js'], ['/trip-itinerary.js', 'trip-itinerary.js'], ['/itinerary-model.js', 'itinerary-model.js'], ['/itinerary-ui.js', 'itinerary-ui.js'], ['/place-model.js', 'place-model.js'], ['/motion.js', 'motion.js'], ['/flight-model.js', 'flight-model.js'], ['/planning-drag.js', 'planning-drag.js'], ['/dropdowns.js', 'dropdowns.js'], ['/explore-model.js', 'explore-model.js'], ['/place-photos.js', 'place-photos.js'], ['/day-route-model.js', 'day-route-model.js'], ['/day-routes.js', 'day-routes.js'], ['/maps-links.js', 'maps-links.js'], ['/tour-model.js', 'tour-model.js'], ['/place-search.js', 'place-search.js'], ['/trip-banner.js', 'trip-banner.js']]);
   const asset = assets.get(pathname);
   if (!asset) { response.writeHead(404); response.end('Not found'); return; }
   try {

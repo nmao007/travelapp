@@ -1,15 +1,27 @@
+import { placeMapsURL, mapViewURL, directionsMapsURL } from './maps-links.js';
+import { createPlaceSearch, placeSearchGroups, mixedMapPlaces, createQuotaMemory, placeIcon, createSearchSelection, quotaFailure, boundedPlaceRequest } from './place-search.js';
+import { isTourOperator } from './tour-model.js';
 import { playMotion, revealSequence, reducedMotion } from './motion.js';
+import { createTripBanner } from './trip-banner.js';
 import { readTrips, saveTrip, deleteTrip, addPlace, removePlace, movePlace, addStop, moveStop, removeStop, tripStops, tripTitle, renameTrip, currentAccount, createAccount, signIn, signOut, restoreSession, loadCloudTrips } from './trip-store.js';
 import { calendarMonth, presetRange, rangeLength, selectDateRange } from './date-range.js';
-import { datesForTrip, mappedPlace, fixedItem } from './itinerary-model.js';
+import { datesForTrip, eventsForDay, mappedPlace, fixedItem } from './itinerary-model.js';
+import { createDayRoutes } from './day-routes.js';
 import { createItineraryUI } from './itinerary-ui.js';
-import { mapEntries, scheduleUnassigned, googlePlaceRecord, destinationForDay } from './place-model.js';
+import { mapEntries, scheduleUnassigned, googlePlaceRecord, destinationForDay, googleDescription, googleRatingLabel, mergeGoogleContent, mapLabelPosition } from './place-model.js';
 import { enhanceDropdowns } from './dropdowns.js';
+import { viewportSearchArea, inSearchArea, createSearchAreaTracker } from './explore-model.js';
+import { createPhotoLookup, resolvePlacePhoto } from './place-photos.js';
 
 
 const $ = id => document.getElementById(id);
 const icon = name => `<svg class="icon" aria-hidden="true"><use href="#i-${name}"/></svg>`;
-const state = { maps: null, places: null, markerClass: null, map: null, marker: null, stopMarkers: [], placeMarkers: [], suggestionMarkers: [], suggestions: [], selected: null, trip: null, day: 'ideas', animation: 0, config: null, pendingNearby: null, nearbyRequest: 0, photoRequest: 0, calendarRange: { start: null, end: null }, calendarYear: 0, calendarMonth: 0, routeEditing: false, planMode: 'list', workspaceView: 'itinerary', nearbyCategory: 'see', detailCooldownUntil: 0, detailCache: new Map(), imageCache: new Map(), infoWindow: null, activePlaceId: null, discoveryPlace: null, nearbyCenter: null, nearbyCache: new Map() };
+let resolveMapsReady;
+const mapsReady = new Promise(resolve => { resolveMapsReady = resolve; });
+let quotaStorage; try { quotaStorage = sessionStorage; } catch { /* Storage is optional. */ }
+const quotaMemory = createQuotaMemory(quotaStorage);
+const state = { maps: null, places: null, markerClass: null, map: null, marker: null, stopMarkers: [], placeMarkers: [], suggestionMarkers: [], suggestions: [], selected: null, trip: null, day: 'ideas', animation: 0, config: null, pendingNearby: null, nearbyRequest: 0, photoRequest: 0, calendarRange: { start: null, end: null }, calendarYear: 0, calendarMonth: 0, routeEditing: false, planMode: 'list', workspaceView: 'itinerary', nearbyCategory: 'see', detailCooldownUntil: quotaMemory.read('details'), photoCooldownUntil: quotaMemory.read('photo-details'), photoSearchCooldownUntil: quotaMemory.read('photo-text'), detailCache: new Map(), operatorCache: new Map(), imageCache: new Map(), infoWindow: null, activePlaceId: null, discoveryPlace: null, nearbyCache: new Map(), mapSuggestions: [], mapAreaKey: null, mapSearchVersion: 0, mapSearchTimer: null, placeClickVersion: 0, nearbyAreaKey: null, nearbyTimer: null, cameraMoving: false };
+const tripBanner = createTripBanner({ workspace: $('workspace'), header: $('trip-masthead'), hero: $('destination-hero'), onResize: () => { if (state.map) requestAnimationFrame(() => google.maps.event.trigger(state.map, 'resize')); } });
 const dateLabel = value => new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T12:00:00Z`));
 const dateLong = value => new Intl.DateTimeFormat('en', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T12:00:00Z`));
 const tripDateLabel = trip => trip.startDate && trip.endDate ? `${dateLabel(trip.startDate)} – ${dateLabel(trip.endDate)}` : 'Add dates';
@@ -100,10 +112,11 @@ $('account-signout').addEventListener('click', async event => {
 });
 
 function showHome({ focus = false } = {}) {
-  itinerary.clearRemoval();
+  clearMapSearch(); selection.invalidate();
+  itinerary.clearRemoval(); dayRoutes.clear();
   $('trip-title-input').hidden = true; $('edit-trip-title').hidden = false;
   cancelAnimationFrame(state.animation);
-  state.photoRequest++;
+  state.photoRequest++; state.nearbyRequest++; clearTimeout(state.nearbyTimer); state.cameraMoving = false;
   state.selected = null; state.trip = null; state.infoWindow?.close(); $('place-dialog').close(); $('plan-dialog').close(); $('day-preview').close();
   $('home-view').hidden = false;
   $('workspace').hidden = true;
@@ -158,8 +171,9 @@ function renderRoute() {
 
 function selectStop(stop, syncDay = true) {
   if (!stop || !state.trip) return;
-  state.infoWindow?.close(); state.activePlaceId = null; state.nearbyCenter = null; $('search-map-area').hidden = true;
+  state.infoWindow?.close(); state.activePlaceId = null; state.nearbyAreaKey = null; clearTimeout(state.nearbyTimer); $('search-map-area').hidden = true;
   if (syncDay && daysForTrip(state.trip).includes(stop.date)) state.day = stop.date;
+  clearMapSearch(); selection.invalidate();
   state.selected = stop; state.photoRequest++; state.nearbyRequest++; state.suggestions = [];
   $('nearby-results').replaceChildren();
   updateTripTitle();
@@ -179,10 +193,11 @@ function commitRoute(next, selectedId) {
 }
 
 function showWorkspace(place, trip = null) {
+  clearMapSearch(); selection.invalidate();
   $('trip-title-input').hidden = true; $('edit-trip-title').hidden = false;
   $('place-dialog').close(); $('plan-dialog').close(); $('transport-dialog').close(); $('day-preview').close();
   state.selected = place; state.trip = trip ? scheduleUnassigned(trip) : trip;
-  state.infoWindow?.close(); state.activePlaceId = null; state.nearbyCenter = null; $('search-map-area').hidden = true;
+  state.infoWindow?.close(); state.activePlaceId = null; state.nearbyAreaKey = null; clearTimeout(state.nearbyTimer); $('search-map-area').hidden = true;
   if (trip && state.trip !== trip) { saveTrip(state.trip); trip = state.trip; }
   state.photoRequest++;
   state.pendingNearby = null;
@@ -212,7 +227,7 @@ function showWorkspace(place, trip = null) {
     ensureTripZone(trip);
     history.replaceState(null, '', `?trip=${encodeURIComponent(trip.id)}`);
   }
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  tripBanner.reset();
   showMap(place, true, true);
   if (state.places?.Place) { loadDestinationPhoto(place); exploreNearby('see'); }
   else state.pendingNearby = 'see';
@@ -257,8 +272,8 @@ function wikimediaCredits(container, image) {
   container.hidden = false;
 }
 
-async function wikimediaImage(place, width) {
-  const query = new URLSearchParams({ title: place.name, lat: String(place.latitude), lng: String(place.longitude), width: String(width) });
+async function wikimediaImage(place, width, destination = false) {
+  const query = new URLSearchParams({ title: place.name, lat: String(place.latitude), lng: String(place.longitude), width: String(width), scope: destination ? 'destination' : 'place' });
   const response = await fetch(`/api/place-image?${query}`, { cache: 'no-store' });
   if (!response.ok) return null;
   const data = await response.json();
@@ -268,21 +283,10 @@ async function wikimediaImage(place, width) {
 const heroPhotos = new Map();
 async function destinationPhoto(destination) {
   const key = destination.placeId;
-  if (!heroPhotos.has(key)) heroPhotos.set(key, (async () => {
-    if (state.places?.Place && Date.now() >= state.detailCooldownUntil) {
-      try {
-        const place = new state.places.Place({ id: key });
-        await place.fetchFields({ fields: ['photos'] });
-        const photo = place.photos?.[0];
-        if (photo) return { src: photo.getURI({ maxWidth: 1200 }), googlePhoto: photo };
-      } catch (error) { notePlaceQuota(error); }
-    }
-    try { return await wikimediaImage(destination, 1200); } catch { return null; }
-  })());
-  const source = await heroPhotos.get(key);
-  if (!source?.src) heroPhotos.delete(key);
-  return source;
+  if (!heroPhotos.has(key)) heroPhotos.set(key, resolvePlacePhoto(destination, { width: 1200, lookup: lookupGooglePhotos, load: loadPhotoImage, fallback: (place, size) => wikimediaImage(place, size, true) }));
+  try { return await heroPhotos.get(key); } finally { heroPhotos.delete(key); }
 }
+
 async function loadDestinationPhoto() {
   if (!state.trip) return;
   const gallery = $('hero-gallery'), stops = tripStops(state.trip), route = stops.map(stop => stop.placeId).join('|');
@@ -306,11 +310,12 @@ async function loadDestinationPhoto() {
 function animateMap(target, zoom = 12) {
   if (!state.map) return;
   cancelAnimationFrame(state.animation);
+  state.cameraMoving = true; clearTimeout(state.nearbyTimer); state.nearbyRequest++;
   const to = coordinates(target);
   const fromPoint = state.map.getCenter();
   const from = fromPoint ? { lat: fromPoint.lat(), lng: fromPoint.lng() } : to;
   const fromZoom = state.map.getZoom() || 5;
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) { state.map.moveCamera({ center: to, zoom }); return; }
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) { state.map.moveCamera({ center: to, zoom }); state.cameraMoving = false; scheduleAreaSearch(); scheduleMapSuggestions(); return; }
   let lngDelta = to.lng - from.lng;
   if (lngDelta > 180) lngDelta -= 360;
   if (lngDelta < -180) lngDelta += 360;
@@ -321,19 +326,42 @@ function animateMap(target, zoom = 12) {
     const ease = 1 - Math.pow(1 - t, 3);
     state.map.moveCamera({ center: { lat: from.lat + (to.lat - from.lat) * ease, lng: from.lng + lngDelta * ease }, zoom: fromZoom + (zoom - fromZoom) * ease });
     if (t < 1) state.animation = requestAnimationFrame(frame);
+    else { state.cameraMoving = false; state.animation = 0; scheduleAreaSearch(); scheduleMapSuggestions(); }
   };
   state.animation = requestAnimationFrame(frame);
 }
 
 function pinContent(entry) {
-  const pin = document.createElement('span'); pin.className = `map-place-pin ${entry.planned ? 'planned-pin' : 'recommended-pin'}`;
+  const pin = document.createElement('span'); pin.dataset.symbol = placeIcon(entry); pin.className = `map-place-pin ${entry.planned ? 'planned-pin' : 'recommended-pin'}`;
+  pin.dataset.placeId = entry.placeId || entry.id; pin.classList.toggle('selected', pin.dataset.placeId === state.activePlaceId);
   const symbol = document.createElement('span'); symbol.className = 'pin-symbol';
-  symbol.innerHTML = entry.planned ? String(entry.number) : icon(entry.primaryType === 'hotel' ? 'stay' : ['restaurant', 'cafe'].includes(entry.primaryType) ? 'food' : 'pin');
+  symbol.innerHTML = icon(placeIcon(entry));
+  if (entry.planned) { const order = document.createElement('span'); order.className = 'pin-order'; order.textContent = String(entry.number); pin.append(order); }
   const label = document.createElement('span'); label.className = 'pin-label'; label.textContent = entry.name;
   pin.append(symbol, label); return pin;
 }
 
-function showMapEntry(entry, marker) {
+const mapLabel = document.createElement('div'); mapLabel.className = 'map-marker-label'; mapLabel.hidden = true; mapLabel.setAttribute('aria-hidden', 'true');
+$('map-column').querySelector('.map-frame').append(mapLabel);
+let hoveredMapPin = null;
+function hideMapLabel() {
+  if (hoveredMapPin) hoveredMapPin.marker.zIndex = hoveredMapPin.priority;
+  hoveredMapPin = null; mapLabel.hidden = true;
+}
+function showMapLabel(marker, pin, entry, priority) {
+  hideMapLabel(); hoveredMapPin = { marker, priority }; marker.zIndex = 100000;
+  mapLabel.textContent = entry.name; mapLabel.style.left = '0px'; mapLabel.style.top = '0px'; mapLabel.hidden = false;
+  const frame = mapLabel.parentElement.getBoundingClientRect();
+  const local = rect => ({ left: rect.left - frame.left, top: rect.top - frame.top, width: rect.width, height: rect.height });
+  const anchor = local(pin.getBoundingClientRect());
+  const obstacles = [...$('map').querySelectorAll('.map-place-pin')].filter(element => element !== pin).map(element => local(element.getBoundingClientRect())).filter(rect => rect.width && rect.height);
+  const position = mapLabelPosition(anchor, frame, { width: mapLabel.offsetWidth, height: mapLabel.offsetHeight }, obstacles);
+  mapLabel.style.left = `${position.left}px`; mapLabel.style.top = `${position.top}px`;
+}
+
+function showMapEntry(entry) {
+  hideMapLabel();
+  state.placeClickVersion++;
   state.activePlaceId = entry.placeId || entry.id;
   animateMap(entry, 15);
   if (entry.planned) {
@@ -349,57 +377,106 @@ function showMapEntry(entry, marker) {
   const title = document.createElement('strong'); title.textContent = entry.name;
   const button = document.createElement('button'); button.type = 'button'; button.textContent = entry.planned ? 'Open plan' : 'View place';
   button.addEventListener('click', () => entry.planned ? itinerary.openPlan(state.trip.items.find(item => item.placeId === entry.placeId && item.day === state.day) || state.trip.items.find(item => item.id === entry.id)) : openDiscovery(entry));
-  content.append(title, button);
-  state.infoWindow ||= new state.maps.InfoWindow();
+  const external = document.createElement('a'); external.className = 'detail-chip'; external.href = placeMapsURL(entry); external.target = '_blank'; external.rel = 'noopener noreferrer'; external.innerHTML = icon('external'); external.append(document.createTextNode('Google Maps'));
+  const actions = document.createElement('div'); actions.className = 'map-entry-actions'; actions.append(button, external); content.append(title); const rating = googleRatingLabel(knownGoogleContent(entry)); if (rating) { const score = document.createElement('span'); score.className = 'map-entry-rating'; score.innerHTML = icon('star'); score.append(document.createTextNode(rating)); content.append(score); } content.append(actions);
+  state.infoWindow ||= new state.maps.InfoWindow({ disableAutoPan: true });
   state.infoWindow.setContent(content);
-  state.infoWindow.open({ map: state.map, anchor: marker, shouldFocus: false });
+  state.infoWindow.setPosition(coordinates(entry));
+  state.infoWindow.open({ map: state.map, shouldFocus: false });
 }
 
 function drawMarkers() {
+  hideMapLabel();
   if (!state.map || !state.markerClass || !state.selected) return;
   if (state.marker) state.marker.map = null;
   for (const marker of [...state.stopMarkers, ...state.placeMarkers, ...state.suggestionMarkers]) marker.map = null;
   state.stopMarkers = []; state.placeMarkers = []; state.suggestionMarkers = [];
   const optional = google.maps.CollisionBehavior.OPTIONAL_AND_HIDES_LOWER_PRIORITY;
   // Planned places take priority. Suggestions for those places never get a second pin.
-  for (const entry of mapEntries(state.trip?.items, state.suggestions)) {
-    const marker = new state.markerClass({ map: state.map, position: coordinates(entry), title: entry.name, content: pinContent(entry), gmpClickable: true, collisionBehavior: optional, zIndex: entry.planned ? 100 : 10 });
-    marker.addEventListener('gmp-click', () => showMapEntry(entry, marker));
+  const dayOnly = state.workspaceView === 'itinerary' && state.planMode === 'day';
+  const items = dayOnly && state.trip ? eventsForDay(state.trip, state.day).filter(event => event.kind === 'activity').map(event => event.item) : state.trip?.items;
+  const area = currentSearchArea();
+  const recommendations = state.mapSuggestions.filter(place => !area || inSearchArea(area, { lat: place.latitude, lng: place.longitude }));
+  for (const entry of mapEntries(items, recommendations)) {
+    const pin = pinContent(entry), priority = entry.planned ? 1000 : Math.round((entry.rating || 0) * 100) + Math.min(99, Math.round(Math.log10((entry.ratingCount || 0) + 1) * 20));
+    const marker = new state.markerClass({ map: state.map, position: coordinates(entry), title: entry.name, content: pin, gmpClickable: true, collisionBehavior: entry.planned ? google.maps.CollisionBehavior.REQUIRED_AND_HIDES_OPTIONAL : optional, zIndex: priority });
+    const showLabel = () => showMapLabel(marker, pin, entry, priority);
+    pin.addEventListener('pointerenter', showLabel); marker.addEventListener('focusin', showLabel);
+    pin.addEventListener('pointerleave', () => { if (hoveredMapPin?.marker === marker) hideMapLabel(); });
+    marker.addEventListener('focusout', () => { if (hoveredMapPin?.marker === marker) hideMapLabel(); });
+    marker.addEventListener('gmp-click', () => showMapEntry(entry));
     (entry.planned ? state.placeMarkers : state.suggestionMarkers).push(marker);
   }
 }
 
-const nearbyTypes = { see: ['tourist_attraction', 'historical_landmark', 'monument', 'museum', 'art_gallery'], eat: ['restaurant', 'cafe', 'bakery'], stay: ['hotel'], nature: ['park', 'hiking_area', 'national_park'], culture: ['museum', 'art_gallery', 'historical_landmark'] };
-async function exploreNearby(category, center = null) {
-  if (!state.trip || !nearbyTypes[category]) return;
-  const requestId = ++state.nearbyRequest;
-  state.infoWindow?.close(); state.nearbyCategory = category; state.nearbyCenter = center;
-  document.querySelectorAll('[data-nearby]').forEach(button => { button.classList.toggle('active', button.dataset.nearby === category); button.setAttribute('aria-pressed', String(button.dataset.nearby === category)); });
-  const container = $('nearby-results'); container.hidden = false; container.textContent = 'Finding places…';
-  if (!state.places?.Place) { state.pendingNearby = category; return; }
+const nearbyTypes = placeSearchGroups;
+const selection = createSearchSelection();
+const placeSearch = createPlaceSearch({ nearby: request => state.places.Place.searchNearby(request), text: request => state.places.Place.searchByText(request), record: googlePlaceRecord, quotaMemory });
+const searchAreaTracker = createSearchAreaTracker();
+function currentSearchArea() {
+  return searchAreaTracker.read(state.map?.getBounds()?.toJSON());
+}
+function scheduleAreaSearch() {
+  clearTimeout(state.nearbyTimer);
+  if (!state.trip || state.workspaceView !== 'explore' || state.cameraMoving || $('place-dialog').open || $('plan-dialog').open) return;
+  const area = currentSearchArea();
+  if (!area || `${state.nearbyCategory}:${area.key}` === state.nearbyAreaKey) return;
+  state.nearbyTimer = setTimeout(() => exploreNearby(state.nearbyCategory), 900);
+}
+function clearMapSearch() {
+  searchAreaTracker.reset(); clearTimeout(state.mapSearchTimer); state.mapSearchVersion++; state.mapAreaKey = null; state.mapSuggestions = []; state.placeClickVersion++;
+}
+function scheduleMapSuggestions() {
+  clearTimeout(state.mapSearchTimer);
+  if (!state.trip || !state.places || !state.map || state.cameraMoving || state.workspaceView === 'transportation' || $('place-dialog').open || $('plan-dialog').open) return;
+  const area = currentSearchArea();
+  if (!area || state.mapAreaKey === `${state.trip.id}:${area.key}`) return;
+  state.mapSearchTimer = setTimeout(() => updateMapSuggestions(area), 1100);
+}
+async function updateMapSuggestions(area, force = false) {
+  const tripId = state.trip?.id, version = ++state.mapSearchVersion;
+  if (!tripId || state.cameraMoving) return;
+  state.mapAreaKey = `${tripId}:${area.key}`;
   try {
-    const searchCenter = center || coordinates(state.selected || state.trip);
-    const cacheKey = `${category}:${searchCenter.lat.toFixed(4)}:${searchCenter.lng.toFixed(4)}`;
-    let cached = state.nearbyCache.get(cacheKey);
-    if (!cached || cached.expires < Date.now()) {
-      cached = { expires: Date.now() + 5 * 60_000, promise: state.places.Place.searchNearby({
-        fields: ['id', 'displayName', 'formattedAddress', 'location', 'photos', 'rating', 'userRatingCount', 'primaryType', 'primaryTypeDisplayName'],
-        locationRestriction: { center: searchCenter, radius: 12000 },
-        includedTypes: nearbyTypes[category], maxResultCount: 20,
-        rankPreference: state.places.SearchNearbyRankPreference.POPULARITY, language: 'en'
-      }) };
-      state.nearbyCache.set(cacheKey, cached);
-      if (state.nearbyCache.size > 60) state.nearbyCache.delete(state.nearbyCache.keys().next().value);
-      cached.promise.catch(() => state.nearbyCache.delete(cacheKey));
-    }
-    const { places } = await cached.promise;
-    if (requestId !== state.nearbyRequest) return;
-    state.suggestions = (places || []).filter(place => place.id && place.location).map(googlePlaceRecord);
-    renderRecommendations(); drawMarkers();
-  } catch {
-    if (requestId !== state.nearbyRequest) return;
-    container.textContent = 'Could not load places. Try another category or search.';
-    state.suggestions = []; drawMarkers();
+    const places = await placeSearch.search('mixed', area, { force });
+    if (version !== state.mapSearchVersion || state.trip?.id !== tripId || currentSearchArea()?.key !== area.key) return;
+    state.mapSuggestions = mixedMapPlaces(places); drawMarkers();
+  } catch { /* Keep itinerary markers and Google's native places available. */ }
+}
+function renderSearchFailure(error, category) {
+  const container = $('nearby-results'); container.replaceChildren();
+  const note = document.createElement('p'); note.className = 'explore-error'; note.setAttribute('role', 'status');
+  note.textContent = error.message === 'PLACE_SEARCH_LIMIT' ? 'Google place search has reached its demo limit.' : 'Could not load places. Try again.';
+  const link = document.createElement('a'); link.className = 'detail-chip'; link.href = placeMapsURL({ name: `${placeSearchGroups[category].query} near ${state.selected?.name || state.trip.name}` }); link.target = '_blank'; link.rel = 'noopener noreferrer'; link.innerHTML = icon('external'); link.append(document.createTextNode('Google Maps'));
+  container.append(note, link);
+}
+async function exploreNearby(category, { force = false } = {}) {
+  if (!state.trip || !nearbyTypes[category]) return;
+  clearTimeout(state.nearbyTimer);
+  const changed = state.nearbyCategory !== category;
+  state.nearbyCategory = category; state.pendingNearby = null;
+  document.querySelectorAll('[data-nearby]').forEach(button => { button.classList.toggle('active', button.dataset.nearby === category); button.setAttribute('aria-pressed', String(button.dataset.nearby === category)); });
+  const container = $('nearby-results'); container.hidden = false;
+  if (changed) { selection.invalidate(); state.nearbyAreaKey = null; state.suggestions = []; photoObserver.disconnect(); recommendationMotion.disconnect(); container.replaceChildren(); }
+  if (!state.places?.Place) { state.pendingNearby = category; return; }
+  const area = currentSearchArea();
+  if (!area || state.cameraMoving) { state.pendingNearby = category; return; }
+  const cacheKey = `${category}:${area.key}`;
+  if (!force && state.nearbyAreaKey === cacheKey) return;
+  const ticket = selection.begin(state.trip.id, category, area.key), requestId = ++state.nearbyRequest;
+  state.nearbyAreaKey = cacheKey; container.setAttribute('aria-busy', 'true');
+  if (!container.childNodes.length) container.textContent = 'Finding places…';
+  $('search-map-area').hidden = false; $('search-map-area').disabled = true; $('search-map-area').textContent = 'Updating…';
+  try {
+    const places = await placeSearch.search(category, area, { force });
+    if (!selection.current(ticket) || requestId !== state.nearbyRequest || ticket.tripId !== state.trip?.id || category !== state.nearbyCategory) return;
+    state.suggestions = places; container.dataset.areaKey = area.key;
+    renderRecommendations(); drawMarkers(); $('search-map-area').hidden = true;
+  } catch (error) {
+    if (!selection.current(ticket) || requestId !== state.nearbyRequest || ticket.tripId !== state.trip?.id) return;
+    state.nearbyAreaKey = null; state.suggestions = []; renderSearchFailure(error, category); $('search-map-area').hidden = false;
+  } finally {
+    if (selection.current(ticket) && requestId === state.nearbyRequest) { container.setAttribute('aria-busy', 'false'); $('search-map-area').disabled = false; $('search-map-area').textContent = 'Search this area'; }
   }
 }
 
@@ -416,65 +493,94 @@ function addToDay(place) {
   catch { status('trip-status', 'Could not save this place.'); }
 }
 
-async function fallbackPlacePhoto(container, record, className = 'detail-photo') {
-  const key = `${record.placeId}:photo`;
-  if (!state.imageCache.has(key)) state.imageCache.set(key, wikimediaImage(record, 800).catch(() => null));
-  const photo = await state.imageCache.get(key);
-  if (!photo || !container.isConnected || container.dataset.photoPlace !== record.placeId) return;
-  if (className === 'detail-photo' && container.dataset.fallbackDescription === 'true' && photo.description && !container.querySelector('.place-description')) {
-    const text = document.createElement('p'); text.className = 'place-description'; text.textContent = photo.description;
-    const source = document.createElement('a'); source.className = 'description-source'; source.textContent = 'Wikipedia'; source.href = photo.descriptionUrl; source.target = '_blank'; source.rel = 'noopener noreferrer';
-    container.append(text, source);
+const lookupGooglePhotos = createPhotoLookup(async (id, record) => {
+  if (!state.places?.Place) await boundedPlaceRequest(() => mapsReady);
+  if (!state.places?.Place) return [];
+  if (Date.now() >= state.photoCooldownUntil) {
+    try {
+      const place = new state.places.Place({ id, requestedLanguage: 'en' });
+      await boundedPlaceRequest(() => place.fetchFields({ fields: ['photos'] }), 4500);
+      if (place.photos?.length) return place.photos;
+    } catch (error) { if (quotaFailure(error)) state.photoCooldownUntil = quotaMemory.block('photo-details'); }
   }
-  if (!photo.src) return;
-  const figure = document.createElement('figure'); figure.className = className;
-  const image = document.createElement('img'); image.alt = record.name; image.loading = 'lazy'; image.src = photo.src;
-  const credit = document.createElement('figcaption'); wikimediaCredits(credit, photo);
-  figure.append(image);
-  if (className === 'recommendation-fallback-photo') { credit.className = 'photo-credit'; container.closest('.recommendation-card')?.append(credit); }
-  else figure.append(credit);
-  container.prepend(figure);
+  // Photos-only requests have their own availability. A failed richer details
+  // request must not stop a working photo request or exact-place search.
+  const known = placeSearch.find(id) || record || state.trip?.items?.find(item => item.placeId === id);
+  if (!known?.name || Date.now() < state.photoSearchCooldownUntil) return [];
+  try {
+    const { places } = await boundedPlaceRequest(() => state.places.Place.searchByText({ fields: ['id', 'photos', 'location'], textQuery: known.name, language: 'en', maxResultCount: 20, ...(mappedPlace(known) ? { locationBias: { center: coordinates(known), radius: 1000 } } : {}) }), 4500);
+    return places?.find(place => place.id === id)?.photos || [];
+  } catch (error) { if (quotaFailure(error)) state.photoSearchCooldownUntil = quotaMemory.block('photo-text'); return []; }
+}, { limit: 2, timeoutMs: 10000 });
+
+function loadPhotoImage(src) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    const timeout = setTimeout(() => { image.src = ''; reject(new Error('Photo timed out')); }, 10000);
+    image.onload = () => { clearTimeout(timeout); resolve(image); };
+    image.onerror = () => { clearTimeout(timeout); reject(new Error('Photo failed')); };
+    image.src = src;
+  });
+}
+async function showPlacePhoto(container, record, className = 'detail-photo') {
+  const request = crypto.randomUUID(); container.dataset.photoRequest = request;
+  const width = className === 'detail-photo' ? 900 : 420;
+  const source = await resolvePlacePhoto(record, { width, lookup: lookupGooglePhotos, load: loadPhotoImage, fallback: async (place, size) => {
+    const key = `${place.placeId}:photo:${size}`;
+    const cached = state.imageCache.get(key);
+    if (!cached || cached.expires < Date.now()) state.imageCache.set(key, { expires: Date.now() + 60000, promise: wikimediaImage(place, size).catch(() => null) });
+    return state.imageCache.get(key).promise;
+  } });
+  if (!source || !container.isConnected || container.dataset.photoRequest !== request || container.dataset.photoPlace !== record.placeId) return;
+  const image = source.image; image.alt = record.name;
+  const credit = document.createElement(className === 'detail-photo' ? 'figcaption' : 'span');
+  if (source.googlePhoto) photoCredits(credit, source.googlePhoto); else wikimediaCredits(credit, source);
+  if (className === 'detail-photo') {
+    const figure = document.createElement('figure'); figure.className = className; figure.append(image, credit);
+    const existing = container.querySelector('.detail-photo'); if (existing) existing.replaceWith(figure); else container.prepend(figure);
+  } else {
+    container.replaceChildren(image);
+    const row = container.closest('.recommendation-card'); row?.querySelector('.photo-credit')?.remove();
+    credit.className = 'photo-credit'; if (!credit.hidden) row?.append(credit);
+  }
 }
 const photoObserver = new IntersectionObserver(entries => {
   for (const entry of entries) {
     if (!entry.isIntersecting) continue;
     photoObserver.unobserve(entry.target);
-    const record = state.suggestions.find(place => place.placeId === entry.target.dataset.photoPlace);
-    if (record) fallbackPlacePhoto(entry.target, record, 'recommendation-fallback-photo');
+    const record = placeSearch.find(entry.target.dataset.photoPlace) || state.suggestions.find(place => place.placeId === entry.target.dataset.photoPlace);
+    if (record) showPlacePhoto(entry.target, record, 'recommendation-photo').catch(() => {});
   }
-}, { rootMargin: '150px' });
+}, { rootMargin: '0px' });
 
 const recommendationMotion = new IntersectionObserver(entries => {
   for (const entry of entries) if (entry.isIntersecting) { recommendationMotion.unobserve(entry.target); revealSequence([entry.target]); }
 }, { threshold: .15 });
 function renderRecommendations() {
   recommendationMotion.disconnect();
-  const container = $('nearby-results'); photoObserver.disconnect(); container.replaceChildren();
+  const container = $('nearby-results'); photoObserver.disconnect(); container.replaceChildren(); container.scrollTop = 0;
   if (!state.suggestions.length) { container.textContent = 'No places found here. Try another category or area.'; return; }
   for (const place of state.suggestions) {
     const row = document.createElement('article'); row.className = 'recommendation-card'; row.dataset.placeId = place.placeId;
     const open = document.createElement('button'); open.type = 'button'; open.className = 'recommendation-open'; open.setAttribute('aria-label', `View ${place.name}`);
     const photo = document.createElement('div'); photo.className = 'recommendation-photo';
-    if (place.photo) {
-      const image = document.createElement('img'); image.alt = ''; image.loading = 'lazy'; image.src = place.photo.getURI({ maxWidth: 420 }); photo.append(image);
-      const credit = document.createElement('span'); credit.className = 'photo-credit'; photoCredits(credit, place.photo); if (!credit.hidden) row.append(credit);
-    } else { photo.innerHTML = icon(place.primaryType === 'hotel' ? 'stay' : ['restaurant', 'cafe'].includes(place.primaryType) ? 'food' : 'pin'); }
+    photo.innerHTML = icon(placeIcon(place));
     const copy = document.createElement('span'); copy.className = 'recommendation-copy';
     const title = document.createElement('strong'); title.textContent = place.name;
     const meta = document.createElement('span'); meta.className = 'recommendation-meta';
     meta.textContent = [Number.isFinite(place.rating) ? `${place.rating.toFixed(1)}${place.ratingCount ? ` (${place.ratingCount.toLocaleString()})` : ''}` : '', place.category].filter(Boolean).join(' · ');
     if (Number.isFinite(place.rating)) meta.insertAdjacentHTML('afterbegin', icon('star')); copy.append(title, meta); open.append(photo, copy);
     open.addEventListener('click', () => { animateMap(place, 15); openDiscovery(place); });
-    const add = document.createElement('button'); add.type = 'button'; add.className = 'recommendation-add'; add.innerHTML = icon('plus'); add.setAttribute('aria-label', `Add ${place.name} to day`); add.addEventListener('click', () => addToDay(place));
+    const add = document.createElement('button'); add.type = 'button'; add.className = 'recommendation-add'; add.innerHTML = icon('plus'); add.setAttribute('aria-label', `Add ${place.name} to day`); add.addEventListener('click', () => planDiscoveredPlace(place));
     row.append(open, add); container.append(row); recommendationMotion.observe(row);
-    if (!place.photo) { photo.dataset.photoPlace = place.placeId; photoObserver.observe(photo); }
+    photo.dataset.photoPlace = place.placeId; photoObserver.observe(photo);
   }
 
   syncSuggestionCards();
 }
 
 function notePlaceQuota(error) {
-  if (/RESOURCE_EXHAUSTED|quota exceeded/i.test(String(error.message || error))) { state.detailCooldownUntil = Date.now() + 30 * 60_000; return true; }
+  if (quotaFailure(error)) { state.detailCooldownUntil = quotaMemory.block('details'); return true; }
   return false;
 }
 async function detailedGooglePlace(record) {
@@ -484,61 +590,105 @@ async function detailedGooglePlace(record) {
   if (Date.now() < state.detailCooldownUntil) throw new Error('PLACE_DETAILS_QUOTA');
   const promise = (async () => {
     const place = new state.places.Place({ id: record.placeId, requestedLanguage: 'en' });
-    await place.fetchFields({ fields: ['id', 'displayName', 'formattedAddress', 'location', 'photos', 'rating', 'userRatingCount', 'primaryType', 'primaryTypeDisplayName', 'regularOpeningHours', 'currentOpeningHours', 'websiteURI', 'internationalPhoneNumber', 'googleMapsURI', 'businessStatus', 'editorialSummary', 'priceLevel', 'accessibilityOptions', 'attributions'] });
+    await boundedPlaceRequest(() => place.fetchFields({ fields: ['id', 'displayName', 'formattedAddress', 'location', 'photos', 'rating', 'userRatingCount', 'primaryType', 'types', 'primaryTypeDisplayName', 'regularOpeningHours', 'currentOpeningHours', 'websiteURI', 'internationalPhoneNumber', 'googleMapsURI', 'businessStatus', 'editorialSummary', 'priceLevel', 'accessibilityOptions', 'attributions'] }));
     return place;
   })();
   state.detailCache.set(record.placeId, promise);
   try { return await promise; } catch (error) { state.detailCache.delete(record.placeId); if (notePlaceQuota(error)) throw new Error('PLACE_DETAILS_QUOTA'); throw error; }
 }
 
-async function hydratePlace(container, record) {
-  const request = crypto.randomUUID(); container.dataset.request = request; container.dataset.photoPlace = record.placeId; delete container.dataset.fallbackDescription;
-  container.replaceChildren();
-  const loading = document.createElement('p'); loading.className = 'detail-loading'; loading.textContent = 'Loading place details…'; container.append(loading);
+async function tourOperatorContacts(record) {
+  const available = placeSearch.find(record.placeId) || state.suggestions.find(place => place.placeId === record.placeId) || record;
+  if (available.websiteURI || available.internationalPhoneNumber) return available;
+  if (!state.places?.Place) return null;
+  if (state.operatorCache.has(record.placeId)) return state.operatorCache.get(record.placeId);
+  const fields = ['id', 'displayName', 'formattedAddress', 'location', 'primaryType', 'types', 'primaryTypeDisplayName', 'rating', 'userRatingCount', 'websiteURI', 'internationalPhoneNumber', 'businessStatus'];
+  const request = (async () => {
+    if (mappedPlace(record)) {
+      try {
+        const { places } = await state.places.Place.searchNearby({ fields, locationRestriction: { center: coordinates(record), radius: 100 }, includedPrimaryTypes: ['tour_agency'], maxResultCount: 20, language: 'en' });
+        const match = places?.find(place => place.id === record.placeId);
+        if (match) return googlePlaceRecord(match);
+      } catch { /* Exact text search below also supports older saved outings. */ }
+    }
+    const { places } = await state.places.Place.searchByText({ fields, textQuery: record.name, includedType: 'tour_agency', useStrictTypeFiltering: true, maxResultCount: 20, language: 'en', ...(mappedPlace(record) ? { locationBias: { center: coordinates(record), radius: 1000 } } : {}) });
+    // Never substitute a similarly named business for the saved guide.
+    const match = places?.find(place => place.id === record.placeId); return match ? googlePlaceRecord(match) : null;
+  })();
+  state.operatorCache.set(record.placeId, request);
+  if (state.operatorCache.size > 100) state.operatorCache.delete(state.operatorCache.keys().next().value);
+  try { return await request; } catch { state.operatorCache.delete(record.placeId); return null; }
+}
+
+function knownGoogleContent(record) {
+  return mergeGoogleContent(record, placeSearch.find(record.placeId) || state.suggestions.find(place => place.placeId === record.placeId));
+}
+function renderPlaceContent(container, record, { contactOnly = false, compact = false } = {}) {
+  const photo = container.querySelector('.detail-photo'); container.replaceChildren();
+  if (photo && !compact && !contactOnly) container.append(photo);
+  const rating = googleRatingLabel(record);
+  if (rating) {
+    const meta = document.createElement(compact ? 'span' : 'a'); meta.className = 'detail-rating'; meta.innerHTML = icon('star'); meta.append(document.createTextNode(rating));
+    if (!compact) { meta.href = placeMapsURL(record); meta.target = '_blank'; meta.rel = 'noopener noreferrer'; }
+    meta.setAttribute('aria-label', `${rating} on Google Maps`); container.append(meta);
+  }
+  if (compact) return;
+  if (record.category) { const category = document.createElement('span'); category.className = 'place-category'; category.textContent = record.category; container.append(category); }
+  const description = googleDescription(record.editorialSummary);
+  if (!contactOnly && description) { const text = document.createElement('p'); text.className = 'place-description'; text.textContent = description; container.append(text); }
+  if (record.businessStatus && record.businessStatus !== 'OPERATIONAL') { const closed = document.createElement('p'); closed.className = 'closed-status'; closed.textContent = record.businessStatus === 'CLOSED_PERMANENTLY' ? 'Permanently closed' : 'Temporarily closed'; container.append(closed); }
+  if (!contactOnly && record.address) { const address = document.createElement('p'); address.className = 'place-address'; address.textContent = record.address; container.append(address); }
+  const descriptions = record.currentOpeningHours?.weekdayDescriptions || record.regularOpeningHours?.weekdayDescriptions;
+  if (!contactOnly && descriptions?.length) {
+    const hours = document.createElement('details'); hours.className = 'place-hours'; const title = document.createElement('summary'); title.innerHTML = icon('clock'); title.append(document.createTextNode('Opening hours')); hours.append(title);
+    for (const text of descriptions) { const line = document.createElement('p'); line.textContent = text; hours.append(line); } container.append(hours);
+  }
+  const links = document.createElement('div'); links.className = 'place-links';
+  for (const [label, url] of [['Website', record.websiteURI], ['Google Maps', placeMapsURL(record)], ...(!contactOnly ? [['Directions', directionsMapsURL(record)]] : []), [record.internationalPhoneNumber, record.internationalPhoneNumber ? `tel:${record.internationalPhoneNumber}` : null]]) {
+    if (!url || !label || !/^(https?:|tel:)/i.test(url)) continue;
+    const link = document.createElement('a'); link.innerHTML = icon(url.startsWith('tel:') ? 'phone' : label === 'Directions' ? 'directions' : 'external'); link.append(document.createTextNode(label)); link.href = url; link.className = 'detail-chip'; if (!url.startsWith('tel:')) { link.target = '_blank'; link.rel = 'noopener noreferrer'; } links.append(link);
+  }
+  container.append(links);
+  const features = document.createElement('div'); features.className = 'place-features';
+  if (record.priceLevel) { const price = document.createElement('span'); price.textContent = String(record.priceLevel).replaceAll('_', ' ').toLowerCase(); features.append(price); }
+  if (record.accessibilityOptions?.hasWheelchairAccessibleEntrance === true) { const accessible = document.createElement('span'); accessible.textContent = 'Step-free entrance'; features.append(accessible); }
+  if (features.childNodes.length) container.append(features);
+  for (const provider of record.attributions || []) { if (!/^https?:/i.test(provider.providerURI || '')) continue; const link = document.createElement('a'); link.className = 'provider-credit'; link.href = provider.providerURI; link.textContent = provider.provider; link.target = '_blank'; link.rel = 'noopener noreferrer'; container.append(link); }
+}
+const pendingDayDetails = new Map();
+const dayDetailObserver = new IntersectionObserver(entries => {
+  for (const entry of entries) {
+    if (!entry.isIntersecting) continue;
+    const load = pendingDayDetails.get(entry.target);
+    pendingDayDetails.delete(entry.target); dayDetailObserver.unobserve(entry.target); load?.();
+  }
+}, { rootMargin: '0px' });
+function pruneDayDetails() {
+  for (const element of pendingDayDetails.keys()) if (!element.isConnected) { pendingDayDetails.delete(element); dayDetailObserver.unobserve(element); }
+}
+async function hydratePlace(container, record, { contactOnly = false, compact = false, visible = false } = {}) {
+  const request = crypto.randomUUID(); container.dataset.request = request; container.dataset.photoPlace = record.placeId;
+  let available = knownGoogleContent(record);
+  renderPlaceContent(container, available, { contactOnly, compact });
+  // A timeline rating uses already loaded data; opening a place loads its details.
+  if (compact) return;
+  if (!visible && container.classList.contains('day-card-details')) {
+    pendingDayDetails.set(container, () => { if (container.isConnected && container.dataset.request === request) hydratePlace(container, record, { contactOnly, visible: true }); });
+    dayDetailObserver.observe(container); return;
+  }
   try {
-    const place = await detailedGooglePlace(record);
+    if (!state.places) await boundedPlaceRequest(() => mapsReady);
     if (!container.isConnected || container.dataset.request !== request) return;
-    container.replaceChildren(); container.dataset.photoPlace = record.placeId;
-    if (place.photos?.[0]) {
-      const figure = document.createElement('figure'); figure.className = 'detail-photo';
-      const image = document.createElement('img'); image.alt = place.displayName || record.name; image.loading = 'lazy'; image.src = place.photos[0].getURI({ maxWidth: 900 });
-      const credit = document.createElement('figcaption'); photoCredits(credit, place.photos[0]); figure.append(image, credit); container.append(figure);
-    } else fallbackPlacePhoto(container, { ...record, name: place.displayName || record.name }).catch(() => {});
-    const meta = document.createElement('p'); meta.className = 'detail-rating';
-    meta.textContent = [Number.isFinite(place.rating) ? `${place.rating.toFixed(1)}${place.userRatingCount ? ` · ${place.userRatingCount.toLocaleString()} reviews` : ''}` : '', place.primaryTypeDisplayName].filter(Boolean).join(' · ');
-    if (meta.textContent) { if (Number.isFinite(place.rating)) meta.insertAdjacentHTML('afterbegin', icon('star')); container.append(meta); }
-    if (place.editorialSummary) { const description = document.createElement('p'); description.className = 'place-description'; description.textContent = place.editorialSummary; container.append(description); }
-    if (place.businessStatus && place.businessStatus !== 'OPERATIONAL') { const closed = document.createElement('p'); closed.className = 'closed-status'; closed.textContent = place.businessStatus === 'CLOSED_PERMANENTLY' ? 'Permanently closed' : 'Temporarily closed'; container.append(closed); }
-    if (place.formattedAddress) { const address = document.createElement('p'); address.className = 'place-address'; address.textContent = place.formattedAddress; container.append(address); }
-    const descriptions = place.currentOpeningHours?.weekdayDescriptions || place.regularOpeningHours?.weekdayDescriptions;
-    if (descriptions?.length) {
-      const hours = document.createElement('details'); hours.className = 'place-hours'; const title = document.createElement('summary'); title.innerHTML = icon('clock'); title.append(document.createTextNode('Opening hours')); hours.append(title);
-      for (const text of descriptions) { const line = document.createElement('p'); line.textContent = text; hours.append(line); } container.append(hours);
-    }
-    const links = document.createElement('div'); links.className = 'place-links';
-    for (const [label, url] of [['Website', place.websiteURI], ['Directions', place.googleMapsURI], [place.internationalPhoneNumber, place.internationalPhoneNumber ? `tel:${place.internationalPhoneNumber}` : null]]) {
-      if (!url || !label || !/^(https?:|tel:)/i.test(url)) continue;
-      const link = document.createElement('a'); link.innerHTML = icon(url.startsWith('tel:') ? 'phone' : label === 'Directions' ? 'directions' : 'external'); link.append(document.createTextNode(label)); link.href = url; link.className = 'detail-chip'; if (!url.startsWith('tel:')) { link.target = '_blank'; link.rel = 'noopener noreferrer'; } links.append(link);
-    }
-    container.append(links);
-    const features = document.createElement('div'); features.className = 'place-features';
-    if (place.priceLevel) { const price = document.createElement('span'); price.textContent = String(place.priceLevel).replaceAll('_', ' ').toLowerCase(); features.append(price); }
-    if (place.accessibilityOptions?.hasWheelchairAccessibleEntrance === true) { const accessible = document.createElement('span'); accessible.textContent = 'Step-free entrance'; features.append(accessible); }
-    if (features.childNodes.length) container.append(features);
-    for (const provider of place.attributions || []) { if (!/^https?:/i.test(provider.providerURI || '')) continue; const link = document.createElement('a'); link.className = 'provider-credit'; link.href = provider.providerURI; link.textContent = provider.provider; link.target = '_blank'; link.rel = 'noopener noreferrer'; container.append(link); }
-  } catch (failure) {
+    const operator = contactOnly ? await tourOperatorContacts(record) : null;
+    const fresh = operator || googlePlaceRecord(await detailedGooglePlace(record));
     if (!container.isConnected || container.dataset.request !== request) return;
-    container.replaceChildren();
-    const available = state.suggestions.find(place => place.placeId === record.placeId) || record;
-    const rating = document.createElement('p'); rating.className = 'detail-rating';
-    if (Number.isFinite(available.rating)) { rating.innerHTML = icon('star'); rating.append(document.createTextNode(`${available.rating.toFixed(1)}${available.ratingCount ? ` · ${available.ratingCount.toLocaleString()} reviews` : ''}`)); }
-    if (available.category) rating.append(document.createTextNode(`${rating.textContent ? ' · ' : ''}${available.category}`));
-    if (rating.childNodes.length) container.append(rating);
-    container.dataset.fallbackDescription = 'true';
-    fallbackPlacePhoto(container, { ...record, name: available.name || record.name }).catch(() => {});
-    if (record.address) { const address = document.createElement('p'); address.className = 'place-address'; address.textContent = record.address; container.append(address); }
-    const links = document.createElement('div'); links.className = 'place-links';
-    const directions = document.createElement('a'); directions.className = 'detail-chip'; directions.innerHTML = icon('directions'); directions.append(document.createTextNode('Directions')); directions.href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(record.name)}&query_place_id=${encodeURIComponent(record.placeId)}`; directions.target = '_blank'; directions.rel = 'noopener noreferrer'; links.append(directions); container.append(links);
+    available = mergeGoogleContent(available, fresh);
+    renderPlaceContent(container, available, { contactOnly, compact });
+    if (!contactOnly) showPlacePhoto(container, available).catch(() => {});
+  } catch {
+    if (!contactOnly && container.isConnected && container.dataset.request === request) showPlacePhoto(container, available).catch(() => {});
+    // Keep real Google search data and independent photo loading visible.
+    // Missing editorial summaries are omitted instead of invented or replaced.
   }
 }
 
@@ -550,31 +700,82 @@ function syncDiscovery() {
     const button = document.createElement('button'); button.type = 'button'; button.className = 'detail-chip'; button.textContent = dateLong(day); button.setAttribute('aria-pressed', String(state.day === day));
     button.addEventListener('click', () => { state.day = day; renderPlan(); syncDiscovery(); }); chips.append(button);
   }
-  const saved = state.trip?.items?.some(item => item.placeId === place.placeId && item.day === state.day);
-  $('add-discovery-place').disabled = Boolean(saved); $('add-discovery-place').textContent = saved ? 'Added to this day' : daysForTrip(state.trip).length ? `Add to ${dateLabel(state.day)}` : 'Choose dates';
+  const saved = !isTourOperator(place) && state.trip?.items?.some(item => item.placeId === place.placeId && item.day === state.day);
+  $('add-discovery-place').disabled = Boolean(saved); $('add-discovery-place').textContent = saved ? 'Added to this day' : isTourOperator(place) ? 'Plan a tour' : daysForTrip(state.trip).length ? `Add to ${dateLabel(state.day)}` : 'Choose dates';
 }
 function openDiscovery(place) {
   state.discoveryPlace = place; $('place-dialog-title').textContent = place.name; $('place-dialog-status').textContent = '';
   $('place-dialog').showModal(); hydratePlace($('discovery-place-details'), place); syncDiscovery();
 }
-$('add-discovery-place').addEventListener('click', () => { addToDay(state.discoveryPlace); syncDiscovery(); });
-$('search-map-area').addEventListener('click', () => { const center = state.map.getCenter(); setWorkspaceView('explore'); exploreNearby(state.nearbyCategory, { lat: center.lat(), lng: center.lng() }); $('search-map-area').hidden = true; });
+function planDiscoveredPlace(place) {
+  if (isTourOperator(place)) {
+    if (!daysForTrip(state.trip).length) { $('place-dialog').close(); openCalendar(); return; }
+    $('place-dialog').close(); itinerary.openTour(place);
+  } else { addToDay(place); syncDiscovery(); }
+}
+$('add-discovery-place').addEventListener('click', () => planDiscoveredPlace(state.discoveryPlace));
+$('search-map-area').addEventListener('click', () => { setWorkspaceView('explore'); exploreNearby(state.nearbyCategory, { force: true }); const area = currentSearchArea(); if (area) updateMapSuggestions(area, true); });
+for (const id of ['place-dialog', 'plan-dialog']) $(id).addEventListener('close', () => { scheduleAreaSearch(); scheduleMapSuggestions(); });
 
+function updateMapLink() {
+  const center = state.map?.getCenter();
+  const href = mapViewURL(center ? { latitude: center.lat(), longitude: center.lng() } : state.selected, state.map?.getZoom());
+  $('open-google-map').hidden = !href;
+  if (href) $('open-google-map').href = href; else $('open-google-map').removeAttribute('href');
+}
 function showMap(place, fly = false) {
   if (!state.maps) return;
+  if (fly) state.cameraMoving = true;
   if (!state.map) {
     state.map = new state.maps.Map($('map'), { center: coordinates(place), zoom: 5, mapId: state.config?.mapId || 'DEMO_MAP_ID', gestureHandling: 'greedy', mapTypeControl: false, streetViewControl: false, fullscreenControl: false, clickableIcons: true, zoomControl: true, cameraControl: false });
     $('map-loading').hidden = true;
-    state.map.addListener('dragend', () => { $('search-map-area').hidden = false; });
+    state.map.addListener('bounds_changed', () => {
+      hideMapLabel();
+      clearTimeout(state.mapSearchTimer);
+      clearTimeout(state.nearbyTimer);
+      if (state.cameraMoving) return;
+      const area = currentSearchArea();
+      if (!area || state.nearbyAreaKey === `${state.nearbyCategory}:${area.key}`) return;
+      if (state.workspaceView === 'explore') {
+        state.nearbyRequest++; state.nearbyAreaKey = null;
+        $('nearby-results').setAttribute('aria-busy', 'false');
+        $('search-map-area').hidden = false; $('search-map-area').disabled = false; $('search-map-area').textContent = 'Search this area';
+        scheduleAreaSearch();
+      }
+    });
+    state.map.addListener('dragstart', () => { cancelAnimationFrame(state.animation); state.cameraMoving = false; });
+    state.map.addListener('idle', () => {
+      updateMapLink(); scheduleMapSuggestions();
+      if (state.pendingNearby && !state.cameraMoving) exploreNearby(state.pendingNearby);
+      else scheduleAreaSearch();
+    });
     state.map.addListener('click', async event => {
       if (!event.placeId) return;
-      event.stop();
-      try {
-        const place = await detailedGooglePlace({ placeId: event.placeId });
-        const record = googlePlaceRecord(place); const item = state.trip?.items?.find(item => item.placeId === record.placeId && item.day === state.day) || state.trip?.items?.find(item => item.placeId === record.placeId);
+      const clickVersion = ++state.placeClickVersion, tripId = state.trip?.id;
+      const item = state.trip?.items?.find(item => item.placeId === event.placeId && item.day === state.day) || state.trip?.items?.find(item => item.placeId === event.placeId);
+      const known = item || placeSearch.find(event.placeId) || state.suggestions.find(place => place.placeId === event.placeId);
+      const open = record => {
+        if (clickVersion !== state.placeClickVersion || tripId !== state.trip?.id) return;
+        status('trip-status');
         if (item) { setWorkspaceView('itinerary'); itinerary.selectItem(item); itinerary.openPlan(item); }
         else openDiscovery(record);
-      } catch { status('trip-status', 'Could not open this map location.'); }
+      };
+      if (known) { event.stop(); state.infoWindow?.close(); open(known); return; }
+      // Keep Google's own place popup working while optional app details load.
+      // Never suppress it and replace it with a quota-error toast.
+      state.infoWindow?.close(); status('trip-status');
+      const point = event.latLng?.toJSON();
+      let match; try { match = await placeSearch.findAt(event.placeId, point); } catch { /* Details may still be available. */ }
+      if (clickVersion !== state.placeClickVersion || tripId !== state.trip?.id) return;
+      if (match) { open(match); return; }
+      try { open(googlePlaceRecord(await detailedGooglePlace({ placeId: event.placeId }))); }
+      catch {
+        if (clickVersion !== state.placeClickVersion || tripId !== state.trip?.id) return;
+        if (!point) return;
+        const content = document.createElement('div'); content.className = 'map-entry-info';
+        const link = document.createElement('a'); link.className = 'detail-chip'; link.href = placeMapsURL({ placeId: event.placeId, latitude: point.lat, longitude: point.lng }); link.target = '_blank'; link.rel = 'noopener noreferrer'; link.innerHTML = icon('external'); link.append(document.createTextNode('View in Google Maps')); content.append(link);
+        state.infoWindow ||= new state.maps.InfoWindow({ disableAutoPan: true }); state.infoWindow.setContent(content); state.infoWindow.setPosition(point); state.infoWindow.open({ map: state.map, shouldFocus: false });
+      }
     });
   }
   // The map container was hidden on the start screen; allow layout to settle before moving its camera.
@@ -582,7 +783,7 @@ function showMap(place, fly = false) {
     google.maps.event.trigger(state.map, 'resize');
     if (fly) animateMap(place);
     else state.map.moveCamera({ center: coordinates(place), zoom: 12 });
-    drawMarkers();
+    drawMarkers(); updateMapLink();
   });
 }
 
@@ -590,13 +791,14 @@ function renderPlan() { itinerary.render(); syncSuggestionCards(); updateTripTit
 
 function syncSuggestionCards() {
   for (const card of $('nearby-results').querySelectorAll('.recommendation-card')) {
-    const saved = state.trip?.items?.some(item => item.placeId === card.dataset.placeId && item.day === state.day);
+    const tour = isTourOperator(state.suggestions.find(place => place.placeId === card.dataset.placeId));
+    const saved = !tour && state.trip?.items?.some(item => item.placeId === card.dataset.placeId && item.day === state.day);
     card.classList.toggle('added', Boolean(saved));
     const button = card.querySelector('.recommendation-add'); button.disabled = Boolean(saved);
     const name = card.querySelector('strong')?.textContent;
-    button.setAttribute('aria-label', saved ? `${name} added to this day` : `Add ${name} to day`);
+    button.setAttribute('aria-label', saved ? `${name} added to this day` : tour ? `Plan a tour with ${name}` : `Add ${name} to day`);
     const wasSaved = button.dataset.saved === 'true'; button.dataset.saved = String(Boolean(saved));
-    button.classList.toggle('just-added', Boolean(saved) && !wasSaved); button.innerHTML = icon(saved ? 'check' : 'plus');
+    button.classList.toggle('just-added', Boolean(saved) && !wasSaved); button.innerHTML = icon(saved ? 'check' : tour ? 'guide' : 'plus');
   }
 }
 
@@ -625,7 +827,9 @@ function setupAutocomplete(inputId, listId, onSelect, biasToTrip = false) {
           hide();
           try {
             let selected;
-            try {
+            const known = [...(state.trip?.items || []), ...state.suggestions].find(place => place.placeId === prediction.placeId && mappedPlace(place));
+            if (known) selected = { placeId: known.placeId, name: known.name, address: known.address || '', latitude: known.latitude, longitude: known.longitude, ...(known.primaryType ? { primaryType: known.primaryType, tourOperator: known.tourOperator } : {}) };
+            else try {
               if (Date.now() < state.detailCooldownUntil) throw new Error('PLACE_DETAILS_QUOTA');
               const place = prediction.toPlace();
               await place.fetchFields({ fields: ['id', 'displayName', 'formattedAddress', 'location'] });
@@ -633,19 +837,27 @@ function setupAutocomplete(inputId, listId, onSelect, biasToTrip = false) {
               selected = { placeId: place.id, name: place.displayName || prediction.mainText?.toString() || '', address: place.formattedAddress || '', latitude: place.location.lat(), longitude: place.location.lng() };
             } catch (error) {
               notePlaceQuota(error);
-              // Geocoding has a separate quota; resolve the exact Google prediction ID, never a guessed city center.
+              // Search has a separate quota. Accept only the exact prediction ID, never a similarly named place.
+              try {
+                const { places } = await state.places.Place.searchByText({ textQuery: prediction.text?.toString() || prediction.mainText?.toString(), fields: ['id', 'displayName', 'formattedAddress', 'location', 'primaryType', 'types'], language: 'en', maxResultCount: 20, ...(biasToTrip && state.trip ? { locationBias: { center: coordinates(state.selected || state.trip), radius: 50000 } } : {}) });
+                const match = places?.find(place => place.id === prediction.placeId && place.location);
+                if (match) selected = googlePlaceRecord(match);
+              } catch { /* Try the separately metered Geocoding service below. */ }
+              if (!selected) {
               const { Geocoder } = await google.maps.importLibrary('geocoding');
               const { results } = await new Geocoder().geocode({ placeId: prediction.placeId });
               const result = results?.[0];
               if (!result?.geometry?.location || !result.place_id) throw new Error('No map location');
               selected = { placeId: result.place_id, name: prediction.mainText?.toString() || result.formatted_address, address: result.formatted_address, latitude: result.geometry.location.lat(), longitude: result.geometry.location.lng() };
+              }
             }
             input.value = ['departure-search', 'arrival-search'].includes(inputId) ? selected.name : ''; token = null;
             await onSelect(selected);
             status(inputId === 'destination' ? 'home-status' : 'trip-status');
           } catch (error) {
             const serviceUnavailable = Date.now() < state.detailCooldownUntil || /REQUEST_DENIED|OVER_QUERY_LIMIT/.test(error?.message || '');
-            status(inputId === 'destination' ? 'home-status' : 'trip-status', serviceUnavailable ? 'Destination lookup is unavailable. Check Google Maps billing and quotas.' : 'Could not open that place. Try another result.');
+            const message = serviceUnavailable ? 'Location lookup is unavailable. Check Google Maps billing and quotas.' : 'Could not open that place. Try another result.';
+            if (inputId === 'plan-location-search') $('plan-error').textContent = message; else status(inputId === 'destination' ? 'home-status' : 'trip-status', message);
           }
         });
         list.append(button);
@@ -657,7 +869,7 @@ function setupAutocomplete(inputId, listId, onSelect, biasToTrip = false) {
   input.addEventListener('input', () => {
     clearTimeout(timer); const query = input.value.trim(); const id = ++requestId;
     if (query.length < 2) { hide(); return; }
-    timer = setTimeout(() => search(query, id), 160);
+    timer = setTimeout(() => search(query, id), 300);
   });
   input.addEventListener('keydown', event => {
     if (event.key === 'Escape') hide();
@@ -686,6 +898,9 @@ function setWorkspaceView(view) {
   for (const button of document.querySelectorAll('[data-workspace-view]')) button.setAttribute('aria-pressed', String(button.dataset.workspaceView === view));
   if (view !== 'transportation' && state.map) requestAnimationFrame(() => google.maps.event.trigger(state.map, 'resize'));
   renderPlan();
+  if (view !== 'transportation') scheduleMapSuggestions();
+  if (view === 'explore') scheduleAreaSearch();
+  else { clearTimeout(state.nearbyTimer); state.nearbyRequest++; state.nearbyAreaKey = null; $('search-map-area').hidden = true; $('nearby-results').setAttribute('aria-busy', 'false'); }
   const panel = view === 'explore' ? $('discover-panel') : view === 'transportation' ? $('transport-panel') : $('plan-panel');
   revealSequence([...panel.children].filter(child => !child.hidden), { step: 35 });
 }
@@ -708,9 +923,11 @@ function updateDayContext(day) {
   const stop = destinationForDay(state.trip, tripStops(state.trip), day);
   if (stop && stop.placeId !== state.selected?.placeId) selectStop(stop, false);
 }
+const dayRoutes = createDayRoutes({ state, commit: commitTrip, icon, cancelCamera: () => { cancelAnimationFrame(state.animation); state.animation = 0; state.cameraMoving = false; } });
 const itinerary = createItineraryUI({ state, commit: commitTrip,
   explore: () => { updateDayContext(state.day); setWorkspaceView('explore'); },
   onDayChange: updateDayContext,
+  onRendered: () => { pruneDayDetails(); dayRoutes.render(); drawMarkers(); },
   onModeChange: mode => { if ($('plan-controls').dataset.mode === mode) return; $('plan-controls').dataset.mode = mode; if (state.map) requestAnimationFrame(() => google.maps.event.trigger(state.map, 'resize')); },
   chooseDates: () => { $('edit-date-picker').hidden = true; openCalendar(); $('save-dates').focus({ preventScroll: true }); },
   focusPlace: place => { animateMap(place, 15); document.querySelectorAll('[data-place-id]').forEach(element => element.classList.toggle('selected', element.dataset.placeId === place.placeId)); }, hydratePlace, icon });
@@ -808,7 +1025,7 @@ function saveDates(startDate, endDate, moveOutside = false) {
   catch { $('calendar-message').textContent = 'Could not save dates on this device.'; }
 }
 $('save-dates').addEventListener('click', () => saveDates(state.calendarRange.start, state.calendarRange.end));
-$('clear-dates').addEventListener('click', () => { $('edit-date-picker').hidden = true; $('edit-dates').focus(); });
+$('clear-dates').addEventListener('click', () => { $('edit-date-picker').hidden = true; $('edit-dates').focus({ preventScroll: true }); });
 document.querySelectorAll('[data-date-preset]').forEach(button => button.addEventListener('click', () => {
   const range = presetRange(button.dataset.datePreset);
   if (range) saveDates(range.start, range.end);
@@ -862,30 +1079,30 @@ fetch('/api/config', { cache: 'no-store' })
       document.head.append(script);
     });
     const [maps, places, marker] = await Promise.all([google.maps.importLibrary('maps'), google.maps.importLibrary('places'), google.maps.importLibrary('marker')]);
-    state.maps = maps; state.places = places; state.markerClass = marker.AdvancedMarkerElement;
-    if (state.selected) { showMap(state.selected, true, true); loadDestinationPhoto(state.selected); }
+    state.maps = maps; state.places = places; state.markerClass = marker.AdvancedMarkerElement; resolveMapsReady(true);
+    if (state.selected) { showMap(state.selected, true, true); loadDestinationPhoto(state.selected); dayRoutes.render(); }
     if (state.pendingNearby) { const category = state.pendingNearby; state.pendingNearby = null; exploreNearby(category); }
   })
-  .catch(() => { status('home-status', 'Place search is unavailable right now.'); $('map-loading').textContent = 'Map unavailable'; if (state.pendingNearby) $('nearby-results').textContent = 'Suggestions are unavailable right now.'; });
+  .catch(() => { resolveMapsReady(false); status('home-status', 'Place search is unavailable right now.'); $('map-loading').textContent = 'Map unavailable'; if (state.pendingNearby) $('nearby-results').textContent = 'Suggestions are unavailable right now.'; });
 
 let cancellingTitle = false;
 $('edit-trip-title').addEventListener('click', () => {
   $('trip-title-input').value = tripTitle(state.trip); $('edit-trip-title').hidden = true; $('trip-title-input').hidden = false;
-  $('trip-title-input').focus(); $('trip-title-input').select();
+  $('trip-title-input').focus({ preventScroll: true }); $('trip-title-input').select();
 });
 function finishTitle(cancel = false) {
   if ($('trip-title-input').hidden) return;
   if (!cancel) {
     try { commitTrip(renameTrip(state.trip, $('trip-title-input').value)); status('trip-status'); }
-    catch (error) { status('trip-status', error.message); $('trip-title-input').focus(); return; }
+    catch (error) { status('trip-status', error.message); $('trip-title-input').focus({ preventScroll: true }); return; }
   }
   $('trip-title-input').hidden = true; $('edit-trip-title').hidden = false;
 }
 $('trip-title-input').addEventListener('blur', () => { if (!cancellingTitle) finishTitle(); });
 $('trip-title-input').addEventListener('keydown', event => {
-  if (event.key === 'Enter' || event.key === 'Escape') { event.preventDefault(); cancellingTitle = event.key === 'Escape'; finishTitle(cancellingTitle); $('edit-trip-title').focus(); cancellingTitle = false; }
+  if (event.key === 'Enter' || event.key === 'Escape') { event.preventDefault(); cancellingTitle = event.key === 'Escape'; finishTitle(cancellingTitle); $('edit-trip-title').focus({ preventScroll: true }); cancellingTitle = false; }
 });
-document.addEventListener('keydown', event => { if (event.key === 'Escape' && !$('edit-date-picker').hidden) { $('edit-date-picker').hidden = true; $('edit-dates').focus(); } });
+document.addEventListener('keydown', event => { if (event.key === 'Escape' && !$('edit-date-picker').hidden) { $('edit-date-picker').hidden = true; $('edit-dates').focus({ preventScroll: true }); } });
 document.addEventListener('pointerdown', event => {
   if (!$('edit-date-picker').hidden && !$('edit-date-picker').contains(event.target) && !$('edit-dates').contains(event.target)) $('edit-date-picker').hidden = true;
   if (!$('trip-menu').hidden && !$('trip-menu').contains(event.target) && !$('trip-menu-button').contains(event.target)) $('trip-menu').hidden = true;
@@ -894,7 +1111,7 @@ document.addEventListener('pointerdown', event => {
 // A small photographic camera shift responds to the pointer; controls themselves stay still.
 const hero = $('destination-hero'); let heroPointerFrame = 0;
 hero.addEventListener('pointermove', event => {
-  if (reducedMotion() || event.pointerType !== 'mouse') return;
+  if (reducedMotion() || event.pointerType !== 'mouse' || $('workspace').classList.contains('banner-compact')) return;
   cancelAnimationFrame(heroPointerFrame);
   heroPointerFrame = requestAnimationFrame(() => {
     const rect = hero.getBoundingClientRect();

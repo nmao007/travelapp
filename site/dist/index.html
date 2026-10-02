@@ -27,6 +27,12 @@
     <symbol id="i-map" viewBox="0 0 24 24"><path d="m3 5 6-2 6 2 6-2v16l-6 2-6-2-6 2V5Zm6-2v16m6-14v16"/></symbol>
     <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
     <symbol id="i-plane" viewBox="0 0 24 24"><path d="M22 2 9 15m13-13-7 20-4-9-9-4L22 2Z"/></symbol>
+    <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+    <symbol id="i-landmark" viewBox="0 0 24 24"><path d="m3 7 9-4 9 4M3 7h18M4 11v6m5-6v6m6-6v6m5-6v6M3 21h18M2 18h20"/></symbol>
+    <symbol id="i-leaf" viewBox="0 0 24 24"><path d="M20 3C9 2 3 7 4 14c1 6 9 7 13 2 3-4 3-9 3-13ZM3 21 15 9"/></symbol>
+    <symbol id="i-guide" viewBox="0 0 24 24"><circle cx="7" cy="5" r="3"/><path d="M2 21v-5a5 5 0 0 1 10 0v5M17 21V3m0 0h5l-2 3 2 3h-5"/></symbol>
+    <symbol id="i-walk" viewBox="0 0 24 24"><circle cx="13" cy="4" r="2"/><path d="m7 12 3-4 4 1 3 4h3M10 8l-1 7-4 6m4-6 5 2 2 5M14 9v6"/></symbol>
+    <symbol id="i-car" viewBox="0 0 24 24"><path d="m4 10 2-6h12l2 6M3 10h18v8H3zM5 18v3m14-3v3M6 14h2m8 0h2"/></symbol>
     <symbol id="i-train" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="16" rx="4"/><path d="M5 10h14M8 18l-3 4m11-4 3 4M8 6h8"/><circle cx="9" cy="14" r="1"/><circle cx="15" cy="14" r="1"/></symbol>
     <symbol id="i-edit" viewBox="0 0 24 24"><path d="m15 4 5 5M4 20l5-1L21 7a2 2 0 0 0-4-4L5 15l-1 5Z"/></symbol>
     <symbol id="i-food" viewBox="0 0 24 24"><path d="M4 3v5a3 3 0 0 0 6 0V3M7 3v18M20 21V3c-4 2-5 6-5 10h5"/></symbol>
@@ -63,14 +69,16 @@
       </section>
 
       <section class="workspace" id="workspace" hidden aria-label="Trip planner">
+        <div class="trip-masthead" id="trip-masthead">
         <div class="destination-hero" id="destination-hero">
           <div class="hero-art" aria-hidden="true"><svg viewBox="0 0 900 180" preserveAspectRatio="xMidYMid slice"><path class="hero-terrain" d="M500 180 660 24l90 70 68-44 82 80v50Z"/><path class="hero-trail" d="M-20 156C150 170 240 24 390 48S535 178 685 93 820 5 940 32"/></svg></div>
           <div class="hero-gallery" id="hero-gallery"></div><div class="hero-photo-shade" aria-hidden="true"></div>
           <div class="trip-title-wrap"><h1 id="trip-heading"><button id="edit-trip-title" type="button" aria-label="Edit trip title"><span id="trip-title"></span><svg class="icon"><use href="#i-edit"/></svg></button></h1><input id="trip-title-input" maxlength="120" aria-label="Trip title" hidden><p id="trip-address" hidden></p></div>
           <button class="hero-date" id="edit-dates" type="button"><svg class="icon"><use href="#i-calendar"/></svg><span id="trip-dates">Add dates</span></button>
-          <div class="hero-top"><button class="more-button" id="trip-menu-button" type="button" aria-label="Trip options"><svg class="icon"><use href="#i-more"/></svg></button><div class="trip-menu" id="trip-menu" hidden><button id="delete-trip" type="button">Delete trip</button></div></div>
+          <div class="hero-top"><button class="more-button" id="trip-menu-button" type="button" aria-label="Trip options"><svg class="icon"><use href="#i-more"/></svg></button></div>
           <button id="back-button" type="button" hidden aria-label="Back to trips"></button>
         </div>
+        <div class="trip-menu" id="trip-menu" hidden><button id="delete-trip" type="button">Delete trip</button></div>
         <div class="route-bar" id="route-bar"><div class="route-list" id="route-list" aria-label="Trip destinations"></div><button class="route-add" id="add-stop" type="button"><svg class="icon"><use href="#i-plus"/></svg> Add stop</button><button class="route-edit" id="edit-route" type="button" aria-label="Edit route"><svg class="icon"><use href="#i-edit"/></svg></button></div>
         <div class="route-search" id="route-search" hidden><label class="sr-only" for="stop-search">Find another destination</label><div class="search-field"><svg class="icon"><use href="#i-search"/></svg><input id="stop-search" type="search" role="combobox" aria-autocomplete="list" aria-controls="stop-suggestions" aria-expanded="false" autocomplete="off" placeholder="Add a city or region" spellcheck="false"></div><div class="suggestions" id="stop-suggestions" role="listbox" hidden></div></div>
         <div class="date-picker" id="edit-date-picker" hidden aria-label="Choose trip dates">
@@ -82,6 +90,7 @@
           <div class="calendar-actions"><button id="clear-dates" type="button">Close</button><button id="save-dates" type="button">Save dates <svg class="icon"><use href="#i-arrow"/></svg></button></div>
         </div>
         <nav class="workspace-nav" aria-label="Trip navigation"><button type="button" data-workspace-view="itinerary" aria-pressed="true"><svg class="icon"><use href="#i-list"/></svg>Itinerary</button><button type="button" data-workspace-view="explore" aria-pressed="false"><svg class="icon"><use href="#i-map"/></svg>Explore</button><button type="button" data-workspace-view="transportation" aria-pressed="false"><svg class="icon"><use href="#i-plane"/></svg>Travel</button></nav>
+        </div>
         <div class="trip-body" id="plan-controls" data-view="itinerary">
           <section class="plan-panel" id="plan-panel" aria-label="Itinerary">
             <div class="panel-heading"><span id="place-count"></span><button type="button" id="add-plan" class="small-action" aria-label="Add a plan"><svg class="icon"><use href="#i-plus"/></svg></button></div>
@@ -92,13 +101,13 @@
           <section class="discover-panel" id="discover-panel" aria-label="Discover places" hidden>
             <div class="panel-heading"><span id="add-to-day-label" hidden></span></div>
             <label class="explore-day"><svg class="icon"><use href="#i-calendar"/></svg><select hidden id="explore-day" aria-label="Day for discovered places"></select></label>
-            <div class="nearby-filters" role="group" aria-label="Nearby places"><button type="button" data-nearby="see">Sights</button><button type="button" data-nearby="eat">Food</button><button type="button" data-nearby="stay">Hotels</button><button type="button" data-nearby="nature">Outdoors</button><button type="button" data-nearby="culture">Culture</button></div>
+            <div class="nearby-filters" role="group" aria-label="Nearby places"><button type="button" data-nearby="see">Sights</button><button type="button" data-nearby="eat">Food</button><button type="button" data-nearby="stay">Hotels</button><button type="button" data-nearby="nature">Outdoors</button><button type="button" data-nearby="culture">Culture</button><button type="button" data-nearby="tour"><svg class="icon"><use href="#i-guide"/></svg>Tours</button></div>
             <div class="add-block"><label class="sr-only" for="place-search">Search for a place</label><div class="search-field place-search"><svg class="icon"><use href="#i-search"/></svg><input id="place-search" type="search" role="combobox" aria-autocomplete="list" aria-controls="place-suggestions" aria-expanded="false" autocomplete="off" placeholder="Find a place" spellcheck="false"></div><div class="suggestions" id="place-suggestions" role="listbox" hidden></div></div>
             <div class="nearby-results" id="nearby-results" aria-live="polite"></div>
 
           </section>
           <section class="transport-panel" id="transport-panel" aria-label="Transportation" hidden><div class="panel-heading"><div class="section-label">Flights & trains</div><button type="button" id="add-transport" class="small-action" aria-label="Add flight or train"><svg class="icon"><use href="#i-plus"/></svg></button></div><div id="transport-content"></div></section>
-          <section class="map-column" id="map-column" aria-label="Destination map"><div class="map-heading"><div class="section-label">MAP</div><span id="map-caption"></span></div><div class="map-frame"><button type="button" id="search-map-area" class="search-map-area" hidden>Search this area</button><div id="map" class="google-map"></div><div class="map-loading" id="map-loading"><span class="spinner"></span>Loading map</div></div></section>
+          <section class="map-column" id="map-column" aria-label="Destination map"><div class="map-heading"><div class="section-label">MAP</div><span id="map-caption"></span></div><div class="map-frame"><a id="open-google-map" class="map-open-link" target="_blank" rel="noopener noreferrer" title="Open this map in Google Maps" aria-label="Open this map in Google Maps" hidden><svg class="icon"><use href="#i-external"/></svg></a><button type="button" id="search-map-area" class="search-map-area" hidden>Search this area</button><div id="map" class="google-map"></div><div class="map-loading" id="map-loading"><span class="spinner"></span>Loading map</div></div></section>
         </div>
         <p class="status trip-status" id="trip-status" role="status" aria-live="polite"></p>
       </section>
@@ -124,10 +133,16 @@
   <dialog id="plan-dialog" class="editor-dialog plan-sheet" aria-label="Plan details">
     <div class="sheet-top"><span id="plan-dialog-kind" hidden></span><button type="button" class="small-action" data-close-dialog aria-label="Close plan details"><svg class="icon"><use href="#i-close"/></svg></button></div>
     <label class="sr-only" for="plan-name">Plan name</label><input id="plan-name" class="editable-title" maxlength="160" placeholder="What would you like to do?" autocomplete="off">
+    <div id="tour-planning" class="tour-planning" hidden>
+      <div id="tour-operator-links" class="place-details"></div>
+      <p id="tour-booking-note" class="tour-booking-note">Planning only. Confirm availability with the operator.</p>
+      <div class="tour-settings"><div><span class="tour-setting-label">Duration</span><div id="tour-duration" class="tour-duration" role="group" aria-label="Tour duration"></div></div><div><span class="tour-setting-label">Group</span><div class="tour-people"><button id="tour-fewer" type="button" class="small-action" aria-label="Fewer people"><svg class="icon"><use href="#i-minus"/></svg></button><output id="tour-people" aria-live="polite"></output><button id="tour-more" type="button" class="small-action" aria-label="More people"><svg class="icon"><use href="#i-plus"/></svg></button></div></div></div>
+      <p id="tour-meeting-status" class="tour-meeting-status"></p>
+    </div>
     <div id="plan-place-details" class="place-details"></div>
     <div class="sheet-day-chips" id="plan-day-chips" role="group" aria-label="Move plan to day"></div>
     <div class="plan-tools"><button type="button" id="plan-time-button" class="detail-chip">Any time</button><button type="button" id="plan-booked" class="detail-chip" aria-pressed="false">Reservation</button><button type="button" id="plan-note-button" class="detail-chip">Note</button><button type="button" id="plan-location-button" class="detail-chip">Place</button><button type="button" id="plan-type-button" class="detail-chip">Activity</button><button type="button" id="duplicate-plan" class="detail-chip" aria-pressed="false" hidden><svg class="icon"><use href="#i-copy"/></svg>Duplicate</button></div>
-    <div id="plan-location-picker" class="add-block" hidden><label class="sr-only" for="plan-location-search">Find plan location</label><div class="search-field place-search"><svg class="icon"><use href="#i-search"/></svg><input id="plan-location-search" type="search" role="combobox" aria-autocomplete="list" aria-controls="plan-location-suggestions" aria-expanded="false" autocomplete="off" placeholder="Find a restaurant, hotel, or place"></div><div id="plan-location-suggestions" class="suggestions" role="listbox" hidden></div></div>
+    <div id="plan-location-picker" class="add-block" hidden><div id="plan-meeting-choices" class="sheet-day-chips" role="group" aria-label="Use a place from your itinerary" hidden></div><label class="sr-only" for="plan-location-search">Find plan location</label><div class="search-field place-search"><svg class="icon"><use href="#i-search"/></svg><input id="plan-location-search" type="search" role="combobox" aria-autocomplete="list" aria-controls="plan-location-suggestions" aria-expanded="false" autocomplete="off" placeholder="Find a restaurant, hotel, or place"></div><div id="plan-location-suggestions" class="suggestions" role="listbox" hidden></div></div>
     <div id="plan-time-controls" class="inline-time" hidden><label>Local time<input id="plan-time" type="time"></label><button type="button" id="plan-time-clear" class="quiet-action">Flexible</button><details><summary>Time zone</summary><input id="plan-zone" list="time-zones" aria-label="Plan time zone"></details></div>
     <div id="plan-type-choices" class="sheet-day-chips" role="group" aria-label="Plan type" hidden></div>
     <label class="optional-detail" id="plan-reference-wrap" hidden>Booking reference<input id="plan-reference" maxlength="160" placeholder="Optional"></label>
