@@ -1,5 +1,5 @@
 import { placeMapsURL, mapViewURL, directionsMapsURL } from './maps-links.js';
-import { createPlaceSearch, placeSearchGroups, mixedMapPlaces, createQuotaMemory, placeIcon, createSearchSelection, quotaFailure, boundedPlaceRequest } from './place-search.js';
+import { createPlaceSearch, createPlaceDetails, placeSearchGroups, mixedMapPlaces, createQuotaMemory, placeIcon, createSearchSelection, quotaFailure, boundedPlaceRequest } from './place-search.js';
 import { isTourOperator } from './tour-model.js';
 import { playMotion, revealSequence, reducedMotion } from './motion.js';
 import { createTripBanner } from './trip-banner.js';
@@ -8,7 +8,7 @@ import { calendarMonth, presetRange, rangeLength, selectDateRange } from './date
 import { datesForTrip, eventsForDay, mappedPlace, fixedItem } from './itinerary-model.js';
 import { createDayRoutes } from './day-routes.js';
 import { createItineraryUI } from './itinerary-ui.js';
-import { mapEntries, scheduleUnassigned, googlePlaceRecord, destinationForDay, googleDescription, googleRatingLabel, mergeGoogleContent, mapLabelPosition } from './place-model.js';
+import { mapEntries, scheduleUnassigned, googlePlaceRecord, destinationForDay, googlePlaceSummary, googleRatingLabel, mergeGoogleContent, mapLabelPosition } from './place-model.js';
 import { enhanceDropdowns } from './dropdowns.js';
 import { viewportSearchArea, inSearchArea, createSearchAreaTracker } from './explore-model.js';
 import { createPhotoLookup, resolvePlacePhoto } from './place-photos.js';
@@ -397,7 +397,7 @@ function drawMarkers() {
   const items = dayOnly && state.trip ? eventsForDay(state.trip, state.day).filter(event => event.kind === 'activity').map(event => event.item) : state.trip?.items;
   const area = currentSearchArea();
   const recommendations = state.mapSuggestions.filter(place => !area || inSearchArea(area, { lat: place.latitude, lng: place.longitude }));
-  for (const entry of mapEntries(items, recommendations)) {
+  for (const entry of mapEntries(items, recommendations, { timeZone: state.trip?.timeZone || 'UTC' })) {
     const pin = pinContent(entry), priority = entry.planned ? 1000 : Math.round((entry.rating || 0) * 100) + Math.min(99, Math.round(Math.log10((entry.ratingCount || 0) + 1) * 20));
     const marker = new state.markerClass({ map: state.map, position: coordinates(entry), title: entry.name, content: pin, gmpClickable: true, collisionBehavior: entry.planned ? google.maps.CollisionBehavior.REQUIRED_AND_HIDES_OPTIONAL : optional, zIndex: priority });
     const showLabel = () => showMapLabel(marker, pin, entry, priority);
@@ -583,19 +583,18 @@ function notePlaceQuota(error) {
   if (quotaFailure(error)) { state.detailCooldownUntil = quotaMemory.block('details'); return true; }
   return false;
 }
-async function detailedGooglePlace(record) {
-  if (!state.places?.Place) throw new Error('Google Maps unavailable');
-  const cached = state.detailCache.get(record.placeId);
-  if (cached) return cached;
-  if (Date.now() < state.detailCooldownUntil) throw new Error('PLACE_DETAILS_QUOTA');
-  const promise = (async () => {
-    const place = new state.places.Place({ id: record.placeId, requestedLanguage: 'en' });
-    await boundedPlaceRequest(() => place.fetchFields({ fields: ['id', 'displayName', 'formattedAddress', 'location', 'photos', 'rating', 'userRatingCount', 'primaryType', 'types', 'primaryTypeDisplayName', 'regularOpeningHours', 'currentOpeningHours', 'websiteURI', 'internationalPhoneNumber', 'googleMapsURI', 'businessStatus', 'editorialSummary', 'priceLevel', 'accessibilityOptions', 'attributions'] }));
+const placeDetails = createPlaceDetails({
+  fetch: async (id, fields) => {
+    if (!state.places?.Place) throw new Error('Google Maps unavailable');
+    const place = new state.places.Place({ id, requestedLanguage: 'en' });
+    try { await place.fetchFields({ fields }); }
+    catch (error) { notePlaceQuota(error); throw error; }
     return place;
-  })();
-  state.detailCache.set(record.placeId, promise);
-  try { return await promise; } catch (error) { state.detailCache.delete(record.placeId); if (notePlaceQuota(error)) throw new Error('PLACE_DETAILS_QUOTA'); throw error; }
-}
+  },
+  text: request => state.places.Place.searchByText(request), record: googlePlaceRecord,
+  quotaMemory, cache: state.detailCache,
+});
+const detailedGooglePlace = record => placeDetails.load(record);
 
 async function tourOperatorContacts(record) {
   const available = placeSearch.find(record.placeId) || state.suggestions.find(place => place.placeId === record.placeId) || record;
@@ -634,8 +633,15 @@ function renderPlaceContent(container, record, { contactOnly = false, compact = 
   }
   if (compact) return;
   if (record.category) { const category = document.createElement('span'); category.className = 'place-category'; category.textContent = record.category; container.append(category); }
-  const description = googleDescription(record.editorialSummary);
-  if (!contactOnly && description) { const text = document.createElement('p'); text.className = 'place-description'; text.textContent = description; container.append(text); }
+  const summary = googlePlaceSummary(record);
+  if (!contactOnly && summary.text) {
+    const text = document.createElement('p'); text.className = 'place-description'; text.textContent = summary.text; container.append(text);
+    if (summary.disclosureText) {
+      const credit = document.createElement('div'); credit.className = 'summary-disclosure'; credit.textContent = summary.disclosureText;
+      if (/^https?:/i.test(summary.flagContentURI || '')) { const report = document.createElement('a'); report.href = summary.flagContentURI; report.textContent = 'Report'; report.target = '_blank'; report.rel = 'noopener noreferrer'; credit.append(report); }
+      container.append(credit);
+    }
+  }
   if (record.businessStatus && record.businessStatus !== 'OPERATIONAL') { const closed = document.createElement('p'); closed.className = 'closed-status'; closed.textContent = record.businessStatus === 'CLOSED_PERMANENTLY' ? 'Permanently closed' : 'Temporarily closed'; container.append(closed); }
   if (!contactOnly && record.address) { const address = document.createElement('p'); address.className = 'place-address'; address.textContent = record.address; container.append(address); }
   const descriptions = record.currentOpeningHours?.weekdayDescriptions || record.regularOpeningHours?.weekdayDescriptions;
@@ -680,15 +686,18 @@ async function hydratePlace(container, record, { contactOnly = false, compact = 
     if (!state.places) await boundedPlaceRequest(() => mapsReady);
     if (!container.isConnected || container.dataset.request !== request) return;
     const operator = contactOnly ? await tourOperatorContacts(record) : null;
-    const fresh = operator || googlePlaceRecord(await detailedGooglePlace(record));
+    const fresh = operator || await detailedGooglePlace(available);
     if (!container.isConnected || container.dataset.request !== request) return;
     available = mergeGoogleContent(available, fresh);
     renderPlaceContent(container, available, { contactOnly, compact });
     if (!contactOnly) showPlacePhoto(container, available).catch(() => {});
-  } catch {
+  } catch (error) {
     if (!contactOnly && container.isConnected && container.dataset.request === request) showPlacePhoto(container, available).catch(() => {});
-    // Keep real Google search data and independent photo loading visible.
-    // Missing editorial summaries are omitted instead of invented or replaced.
+    if (!compact && !contactOnly && !googlePlaceSummary(available).text && container.isConnected && container.dataset.request === request) {
+      const message = document.createElement('p'); message.className = 'place-details-status'; message.setAttribute('role', 'status');
+      message.textContent = error?.message === 'PLACE_DETAILS_QUOTA' ? 'Google’s daily place-detail limit has been reached.' : 'Google place details could not load. Reopen to try again.';
+      container.append(message);
+    }
   }
 }
 
@@ -768,7 +777,7 @@ function showMap(place, fly = false) {
       let match; try { match = await placeSearch.findAt(event.placeId, point); } catch { /* Details may still be available. */ }
       if (clickVersion !== state.placeClickVersion || tripId !== state.trip?.id) return;
       if (match) { open(match); return; }
-      try { open(googlePlaceRecord(await detailedGooglePlace({ placeId: event.placeId }))); }
+      try { open(await detailedGooglePlace({ placeId: event.placeId })); }
       catch {
         if (clickVersion !== state.placeClickVersion || tripId !== state.trip?.id) return;
         if (!point) return;

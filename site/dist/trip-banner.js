@@ -6,14 +6,37 @@ export function bannerSnapDestination(offset, previous, limit) {
 // A trackpad gesture can continue after its first wheel event. Keep the entire
 // gesture with the snap, even if the pointer moves over a different panel.
 export function createSnapGestureGate({ now = () => performance.now(), quietMs = 180 } = {}) {
-  let locked = false, last = -Infinity;
+  let locked = false, last = -Infinity, snapDirection = 0;
   return {
-    begin() { locked = true; last = now(); },
-    consume(animating = false) {
+    begin(direction = 0) { locked = true; last = now(); snapDirection = Math.sign(direction); },
+    consume(animating = false, direction = 0, allowContinuation = false) {
+      // Once docked, hand a continued downward gesture to the list under the
+      // pointer. Retain the guard over the map so it cannot zoom accidentally.
+      if (!animating && allowContinuation) locked = false;
+      // A deliberate reversal must not be mistaken for the previous snap's momentum.
+      if (!animating && direction && snapDirection && Math.sign(direction) !== snapDirection) locked = false;
       const time = now(), block = locked && (animating || time - last < quietMs);
       last = time; if (!block) locked = false; return block;
     },
-    reset() { locked = false; last = -Infinity; },
+    reset() { locked = false; last = -Infinity; snapDirection = 0; },
+  };
+}
+
+// Scrolling to a list's first item should not immediately expand the banner.
+// Continued upward movement at that boundary expresses the intent to return.
+export function createHeaderReturnIntent({ now = () => performance.now(), threshold = 180, quietMs = 400 } = {}) {
+  let amount = 0, last = -Infinity, source = null;
+  function reset() { amount = 0; last = -Infinity; source = null; }
+  return {
+    reset,
+    consume(delta, panel = null) {
+      if (delta >= 0) { reset(); return false; }
+      const time = now();
+      if (time - last > quietMs || panel !== source) amount = 0;
+      source = panel; last = time; amount -= delta;
+      if (amount < threshold) return false;
+      reset(); return true;
+    },
   };
 }
 
@@ -35,6 +58,7 @@ export function createTripBanner({ workspace, header, hero, onResize }) {
   let frame = 0, travel = 0, origin = 0, dateShift = 0, bodyHeight = 0;
   let motion = 0, snapTarget = null, previousOffset = 0, intentUntil = 0;
   const gesture = createSnapGestureGate();
+  const returnIntent = createHeaderReturnIntent();
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   const scrollOffset = () => desktop.matches ? workspace.scrollTop : window.scrollY;
   const scrollLimit = () => desktop.matches ? Math.min(travel, workspace.scrollHeight - workspace.clientHeight) : Math.min(origin + travel, document.documentElement.scrollHeight - window.innerHeight);
@@ -42,12 +66,13 @@ export function createTripBanner({ workspace, header, hero, onResize }) {
   function snapTo(target) {
     if (snapTarget === target) return;
     cancelAnimationFrame(motion);
-    snapTarget = target; gesture.begin(); workspace.classList.add('banner-snapping');
     const from = scrollOffset(), start = performance.now();
+    snapTarget = target; gesture.begin(target - from); returnIntent.reset(); workspace.classList.add('banner-snapping');
     if (reduced.matches) { setOffset(target); previousOffset = target; snapTarget = null; workspace.classList.remove('banner-snapping'); schedule(); return; }
     function step(time) {
-      const t = Math.min(1, (time - start) / 880);
-      const eased = t * t * (3 - 2 * t);
+      const t = Math.min(1, (time - start) / 460);
+      // Move immediately, then settle without overshooting the panels' boundary.
+      const eased = 1 - Math.pow(1 - t, 3);
       setOffset(from + (target - from) * eased);
       previousOffset = scrollOffset();
       update();
@@ -65,15 +90,39 @@ export function createTripBanner({ workspace, header, hero, onResize }) {
     previousOffset = offset; schedule();
   }
   function wheel(event) {
-    if (workspace.hidden || event.ctrlKey || event.metaKey) return;
-    if (gesture.consume(snapTarget !== null)) { event.preventDefault(); event.stopImmediatePropagation(); return; }
-    if (workspace.hidden || Math.abs(event.deltaY) < 1 || event.ctrlKey || event.metaKey || event.target.closest('#map, input, textarea, [role=listbox]') || header.querySelector('#edit-date-picker')?.hidden === false) return;
-    // Inner lists keep their own scroll position once the banner is compact.
+    if (workspace.hidden || event.ctrlKey || event.metaKey) { returnIntent.reset(); return; }
+    const panel = event.target.closest('.day-content, .nearby-results, #transport-content');
+    let innerScroller = null;
     for (let element = event.target; element && element !== workspace; element = element.parentElement) {
       const overflow = getComputedStyle(element).overflowY;
-      if (/auto|scroll/.test(overflow) && element.scrollHeight > element.clientHeight + 1 && (event.deltaY > 0 ? element.scrollTop < element.scrollHeight - element.clientHeight - 1 : element.scrollTop > 1)) return;
+      if (/auto|scroll/.test(overflow) && element.scrollHeight > element.clientHeight + 1 && (event.deltaY > 0 ? element.scrollTop < element.scrollHeight - element.clientHeight - 1 : element.scrollTop > 1)) { innerScroller = element; break; }
+    }
+    const continueIntoList = Boolean(panel && innerScroller && event.deltaY > 0 && workspace.classList.contains('banner-compact'));
+    if (gesture.consume(snapTarget !== null, event.deltaY, continueIntoList)) { event.preventDefault(); event.stopImmediatePropagation(); return; }
+    if (Math.abs(event.deltaY) < 1 || event.target.closest('#map, input, textarea, [role=listbox]') || header.querySelector('#edit-date-picker')?.hidden === false) { returnIntent.reset(); return; }
+    // Inner lists keep their own scroll position once the banner is compact.
+    if (innerScroller) {
+      returnIntent.reset();
+      if (desktop.matches && panel && workspace.classList.contains('banner-compact')) {
+        // Browsers can latch a trackpad gesture to the outer workspace while
+        // the banner is collapsing. Route it to the list explicitly, without
+        // requiring a pointer movement to choose a new scroll surface.
+        event.preventDefault(); event.stopImmediatePropagation();
+        const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? innerScroller.clientHeight : 1);
+        innerScroller.scrollTop = Math.max(0, Math.min(innerScroller.scrollHeight - innerScroller.clientHeight, innerScroller.scrollTop + delta));
+      }
+      return;
     }
     const limit = scrollLimit();
+    if (desktop.matches && workspace.classList.contains('banner-compact') && event.deltaY < 0 && panel) {
+      // Stop browser scroll chaining until enough upward intent has accumulated.
+      // Wheel deltaMode is pixels, lines, or pages depending on the input device.
+      const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? panel.clientHeight : 1);
+      event.preventDefault(); event.stopImmediatePropagation();
+      if (returnIntent.consume(delta, panel)) snapTo(0);
+      return;
+    }
+    returnIntent.reset();
     if (!desktop.matches && scrollOffset() >= limit + 1) return;
     const target = event.deltaY > 0 ? limit : 0;
     if (Math.abs(scrollOffset() - target) <= 1 && snapTarget === null) return;
@@ -86,6 +135,8 @@ export function createTripBanner({ workspace, header, hero, onResize }) {
     const shift = Math.min(travel, Math.max(0, offset));
     const progress = travel ? shift / travel : 0;
     workspace.style.setProperty('--banner-progress', String(progress));
+    // Let the photo and typography dock just ahead of the scrolling surface.
+    workspace.style.setProperty('--banner-morph', String(1 - Math.pow(1 - progress, 2)));
     workspace.style.setProperty('--banner-shift', `${shift}px`);
     workspace.style.setProperty('--banner-date-shift', `${dateShift * progress}px`);
     workspace.style.setProperty('--banner-date-room', `${(date.offsetWidth + 12) * progress}px`);
@@ -96,7 +147,8 @@ export function createTripBanner({ workspace, header, hero, onResize }) {
   function schedule() { if (!frame) frame = requestAnimationFrame(update); }
   function measure() {
     if (workspace.hidden) return;
-    travel = Math.max(0, hero.offsetHeight - 68);
+    const compactHeight = parseFloat(getComputedStyle(workspace).getPropertyValue('--banner-compact-height')) || 60;
+    travel = Math.max(0, hero.offsetHeight - compactHeight);
     workspace.style.setProperty('--banner-travel', `${travel}px`);
     origin = workspace.getBoundingClientRect().top + window.scrollY;
     dateShift = Math.max(0, hero.clientWidth - date.offsetWidth - 62 - 26);
@@ -122,5 +174,5 @@ export function createTripBanner({ workspace, header, hero, onResize }) {
   window.addEventListener('scroll', () => desktop.matches ? schedule() : scroll(), { passive: true });
   window.addEventListener('resize', measure, { passive: true });
   desktop.addEventListener('change', measure);
-  return { reset() { cancelAnimationFrame(motion); motion = 0; snapTarget = null; gesture.reset(); workspace.classList.remove('banner-snapping'); previousOffset = 0; workspace.scrollTop = 0; window.scrollTo({ top: 0, behavior: 'instant' }); measure(); } };
+  return { reset() { cancelAnimationFrame(motion); motion = 0; snapTarget = null; gesture.reset(); returnIntent.reset(); workspace.classList.remove('banner-snapping'); previousOffset = 0; workspace.scrollTop = 0; window.scrollTo({ top: 0, behavior: 'instant' }); measure(); } };
 }

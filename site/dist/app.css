@@ -32,7 +32,8 @@ a{color:var(--action)}
 .app-shell{min-height:100svh;background:#fff}
 .topbar{display:flex;align-items:center;justify-content:space-between;height:54px;padding:0 28px;border-bottom:1px solid var(--line)}
 .brand{color:var(--ink);font-family:var(--display);font-size:20px;font-weight:700;letter-spacing:-1.1px;text-decoration:none}
-.slash{color:var(--action);padding:0 2px}
+.brand-wordmark{display:inline-flex;align-items:center;line-height:1;gap:2px}
+.brand-slash{display:block;flex:none;width:.43em;height:1.04em;color:var(--action);margin:0 1px}
 .my-trips{display:flex;align-items:center;gap:9px;padding:8px 12px;border-radius:0;font-size:13px;font-weight:700}
 .my-trips:hover{background:var(--soft)}
 .my-trips span{color:var(--muted)}
@@ -296,6 +297,17 @@ a{color:var(--action)}
 .editable-title{width:100%;border:0;border-bottom:1px solid transparent;background:none;font-family:var(--display);font-size:28px;font-weight:700;letter-spacing:-.045em;padding:0 0 10px;color:var(--ink)}
 .editable-title:focus{border-bottom-color:var(--action)}
 .plan-sheet h2{font-family:var(--display);font-size:30px;letter-spacing:-.055em;margin:0 0 16px}
+.plan-sheet{width:min(640px,calc(100vw - 32px));padding:20px}
+.plan-sheet .sheet-top{position:absolute;top:20px;right:20px;margin:0;z-index:2}
+.plan-sheet .editable-title{display:block;padding:0 48px 6px 0;font-size:28px;line-height:1.25}
+.plan-sheet h2{padding-right:48px;margin:0 0 12px;font-size:28px;line-height:1.25}
+.plan-sheet .detail-photo{margin:6px 0 8px}
+.plan-sheet .sheet-day-chips{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;max-height:none;padding:2px 0 4px;margin:10px 0;scrollbar-width:thin}
+.plan-sheet .sheet-day-chips button{flex:none}
+.plan-sheet .plan-tools,.plan-sheet .plan-position{margin:10px 0;gap:6px}
+.plan-sheet .plan-tools .detail-chip{padding:8px 10px;gap:6px;font-size:13px}
+.plan-sheet .plan-position:empty,.plan-sheet .place-details:empty{display:none}
+.plan-sheet .editor-actions{margin-top:12px}
 .sheet-day-chips,.plan-tools,.plan-position{display:flex;gap:7px;flex-wrap:wrap;margin:14px 0}
 .sheet-day-chips{max-height:94px;overflow:auto}
 .duplicate-label{display:flex;align-items:center;font-size:14px;font-weight:500;margin-right:4px}
@@ -348,6 +360,9 @@ a.detail-rating:hover{color:var(--ink);text-decoration:underline;text-underline-
 .map-entry-rating .icon{width:14px;height:14px;color:var(--rating)}
 .place-address{font-size:13px;color:var(--muted);margin:8px 0}
 .place-description{font-size:14px;line-height:1.7;margin:10px 0}
+.summary-disclosure{display:flex;align-items:center;gap:8px;font-size:13px;line-height:1.4;color:var(--muted);margin:-4px 0 10px}
+.summary-disclosure a{color:inherit}
+.place-details-status{font-size:13px;line-height:1.5;color:var(--muted);margin:8px 0}
 .detail-loading{color:var(--muted);font-size:13px}
 .closed-status{color:var(--danger);font-size:13px}
 .place-hours{margin:10px 0;color:var(--muted);font-size:13px}
@@ -663,25 +678,28 @@ to{opacity:1;transform:scale(1)}
 .explore-error{font-size:14px;line-height:1.5;color:var(--muted);margin:8px 0 14px}
 
 /* Scroll away the photo while the same controls form a compact header. */
-.workspace{--banner-progress:0;--banner-shift:0px;--banner-date-shift:0px;--banner-date-room:0px;--banner-travel:200px;--banner-title-size:clamp(38px,4.8vw,70px);display:block}
+.workspace{--banner-progress:0;--banner-morph:0;--banner-shift:0px;--banner-date-shift:0px;--banner-date-room:0px;--banner-travel:200px;--banner-compact-height:60px;--banner-title-size:clamp(38px,4.8vw,70px);display:block}
 .trip-masthead{position:sticky;top:calc(-1 * var(--banner-travel));z-index:25;background:#fff}
 .destination-hero.long-title{--banner-title-size:clamp(30px,3.8vw,54px)}
-.destination-hero:after{content:'';position:absolute;inset:0;background:#fff;opacity:var(--banner-progress);z-index:0;pointer-events:none}
-.workspace .trip-title-wrap{top:calc(26px + var(--banner-shift) - 4px * var(--banner-progress));left:calc(26px + 68px * var(--banner-progress));right:calc(80px + var(--banner-date-room))}
-.workspace .destination-hero .trip-title-wrap h1,.workspace #trip-title-input{font-size:calc(var(--banner-title-size) + (24px - var(--banner-title-size)) * var(--banner-progress));color:color-mix(in srgb,#fff calc((1 - var(--banner-progress)) * 100%),var(--ink))}
+.destination-hero:after{content:'';position:absolute;inset:0;background:#fff;opacity:var(--banner-morph);z-index:0;pointer-events:none}
+.workspace .trip-title-wrap{top:calc(26px + var(--banner-shift) - 8px * var(--banner-morph));left:calc(26px + 38px * var(--banner-morph));right:calc(80px + var(--banner-date-room))}
+.workspace .destination-hero .trip-title-wrap h1,.workspace #trip-title-input{font-size:calc(var(--banner-title-size) + (22px - var(--banner-title-size)) * var(--banner-morph));color:color-mix(in srgb,#fff calc((1 - var(--banner-morph)) * 100%),var(--ink))}
 .workspace #edit-trip-title>.icon{color:inherit;opacity:.7}
 .workspace #trip-title-input{border-color:currentColor;background:transparent}
-.workspace .hero-gallery{z-index:1;inset:0;width:100%;height:100%;opacity:clamp(0,calc(1 - 1.4 * var(--banner-progress)),1);transform:translateY(calc(-18px * var(--banner-progress))) scale(calc(1 + .025 * var(--banner-progress)));overflow:hidden}
-.banner-thumbnail{position:absolute;z-index:1;top:calc(var(--banner-shift) + 10px);left:12px;display:flex;width:64px;height:48px;overflow:hidden;border-bottom:3px solid var(--accent);opacity:clamp(0,calc(2 * var(--banner-progress) - 1),1);transform:translateX(calc(-12px * (1 - var(--banner-progress))))}
+.workspace .hero-gallery{z-index:1;inset:0;width:100%;height:100%;opacity:clamp(0,calc(1 - 1.6 * var(--banner-morph)),1);transform:translateY(calc(-24px * var(--banner-morph))) scale(calc(1 + .06 * var(--banner-morph)));transform-origin:0 0;overflow:hidden}
+.banner-thumbnail{position:absolute;z-index:1;top:calc(var(--banner-shift) + 10px);left:0;display:flex;width:48px;height:40px;overflow:hidden;border-bottom:3px solid var(--accent);opacity:clamp(0,calc(2.5 * var(--banner-morph) - .75),1);clip-path:inset(0 calc(100% * (1 - var(--banner-morph))) 0 0);transform:translateX(calc(-8px * (1 - var(--banner-morph)))) scale(calc(1.18 - .18 * var(--banner-morph)));transform-origin:0 50%}
 .banner-thumbnail img{height:100%;flex:1;min-width:0;object-fit:cover}
-.workspace .hero-photo-shade{opacity:calc(1 - var(--banner-progress))}
+.workspace .hero-photo-shade{opacity:calc(1 - var(--banner-morph))}
 .workspace .hero-gallery .hero-photo{transform:scale(1.05);transition:none}
-.workspace .hero-date{height:36px;padding:0 14px;bottom:calc(22px - 7px * var(--banner-progress));transform:translateX(var(--banner-date-shift));box-shadow:calc(3px * (1 - var(--banner-progress))) calc(3px * (1 - var(--banner-progress))) 0 #20201f}
-.workspace .hero-top{top:calc(16px + var(--banner-shift))}
+.workspace .hero-date{height:36px;padding:0 14px;bottom:calc(22px - 10px * var(--banner-progress));transform:translateX(var(--banner-date-shift));box-shadow:calc(3px * (1 - var(--banner-progress))) calc(3px * (1 - var(--banner-progress))) 0 #20201f}
+.workspace .hero-top{top:calc(16px + var(--banner-shift) - 4px * var(--banner-progress));right:calc(16px * (1 - var(--banner-progress)));padding-left:calc(10px * var(--banner-progress));border-left:1px solid color-mix(in srgb,var(--line) calc(100% * var(--banner-progress)),transparent)}
 .trip-masthead>.trip-menu{top:calc(60px + var(--banner-shift));right:16px}
-.banner-compact .destination-hero{border-bottom:1px solid var(--line)}
-.banner-compact .hero-date{background:var(--tint);color:var(--action)}
-.banner-compact .hero-date:hover{background:var(--accent);color:var(--ink)}
+.banner-compact .destination-hero{box-shadow:inset 0 -1px var(--line)}
+.banner-compact .hero-date{background:transparent;color:var(--ink)}
+.banner-compact .hero-date .icon{color:var(--action)}
+.banner-compact .hero-date:hover,.banner-compact .hero-top .more-button:hover{background:var(--tint);color:var(--action)}
+.banner-compact #edit-trip-title:hover{background:var(--tint)}
+.banner-compact .hero-top .more-button{background:transparent;color:var(--muted)}
 
 @media(min-width:901px){
   .workspace{height:calc(100dvh - 54px);overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:#d3cbc3 transparent}

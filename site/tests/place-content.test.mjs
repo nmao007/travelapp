@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { googlePlaceRecord, googleDescription, googleRatingLabel, mergeGoogleContent } from '../dist/place-model.js';
+import { googlePlaceRecord, googleDescription, googlePlaceSummary, googleRatingLabel, mergeGoogleContent } from '../dist/place-model.js';
 
 test('Google descriptions and review scores survive place normalization', () => {
   const place = googlePlaceRecord({ id: 'real', displayName: 'Restaurant', location: { lat: () => 35, lng: () => 135 }, rating: 4.7, userRatingCount: 1200, editorialSummary: 'Google editorial description.', googleMapsURI: 'https://maps.google.com/?cid=1' });
@@ -15,6 +15,14 @@ test('missing Google summaries never become Wikipedia extracts or invented descr
   assert.equal(googleRatingLabel({ rating: undefined, ratingCount: 200 }), '');
   assert.equal(googleRatingLabel({ rating: 6 }), '');
   assert.equal(googleRatingLabel({ rating: 4.5, ratingCount: 1 }), '4.5 · 1 review');
+});
+test('Google generated summaries retain their disclosure and report link, with editorial text preferred', () => {
+  const place = googlePlaceRecord({ id: 'real', displayName: 'Stadium', location: { lat: () => 34, lng: () => -118 }, generativeSummary: { overview: 'Google overview.', disclosureText: 'Provider disclosure.', flagContentURI: 'https://maps.google.com/report' } });
+  assert.deepEqual(googlePlaceSummary(place), { text: 'Google overview.', disclosureText: 'Provider disclosure.', flagContentURI: 'https://maps.google.com/report' });
+  assert.deepEqual(googlePlaceSummary({ ...place, editorialSummary: 'Editorial description.' }), { text: 'Editorial description.', disclosureText: '', flagContentURI: '' });
+  assert.equal(googlePlaceSummary({ extract: 'Wikipedia', description: 'Caption' }).text, '');
+  assert.equal(googlePlaceSummary({ generativeSummary: { overview: '' } }).text, '');
+  assert.equal(googlePlaceSummary({ generativeSummary: { overview: 'Google overview.' } }).disclosureText, 'Summarized with AI by Google');
 });
 test('partial and failed details cannot erase existing real Google photos, ratings or summaries', () => {
   const photo = { getURI: () => 'real-photo' };

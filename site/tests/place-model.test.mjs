@@ -54,3 +54,40 @@ test('legacy identical Google entries collapse while separate visits and custom 
   const trip = { startDate: '2026-10-01', items: [{ ...same, id: 'planned' }, { ...same, id: 'legacy', day: 'ideas' }, { ...same, id: 'evening', time: '18:00' }, { id: 'custom-one', name: 'Lunch', day: '2026-10-01' }, { id: 'custom-two', name: 'Lunch', day: '2026-10-01' }] };
   assert.deepEqual(scheduleUnassigned(trip).items.map(item => item.id), ['planned', 'evening', 'custom-one', 'custom-two']);
 });
+
+test('map numbering follows trip days rather than the order places were originally added', () => {
+  const items = [
+    { ...place, placeId: 'majordomo', id: 'dinner', name: 'Majordomo', day: '2026-10-02' },
+    { ...place, placeId: 'dodger', id: 'stadium', name: 'Dodger Stadium', day: '2026-10-01' },
+  ];
+  const entries = mapEntries(items);
+  assert.deepEqual(entries.map(entry => [entry.name, entry.number]), [['Dodger Stadium', 1], ['Majordomo', 2]]);
+  assert.deepEqual(items.map(item => item.id), ['dinner', 'stadium']);
+  const moved = mapEntries([{ ...items[0], day: '2026-10-01' }, { ...items[1], day: '2026-10-02' }]);
+  assert.deepEqual(moved.map(entry => [entry.name, entry.number]), [['Majordomo', 1], ['Dodger Stadium', 2]]);
+});
+
+test('map ordering agrees with the timeline for timed and flexible stops and preserves their drag order', async () => {
+  const { eventsForDay } = await import('../dist/itinerary-model.js');
+  const trip = { startDate: '2026-10-01', endDate: '2026-10-02', timeZone: 'America/Los_Angeles', items: [
+    { ...place, placeId: 'flex-first', id: 'flex-first', day: '2026-10-01' },
+    { ...place, placeId: 'late', id: 'late', day: '2026-10-01', time: '18:00' },
+    { ...place, placeId: 'early', id: 'early', day: '2026-10-01', time: '09:00' },
+    { ...place, placeId: 'flex-second', id: 'flex-second', day: '2026-10-01' },
+    { ...place, placeId: 'next-day', id: 'next-day', day: '2026-10-02', time: '07:00' },
+  ] };
+  const visible = ['2026-10-01', '2026-10-02'].flatMap(day => eventsForDay(trip, day).filter(event => event.kind === 'activity').map(event => event.id));
+  const pins = mapEntries(trip.items, [], { timeZone: trip.timeZone });
+  assert.deepEqual(pins.map(pin => pin.id), visible);
+  assert.deepEqual(pins.map(pin => pin.number), [1, 2, 3, 4, 5]);
+});
+
+test('revisited places use their earliest visit and unmapped events do not consume marker numbers', () => {
+  const entries = mapEntries([
+    { ...place, id: 'return', day: '2026-10-03' },
+    { id: 'flight', day: '2026-10-01', time: '09:00' },
+    { ...place, id: 'arrival', day: '2026-10-01' },
+    { ...place, placeId: 'restaurant', id: 'dinner', day: '2026-10-02' },
+  ], [{ ...place, placeId: 'suggestion' }]);
+  assert.deepEqual(entries.map(entry => [entry.id || entry.placeId, entry.number]), [['arrival', 1], ['dinner', 2], ['suggestion', undefined]]);
+});

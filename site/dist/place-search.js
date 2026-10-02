@@ -10,6 +10,7 @@ export const placeSearchGroups = {
   tour: { types: ['tour_agency'], query: 'tour operators', primary: true },
 };
 export const placeSearchFields = ['id', 'displayName', 'formattedAddress', 'location', 'photos', 'rating', 'userRatingCount', 'primaryType', 'types', 'primaryTypeDisplayName', 'businessStatus'];
+export const placeDetailFields = [...placeSearchFields, 'regularOpeningHours', 'currentOpeningHours', 'websiteURI', 'internationalPhoneNumber', 'googleMapsURI', 'editorialSummary', 'generativeSummary', 'priceLevel', 'accessibilityOptions', 'attributions'];
 export const quotaFailure = error => /RESOURCE_EXHAUSTED|OVER_QUERY_LIMIT|quota exceeded/i.test(String(error?.message || error));
 const mapClickGroup = { query: 'places', textOnly: true };
 const mixedGroup = { types: [...new Set(['see', 'eat', 'stay', 'nature', 'tour'].flatMap(key => placeSearchGroups[key].types))], query: 'tourist attractions restaurants hotels parks and tour operators' };
@@ -44,6 +45,62 @@ export function createQuotaMemory(storage, now = Date.now) {
       return until;
     },
   };
+}
+
+// Load details only for opened/visible places. If Google's Details endpoint is
+// limited, Text Search may still supply the exact place; never use a neighbor.
+export function createPlaceDetails({ fetch, text, record, quotaMemory, now = Date.now, timeoutMs = 8000, cache = new Map() }) {
+  const queue = [];
+  let active = 0, detailsUntil = 0, textUntil = 0;
+  const blocked = endpoint => now() < Math.max(endpoint === 'details' ? detailsUntil : textUntil, quotaMemory?.read(endpoint) || 0);
+  function block(endpoint) {
+    const until = quotaMemory?.block(endpoint) || now() + 30 * 60000;
+    if (endpoint === 'details') detailsUntil = until; else textUntil = until;
+  }
+  async function resolveDetails(saved) {
+    if (!blocked('details')) {
+      try {
+        const result = record(await boundedPlaceRequest(() => fetch(saved.placeId, placeDetailFields), timeoutMs));
+        if (result.placeId !== saved.placeId) throw new Error('PLACE_DETAILS_MISMATCH');
+        return result;
+      } catch (error) {
+        if (quotaFailure(error)) block('details');
+        else if (error?.message !== 'PLACE_SEARCH_TIMEOUT') throw error;
+      }
+    }
+    if (blocked('text')) throw new Error('PLACE_DETAILS_QUOTA');
+    if (!saved.name?.trim()) throw new Error('PLACE_DETAILS_UNAVAILABLE');
+    let response;
+    try {
+      response = await boundedPlaceRequest(() => text({ fields: placeDetailFields, textQuery: [saved.name, saved.address].filter(Boolean).join(', '), language: 'en', maxResultCount: 5,
+        ...(Number.isFinite(saved.latitude) && Number.isFinite(saved.longitude) ? { locationBias: { center: { lat: saved.latitude, lng: saved.longitude }, radius: 500 } } : {}) }), timeoutMs);
+    } catch (error) {
+      if (quotaFailure(error)) { block('text'); throw new Error('PLACE_DETAILS_QUOTA'); }
+      throw error;
+    }
+    const match = response.places?.find(place => place.id === saved.placeId);
+    if (!match) throw new Error('PLACE_DETAILS_UNAVAILABLE');
+    const result = record(match);
+    if (result.placeId !== saved.placeId) throw new Error('PLACE_DETAILS_MISMATCH');
+    return result;
+  }
+  function drain() {
+    while (active < 2 && queue.length) {
+      const job = queue.shift(); active++;
+      Promise.resolve().then(job.run).then(job.resolve, job.reject).finally(() => { active--; drain(); });
+    }
+  }
+  return { load(saved) {
+    if (!saved?.placeId) return Promise.reject(new Error('PLACE_DETAILS_UNAVAILABLE'));
+    const existing = cache.get(saved.placeId);
+    if (existing && (existing.pending || existing.expires > now())) return existing.promise;
+    const entry = { pending: true, expires: Infinity };
+    entry.promise = new Promise((resolve, reject) => { queue.push({ run: () => resolveDetails(saved), resolve, reject }); drain(); });
+    cache.set(saved.placeId, entry);
+    entry.promise = entry.promise.then(result => { entry.pending = false; entry.expires = now() + 5 * 60000; return result; }, error => { entry.pending = false; entry.expires = now() + 30000; throw error; });
+    if (cache.size > 60) for (const [id, value] of cache) if (!value.pending && id !== saved.placeId) { cache.delete(id); break; }
+    return entry.promise;
+  } };
 }
 export function createPlaceSearch({ nearby, text, record, now = Date.now, timeoutMs = 10000, concurrency = 2, quotaMemory }) {
   const cache = new Map(), records = new Map(), queue = [];

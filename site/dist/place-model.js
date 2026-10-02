@@ -1,7 +1,15 @@
+import { activityInstant, isDate } from './domain.js';
+
 // Map entries have one marker per Google place, even across several trip days.
-export function mapEntries(items = [], suggestions = []) {
+export function mapEntries(items = [], suggestions = [], { timeZone = 'UTC' } = {}) {
   const entries = new Map();
-  for (const item of items) {
+  // Storage order reflects when a place was added. Marker numbers follow the
+  // visible itinerary: local day, scheduled time, then flexible plan order.
+  const ordered = items.map(item => ({
+    item, day: isDate(item.day) ? item.day : '9999-99-99',
+    at: item.time ? activityInstant({ date: item.day, time: item.time, time_zone: item.timeZone || timeZone }) : null,
+  })).sort((a, b) => a.day.localeCompare(b.day) || (a.at === null ? b.at === null ? 0 : 1 : b.at === null ? -1 : a.at - b.at));
+  for (const { item } of ordered) {
     if (!Number.isFinite(item.latitude) || !Number.isFinite(item.longitude)) continue;
     const key = item.placeId || item.id;
     if (!entries.has(key)) entries.set(key, { ...item, planned: true, number: entries.size + 1 });
@@ -42,16 +50,26 @@ export function googlePlaceRecord(place) {
     photo: photos[0] || null, photos, rating: field('rating'), ratingCount: field('userRatingCount'), types,
     websiteURI: field('websiteURI') || '', internationalPhoneNumber: field('internationalPhoneNumber') || '', businessStatus: field('businessStatus') || '',
     category: field('primaryTypeDisplayName') || '', primaryType: field('primaryType') || '', tourOperator: types.includes('tour_agency'),
-    editorialSummary: googleDescription(field('editorialSummary')), googleMapsURI: field('googleMapsURI') || '',
+    editorialSummary: googleDescription(field('editorialSummary')), generativeSummary: googleGenerativeSummary(field('generativeSummary')), googleMapsURI: field('googleMapsURI') || '',
     currentOpeningHours: field('currentOpeningHours'), regularOpeningHours: field('regularOpeningHours'),
     priceLevel: field('priceLevel'), accessibilityOptions: field('accessibilityOptions'), attributions: field('attributions') || [],
   };
 }
 
-// Descriptions come only from Google's editorial field. Photo sources and
+// Descriptions come only from Google's summary fields. Photo sources and
 // Wikipedia extracts must never become descriptions of a saved place.
 export function googleDescription(summary) {
   return typeof summary === 'string' ? summary.trim() : typeof summary?.text === 'string' ? summary.text.trim() : '';
+}
+function googleGenerativeSummary(summary) {
+  const overview = googleDescription(summary?.overview);
+  return overview ? { overview, disclosureText: googleDescription(summary.disclosureText) || 'Summarized with AI by Google', flagContentURI: summary.flagContentURI || '' } : null;
+}
+export function googlePlaceSummary(place) {
+  const editorial = googleDescription(place?.editorialSummary);
+  if (editorial) return { text: editorial, disclosureText: '', flagContentURI: '' };
+  const generated = googleGenerativeSummary(place?.generativeSummary);
+  return { text: generated?.overview || '', disclosureText: generated?.disclosureText || '', flagContentURI: generated?.flagContentURI || '' };
 }
 export function googleRatingLabel(place) {
   if (!Number.isFinite(place?.rating) || place.rating < 1 || place.rating > 5) return '';
