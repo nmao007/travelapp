@@ -59,6 +59,7 @@ export function createHeaderScrollIntent({ now = () => performance.now(), direct
 // its controls counter that movement to become a small, stable header.
 export function createTripBanner({ workspace, header, hero, onResize }) {
   const desktop = matchMedia('(min-width:901px)');
+  const phone = matchMedia('(max-width:580px)');
   const gallery = hero.querySelector('.hero-gallery');
   const date = hero.querySelector('.hero-date');
   const thumbnail = document.createElement('div'); thumbnail.className = 'banner-thumbnail'; thumbnail.setAttribute('aria-hidden', 'true'); thumbnail.inert = true; hero.prepend(thumbnail);
@@ -107,6 +108,8 @@ export function createTripBanner({ workspace, header, hero, onResize }) {
     previousOffset = offset; schedule();
   }
   function wheel(event) {
+    // Phone panels use native touch scrolling, with no nested header snap.
+    if (phone.matches) return;
     if (workspace.hidden || event.ctrlKey || event.metaKey) { resetIntent(); return; }
     const targetElement = desktop.matches ? bannerWheelTarget(event, workspace, (x, y) => document.elementFromPoint(x, y)) : event.target;
     if (!targetElement || !workspace.contains(targetElement)) return;
@@ -171,7 +174,7 @@ export function createTripBanner({ workspace, header, hero, onResize }) {
   function measure() {
     if (workspace.hidden) return;
     const compactHeight = parseFloat(getComputedStyle(workspace).getPropertyValue('--banner-compact-height')) || 60;
-    travel = Math.max(0, hero.offsetHeight - compactHeight);
+    travel = phone.matches ? 0 : Math.max(0, hero.offsetHeight - compactHeight);
     workspace.style.setProperty('--banner-travel', `${travel}px`);
     origin = workspace.getBoundingClientRect().top + window.scrollY;
     dateShift = Math.max(0, hero.clientWidth - date.offsetWidth - 62 - 26);

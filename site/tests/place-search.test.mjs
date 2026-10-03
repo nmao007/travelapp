@@ -70,6 +70,11 @@ test('Mixed map recommendations retain category variety, exclude unreviewed/clos
 test('Map categories use actual SVG icons, including saved events without Google metadata', () => {
   for (const [primaryType, icon] of [['cafe','food'], ['coffee_shop','food'], ['hotel','stay'], ['museum','landmark'], ['shrine','landmark'], ['park','leaf'], ['amusement_park','landmark'], ['tour_agency','guide']]) assert.equal(placeIcon({ primaryType }), icon);
   assert.equal(placeIcon({ kind: 'Stay' }), 'stay'); assert.equal(placeIcon({ kind: 'Food' }), 'food'); assert.equal(placeIcon({ kind: 'Tour' }), 'guide');
+  for (const [category, symbol] of [['Historical landmark', 'landmark'], ['Tourist attraction', 'landmark'], ['Park', 'leaf'], ['Restaurant', 'food'], ['Stadium', 'sports']]) assert.equal(placeIcon({ category }), symbol);
+  assert.equal(placeIcon({ types: ['park', 'point_of_interest', 'establishment'] }), 'leaf');
+  for (const [kind, symbol] of [['Flight', 'plane'], ['Train', 'train'], ['Transport', 'car'], ['Activity', 'day']]) assert.equal(placeIcon({ kind }), symbol);
+  assert.equal(placeIcon({ kind: 'Food', primaryType: 'historical_landmark' }), 'food');
+  assert.equal(placeIcon({ placeId: 'unknown', kind: 'Activity' }), 'pin');
 });
 
 test('Google records tolerate unavailable optional fields and preserve usable map coordinates', () => {

@@ -60,7 +60,9 @@ export function createPlanningDrag({ root, tabs, getTrip, commit, onDrop }) {
     }
   }
   root.addEventListener('pointerdown', event => {
-    if (pending || event.button !== 0 || event.target.closest('a,input,select,textarea')) return;
+    if (pending || event.button !== 0 || event.target.closest('a,input,select,textarea,.day-reorder')) return;
+    // Swiping the card scrolls. Only the dedicated grip starts a touch drag.
+    if ((event.pointerType === 'touch' || document.documentElement.dataset.devicePreview === 'iphone16') && !event.target.closest('.mobile-drag-handle')) return;
     const row = event.target.closest('[data-flexible="true"]');
     const item = getTrip()?.items.find(item => item.id === row?.dataset.itemId);
     if (!row || !item || fixedItem(item)) return;

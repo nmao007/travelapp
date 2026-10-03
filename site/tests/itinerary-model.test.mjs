@@ -1,10 +1,42 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { datesForTrip, monthsForTrip, calendarDisplayCells, eventsForDay, makePlan, makeTransport, upsertTransport, reorderPlan, insertPlan, removeItineraryEvent, restoreItineraryEvent, duplicatePlan } from '../dist/itinerary-model.js';
+import { datesForTrip, monthsForTrip, calendarDisplayCells, eventsForDay, makePlan, makeTransport, upsertTransport, reorderPlan, stepPlan, insertPlan, removeItineraryEvent, restoreItineraryEvent, duplicatePlan } from '../dist/itinerary-model.js';
 import { saveTrip, readTrips, movePlace } from '../dist/trip-store.js';
 
 const trip = { id: 'trip', name: 'Lisbon', placeId: 'lisbon', latitude: 38.7, longitude: -9.1, timeZone: 'Europe/Lisbon', startDate: '2026-10-30', endDate: '2026-11-02', items: [] };
 const service = { mode: 'Train', service_id: 'IC 720', departure_location: 'Lisbon', arrival_location: 'Porto', departure_date: '2026-10-30', departure_time: '09:00', departure_time_zone: 'Europe/Lisbon', arrival_date: '2026-10-30', arrival_time: '11:45', arrival_time_zone: 'Europe/Lisbon' };
+
+test('day arrows reorder flexible plans in both directions and persist across reopening', () => {
+  const day = '2026-10-30';
+  const first = makePlan(trip, { name: 'Walk', day });
+  const booking = makePlan(trip, { name: 'Reserved dinner', day, booked: true });
+  const otherDay = makePlan(trip, { name: 'Museum', day: '2026-10-31' });
+  const second = makePlan(trip, { name: 'Coffee', day });
+  const train = makeTransport(trip, service, 'train');
+  const original = { ...trip, items: [first, booking, otherDay, second], transport: [train] };
+  const moved = stepPlan(original, first.id, 'down');
+  assert.deepEqual(moved.items.map(item => item.id), [second.id, booking.id, otherDay.id, first.id]);
+  assert.deepEqual(eventsForDay(moved, day).map(event => event.id), [train.id, second.id, booking.id, first.id]);
+  assert.deepEqual(moved.transport, original.transport);
+  let data;
+  const storage = { getItem: () => data, setItem: (_, value) => { data = value; } };
+  saveTrip(moved, storage);
+  const reopened = readTrips(storage)[0];
+  assert.deepEqual(stepPlan(reopened, first.id, 'up').items, JSON.parse(JSON.stringify(original.items)));
+  assert.equal(original.items[0], first);
+});
+
+test('day arrows stop at boundaries and cannot move fixed events or cross days', () => {
+  const first = makePlan(trip, { name: 'Walk', day: '2026-10-30' });
+  const last = makePlan(trip, { name: 'Coffee', day: first.day });
+  const other = makePlan(trip, { name: 'Museum', day: '2026-10-31' });
+  const planned = { ...trip, items: [first, last, other] };
+  for (const [id, direction] of [[first.id, 'up'], [last.id, 'down'], [other.id, 'up'], ['missing', 'down'], [first.id, 'invalid']]) assert.equal(stepPlan(planned, id, direction), planned);
+  for (const patch of [{ booked: true }, { time: '09:00' }, { kind: 'Flight' }, { kind: 'Train' }]) {
+    const fixed = { ...planned, items: [{ ...first, ...patch }, last] };
+    assert.equal(stepPlan(fixed, first.id, 'down'), fixed);
+  }
+});
 
 test('duplicating a flexible plan preserves its location and notes with a separate identity', () => {
   const source = { ...makePlan(trip, { name: 'Breakfast', kind: 'Food', day: '2026-10-30', notes: 'Vegetarian options', reference: 'OLD-REFERENCE' }), placeId: 'cafe', latitude: 38.72, longitude: -9.14, address: 'Lisbon', rating: 4.7 };

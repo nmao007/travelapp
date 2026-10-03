@@ -1,10 +1,10 @@
 import { tourDraft, tourSummary, tourEndLabel } from './tour-model.js';
 import { playMotion, morphFrom, morphFrames, revealSequence } from './motion.js';
-import { datesForTrip, monthsForTrip, calendarDisplayCells, eventsForDay, fixedItem, mappedPlace, makePlan, makeTransport, upsertTransport, reorderPlan, removeItineraryEvent, restoreItineraryEvent, duplicatePlan } from './itinerary-model.js';
+import { datesForTrip, monthsForTrip, calendarDisplayCells, eventsForDay, fixedItem, mappedPlace, makePlan, makeTransport, upsertTransport, reorderPlan, stepPlan, removeItineraryEvent, restoreItineraryEvent, duplicatePlan } from './itinerary-model.js';
 import { destinationForDay } from './place-model.js';
-import { tripStops } from './trip-store.js';
+import { tripStops, datesForStop, stopSchedule } from './trip-store.js';
 import { normalizeFlightNumber, sameFlightDetails } from './flight-model.js';
-import { createPlanningDrag } from './planning-drag.js';
+import { createPlanningDrag, capturePlanningLayout, animatePlanningLayout } from './planning-drag.js';
 import { refreshDropdowns } from './dropdowns.js';
 import { createTransientNotice } from './notices.js';
 import { refreshTimePickers, formatClock } from './time-picker.js';
@@ -16,8 +16,12 @@ const format = (date, options = { weekday: 'short', month: 'short', day: 'numeri
 const node = (tag, className, text) => { const element = document.createElement(tag); if (className) element.className = className; if (text !== undefined) element.textContent = text; return element; };
 const action = (label, callback, className = 'quiet-action') => { const button = node('button', className, label); button.type = 'button'; button.addEventListener('click', callback); return button; };
 
-export function createItineraryUI({ state, commit, explore, chooseDates, focusPlace, hydratePlace, onDayChange, onModeChange, onRendered, icon }) {
+export function createItineraryUI({ state, commit, explore, chooseDates, focusPlace, hydratePlace, decoratePlaceIcon, onDayChange, onModeChange, onRendered, editStopDates, icon }) {
   const dayMotion = createDayMotion($('day-content'), $('plan-panel'));
+  function revealPhoneSection(section) {
+    if (!matchMedia('(max-width:580px)').matches || section.hidden || !section.closest('dialog')?.open) return;
+    section.scrollIntoView({ block: 'nearest', behavior: matchMedia('(prefers-reduced-motion:reduce)').matches ? 'instant' : 'smooth' });
+  }
   let editingPlan = null, editingTransport = null, selectedFlight = null, flightTimer = 0, flightRequest = null, draft = null, displayedMonth = null, displayedTrip = null, previewDay = null, previewAnchor = null, closingPreview = false;
   const defaultZone = () => state.selected?.timeZone || state.trip?.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
   const dayOptions = (select, selected, ideas = false) => {
@@ -28,8 +32,12 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
     if ([...select.options].some(option => option.value === selected)) select.value = selected;
     refreshDropdowns(select);
   };
-  const chooseDay = (day, mode) => { state.day = day; if (mode) state.planMode = mode; render(); onDayChange?.(day); };
+  const chooseDay = (day, mode) => { state.day = day; if (mode) state.planMode = mode; onDayChange?.(day); render(); };
   const findPlaces = day => { chooseDay(day); explore(); };
+  const placeSymbol = item => {
+    const holder = node('span'); holder.innerHTML = icon('pin');
+    const svg = holder.firstElementChild; decoratePlaceIcon(svg, item); return svg;
+  };
   let duplicatingPlan = false;
   let pendingRemoval = null;
   const removalNotice = createTransientNotice($('removal-notice'), { duration: 12000, pauseOnFocus: false, onHide: finishRemoval });
@@ -65,7 +73,7 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
     try {
       const item = makePlan(state.trip, draft, editingPlan), items = state.trip.items || [];
       commit({ ...state.trip, items: items.some(entry => entry.id === item.id) ? items.map(entry => entry.id === item.id ? item : entry) : [...items, item] });
-      editingPlan = item; draft = { ...item }; state.day = item.day; render();
+      editingPlan = item; draft = { ...item }; state.day = item.day; onDayChange?.(item.day); render();
       $('plan-error').textContent = ''; renderPlanTools();
       if (close) $('plan-dialog').close();
     } catch (error) { $('plan-error').textContent = error.message; }
@@ -165,6 +173,7 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
     if (item?.placeId) hydratePlace(details, item.kind === 'Tour' ? { ...item, name: item.tour?.meetingName || item.name } : item);
     $('plan-done').textContent = item ? 'Done' : 'Add plan';
     $('plan-dialog').showModal();
+    $('plan-dialog').querySelector('.phone-sheet-body').scrollTop = 0;
     if (!item) $('plan-name').focus(); else $('plan-done').focus({ preventScroll: true });
   }
 
@@ -187,7 +196,7 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
     refreshDropdowns(form);
     refreshTimePickers(form);
     $('delete-transport').hidden = !segment;
-    $('transport-error').textContent = ''; $('transport-dialog').showModal(); form.elements.service_id.focus();
+    $('transport-error').textContent = ''; $('transport-dialog').showModal(); $('transport-dialog').querySelector('.phone-sheet-body').scrollTop = 0; form.elements.service_id.focus();
   }
 
   function clearFlightLookup() {
@@ -233,18 +242,47 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
   for (const field of ['mode', 'departure_date']) $('transport-form').elements[field].addEventListener('change', searchFlight);
   $('transport-dialog').addEventListener('close', clearFlightLookup);
 
+  function moveDayPlan(item, direction) {
+    const next = stepPlan(state.trip, item.id, direction);
+    if (next === state.trip) return;
+    const content = $('day-content'), previous = capturePlanningLayout(content), scrollTop = content.scrollTop;
+    commit(next);
+    content.scrollTop = scrollTop;
+    animatePlanningLayout(content, previous);
+    const row = [...content.querySelectorAll('[data-item-id]')].find(element => element.dataset.itemId === item.id);
+    const buttons = [...(row?.querySelectorAll('.day-reorder button') || [])];
+    (buttons.find(button => button.dataset.reorder === direction && !button.disabled) || buttons.find(button => !button.disabled))?.focus({ preventScroll: true });
+  }
+
   function planRow(item, detailed = false) {
     const row = node('div', detailed ? 'day-place-card' : 'place-item timeline-item'); row.dataset.kind = item.kind || 'Activity'; row.dataset.itemId = item.id; row.dataset.placeId = item.placeId || ''; row.draggable = false;
-    const iconName = item.kind === 'Flight' ? 'plane' : item.kind === 'Train' ? 'train' : item.kind === 'Food' ? 'food' : item.kind === 'Stay' ? 'stay' : item.kind === 'Tour' ? 'guide' : 'pin';
     const head = node('div', detailed ? 'day-card-heading' : 'timeline-row');
-    const marker = node('span', 'place-marker'); marker.innerHTML = icon(iconName); marker.setAttribute('aria-hidden', 'true');
+    const marker = node('span', 'place-marker'); marker.append(placeSymbol(item)); marker.setAttribute('aria-hidden', 'true');
     const copy = action('', () => { if (mappedPlace(item)) focusPlace(item); openPlan(item); }, 'place-copy'); copy.setAttribute('aria-label', `Open ${item.name}`); copy.append(node('strong', '', item.name));
     if (!detailed && item.booked) copy.append(node('small', '', 'Confirmed'));
     if (!detailed && item.placeId) { const rating = node('span', 'timeline-rating'); copy.append(rating); hydratePlace(rating, item, { compact: true }); }
     if (item.time) head.append(node('span', 'timeline-time', formatClock(item.time)));
     head.append(marker, copy);
     if (fixedItem(item)) { const lock = node('span', 'fixed-indicator'); lock.innerHTML = icon('lock'); lock.setAttribute('aria-label', 'Fixed plan'); head.append(lock); }
+    else if (detailed) {
+      const flexible = (state.trip.items || []).filter(entry => entry.day === item.day && !fixedItem(entry));
+      const index = flexible.findIndex(entry => entry.id === item.id);
+      const controls = node('div', 'day-reorder'); controls.setAttribute('role', 'group'); controls.setAttribute('aria-label', `Reorder ${item.name}`);
+      for (const direction of ['up', 'down']) {
+        const button = action('', () => moveDayPlan(item, direction), 'day-reorder-button');
+        button.dataset.reorder = direction; button.innerHTML = icon('chevron');
+        button.setAttribute('aria-label', `Move ${item.name} ${direction}`); button.title = `Move ${direction}`;
+        button.disabled = direction === 'up' ? index === 0 : index === flexible.length - 1;
+        controls.append(button);
+      }
+      head.append(controls);
+    }
     row.append(head);
+    if (!fixedItem(item)) {
+      const handle = action('', () => {}, 'mobile-drag-handle');
+      handle.innerHTML = icon('grip'); handle.setAttribute('aria-label', `Drag ${item.name}`); handle.title = 'Drag to move';
+      row.append(handle);
+    }
     if (detailed && item.kind === 'Tour' && item.tour) {
       row.append(node('p', 'tour-itinerary-summary', [tourSummary(item.tour), tourEndLabel(item)].filter(Boolean).join(' · ')));
       row.append(node('p', 'tour-itinerary-status', item.booked ? 'Confirmed with operator' : 'Not booked'));
@@ -299,7 +337,15 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
     heading.append(selected ? node('h3', 'day-heading-title', format(day, { weekday: 'long', month: 'short', day: 'numeric' })) : action(format(day, { weekday: 'long', month: 'short', day: 'numeric' }), () => chooseDay(day, 'day'), 'day-heading-button'));
     section.append(heading);
     const events = eventsForDay(state.trip, day);
-    if (tripStops(state.trip).length > 1) for (const [index, stop] of tripStops(state.trip).entries()) if ((stop.date || (index === 0 ? state.trip.startDate : null)) === day) { const destination = node('div', 'day-destination'); destination.dataset.motionKey = `destination:${day}:${stop.placeId}`; destination.innerHTML = icon('pin'); destination.append(node('span', '', stop.name)); section.append(destination); }
+    if (tripStops(state.trip).length > 1) {
+      const stop = destinationForDay(state.trip, tripStops(state.trip), day);
+      const stays = stopSchedule(state.trip).filter(entry => entry.start && entry.start <= day && entry.end >= day);
+      const destination = node('span', 'day-destination');
+      for (const [index, entry] of stays.entries()) { if (index) destination.insertAdjacentHTML('beforeend', icon('arrow')); destination.append(node('span', '', entry.stop.name)); }
+      if (!stays.length) destination.textContent = 'Travel day';
+      destination.dataset.motionKey = `destination:${day}:${stop?.placeId || 'travel'}`;
+      heading.append(destination);
+    }
     if (!events.length) { const empty = action('Find something to do', () => findPlaces(day), 'open-day'); empty.dataset.motionKey = `empty:${day}`; section.append(empty); }
     for (const event of events) section.append(event.kind === 'activity' ? planRow(event.item, selected) : selected ? transportCard(event.transport, event.leg) : transportRow(event.transport, event.leg));
     if (selected && events.length) { const add = action('Add a place', () => findPlaces(day), 'open-day'); add.dataset.motionKey = `add:${day}`; section.append(add); }
@@ -323,7 +369,7 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
       const item = event.kind === 'transport' ? event.transport : event.item;
       const kind = event.kind === 'transport' ? item.mode : item.kind || 'Activity';
       const row = node('div', 'preview-event'); row.dataset.kind = kind;
-      const marker = node('span', 'place-marker'); marker.innerHTML = icon(kind === 'Flight' ? 'plane' : kind === 'Train' ? 'train' : kind === 'Food' ? 'food' : kind === 'Stay' ? 'stay' : kind === 'Tour' ? 'guide' : 'pin');
+      const marker = node('span', 'place-marker'); marker.append(placeSymbol({ ...item, kind }));
       const copy = node('div', 'preview-event-copy'); copy.append(node('strong', '', event.kind === 'transport' ? item.service_id : item.name));
       if (event.kind === 'transport') {
         copy.append(node('p', 'preview-route', `${item.departure_location} – ${item.arrival_location}`));
@@ -370,7 +416,7 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
   function render() {
     if (pendingRemoval && pendingRemoval.tripId !== state.trip?.id) clearRemoval();
     if (!state.trip) return;
-    const days = datesForTrip(state.trip);
+    const allDays = datesForTrip(state.trip), days = state.stopFilter ? datesForStop(state.trip, state.stopFilter) : allDays;
     onModeChange?.(state.planMode);
     if (!days.includes(state.day)) state.day = days[0] || 'ideas';
     for (const button of document.querySelectorAll('[data-plan-mode]')) button.setAttribute('aria-pressed', String(button.dataset.planMode === state.planMode));
@@ -396,7 +442,8 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
     const animateDay = dayMotion.prepare({ trip: state.trip.id, mode: state.planMode, day: state.day });
     content.replaceChildren(); content.dataset.mode = state.planMode;
 
-    if (!days.length) { content.append(action('Choose your dates', chooseDates, 'open-day')); for (const item of state.trip.items || []) content.append(planRow(item)); }
+    if (!allDays.length) { content.append(action('Choose your dates', chooseDates, 'open-day')); for (const item of state.trip.items || []) content.append(planRow(item)); }
+    else if (!days.length) content.append(action('Set stop dates', editStopDates, 'open-day'));
     if (state.planMode === 'calendar' && days.length) {
       const months = monthsForTrip(state.trip);
       if (displayedTrip !== state.trip.id) { displayedMonth = null; displayedTrip = state.trip.id; }
@@ -418,22 +465,23 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
       const grid = node('div', 'itinerary-calendar');
       for (const day of ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']) grid.append(node('span', 'calendar-weekday', day));
       const displayCells = calendarDisplayCells(month); grid.style.setProperty('--weeks', String(displayCells.length / 7)); const visibleEventLimit = displayCells.length > 21 ? 1 : 2; grid.classList.toggle('dense-calendar', visibleEventLimit === 1);
+      const now = new Date(), today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
       for (const display of displayCells) {
         if (!display) { const blank = node('span', 'calendar-blank'); blank.setAttribute('aria-hidden', 'true'); grid.append(blank); continue; }
-        const { date, inTrip } = display;
-        if (!inTrip) { const outside = node('div', 'itinerary-cell outside-trip'); outside.append(node('span', 'calendar-outside-date', String(Number(date.slice(-2))))); grid.append(outside); continue; }
-        const events = eventsForDay(state.trip, date), stops = (state.trip.stops || []).filter((stop, index) => (stop.date || (index === 0 ? state.trip.startDate : null)) === date);
-        const cell = action('', () => openDayPreview(date, cell), `itinerary-cell${state.day === date ? ' active-day' : ''}`); cell.dataset.day = date; cell.setAttribute('aria-haspopup', 'dialog'); cell.setAttribute('aria-expanded', 'false'); cell.setAttribute('aria-label', `Preview ${format(date)}, ${events.length} ${events.length === 1 ? 'plan' : 'plans'}`);
+        const { date } = display; const inTrip = display.inTrip && days.includes(date);
+        if (!inTrip) { const outside = node('div', `itinerary-cell outside-trip${date === today ? ' today' : ''}`); outside.dataset.day = date; if (date === today) outside.setAttribute('aria-current', 'date'); outside.append(node('span', 'calendar-outside-date', String(Number(date.slice(-2))))); grid.append(outside); continue; }
+        const events = eventsForDay(state.trip, date);
+        const cell = action('', () => openDayPreview(date, cell), `itinerary-cell${state.day === date ? ' active-day' : ''}${date === today ? ' today' : ''}`); cell.dataset.day = date; if (date === today) cell.setAttribute('aria-current', 'date'); cell.setAttribute('aria-haspopup', 'dialog'); cell.setAttribute('aria-expanded', 'false'); cell.setAttribute('aria-label', `Preview ${format(date)}, ${events.length} ${events.length === 1 ? 'plan' : 'plans'}`);
         const heading = node('div', 'calendar-cell-head');
         const dateNumber = node('span', 'calendar-date-button', String(Number(date.slice(-2)))); heading.append(dateNumber);
         if (events.length) heading.append(node('span', 'calendar-event-count', String(events.length)));
         cell.append(heading);
-        if (tripStops(state.trip).length > 1 && stops.length) { const stop = node('span', 'calendar-stop-icon'); stop.innerHTML = icon('pin'); stop.title = stops[0].name; stop.setAttribute('aria-label', stops[0].name); heading.append(stop); }
+        if (tripStops(state.trip).length > 1) { const destination = destinationForDay(state.trip, tripStops(state.trip), date); if (destination) { const label = node('span', 'calendar-destination', destination.name); label.title = destination.name; cell.append(label); } }
         for (const event of events.slice(0, visibleEventLimit)) {
           const item = event.kind === 'transport' ? event.transport : event.item;
           const label = node('span', 'calendar-event'); label.dataset.kind = event.kind === 'transport' ? item.mode : item.kind || 'Activity';
           const name = event.kind === 'transport' ? item.service_id : item.name;
-          label.innerHTML = icon(event.kind === 'transport' ? item.mode === 'Flight' ? 'plane' : 'train' : item.kind === 'Stay' ? 'stay' : item.kind === 'Food' ? 'food' : 'pin');
+          label.append(placeSymbol(event.kind === 'transport' ? { ...item, kind: item.mode } : item));
           label.append(node('span', '', name)); label.title = name; cell.append(label);
         }
         if (events.length > visibleEventLimit) cell.append(node('span', 'calendar-more', `+${events.length - visibleEventLimit}`));
@@ -454,7 +502,8 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
 
   function renderTransport() {
     const content = $('transport-content'); content.replaceChildren();
-    const segments = [...(state.trip.transport || [])].sort((a, b) => `${a.departure_date}${a.departure_time}`.localeCompare(`${b.departure_date}${b.departure_time}`));
+    const scopeDays = state.stopFilter ? datesForStop(state.trip, state.stopFilter) : null;
+    const segments = [...(state.trip.transport || [])].filter(segment => !scopeDays || scopeDays.includes(segment.departure_date) || scopeDays.includes(segment.arrival_date)).sort((a, b) => `${a.departure_date}${a.departure_time}`.localeCompare(`${b.departure_date}${b.departure_time}`));
     if (!segments.length) content.append(action(datesForTrip(state.trip).length ? 'Add a flight or train' : 'Choose trip dates', () => openTransport(), 'open-day'));
     for (const segment of segments) content.append(transportCard(segment));
   }
@@ -468,16 +517,16 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
   $('duplicate-plan').addEventListener('click', () => { if (!duplicatingPlan && $('plan-error').textContent) return; duplicatingPlan = !duplicatingPlan; $('plan-error').textContent = ''; renderPlanTools(); if (duplicatingPlan) $('plan-day-chips').querySelector('button:not(:disabled)')?.focus({ preventScroll: true }); });
   $('plan-name').addEventListener('change', () => savePlanPatch());
   for (const [button, panel] of [['plan-time-button', 'plan-time-controls'], ['plan-note-button', 'plan-note-wrap']]) $(button).setAttribute('aria-controls', panel);
-  $('plan-time-button').addEventListener('click', () => { const open = !panelIsOpen($('plan-time-controls')); $('plan-time-button').setAttribute('aria-expanded', String(open)); setPanelOpen($('plan-time-controls'), open); });
+  $('plan-time-button').addEventListener('click', () => { const open = !panelIsOpen($('plan-time-controls')); $('plan-time-button').setAttribute('aria-expanded', String(open)); setPanelOpen($('plan-time-controls'), open, { onComplete: () => { if (open) revealPhoneSection($('plan-time-controls')); } }); });
   $('plan-time').addEventListener('change', event => savePlanPatch({ time: event.target.value }));
   $('plan-zone').addEventListener('change', () => savePlanPatch());
   $('plan-time-clear').addEventListener('click', () => { $('plan-time').value = ''; refreshTimePickers($('plan-time')); savePlanPatch({ time: '' }); $('plan-time-button').setAttribute('aria-expanded', 'false'); $('plan-time-button').focus({ preventScroll: true }); setPanelOpen($('plan-time-controls'), false); });
   $('plan-booked').addEventListener('click', () => savePlanPatch({ booked: !draft.booked }));
   $('plan-location-button').addEventListener('click', () => { $('plan-location-picker').hidden = !$('plan-location-picker').hidden; if (!$('plan-location-picker').hidden) $('plan-location-search').focus(); });
-  $('plan-note-button').addEventListener('click', () => { const open = !panelIsOpen($('plan-note-wrap')); $('plan-note-button').setAttribute('aria-expanded', String(open)); setPanelOpen($('plan-note-wrap'), open); if (open) $('plan-notes').focus({ preventScroll: true }); });
+  $('plan-note-button').addEventListener('click', () => { const open = !panelIsOpen($('plan-note-wrap')); $('plan-note-button').setAttribute('aria-expanded', String(open)); setPanelOpen($('plan-note-wrap'), open, { onComplete: () => { if (open) revealPhoneSection($('plan-note-wrap')); } }); if (open) $('plan-notes').focus({ preventScroll: true }); });
   $('plan-notes').addEventListener('change', event => savePlanPatch({ notes: event.target.value }));
   $('plan-reference').addEventListener('change', event => savePlanPatch({ reference: event.target.value }));
-  $('plan-type-button').addEventListener('click', () => { $('plan-type-choices').hidden = !$('plan-type-choices').hidden; });
+  $('plan-type-button').addEventListener('click', () => { $('plan-type-choices').hidden = !$('plan-type-choices').hidden; revealPhoneSection($('plan-type-choices')); });
   for (const kind of ['Activity', 'Food', 'Stay', 'Transport']) {
     $('plan-type-choices').append(action(kind, () => { savePlanPatch({ kind }); $('plan-type-choices').hidden = true; }, 'detail-chip'));
   }
@@ -503,5 +552,5 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
     savePlanPatch({ ...place, ...(draft.kind === 'Tour' ? { tour: { ...draft.tour, meetingName: place.name.slice(0, 160) } } : {}) }); $('plan-location-picker').hidden = true; $('plan-error').textContent = '';
     hydratePlace($('plan-place-details'), place);
   }
-  return { render, openPlan, openTour, openTransport, clearRemoval, attachPlace, selectItem(item) { state.day = item.day; state.planMode = 'day'; render(); const row = [...$('day-content').querySelectorAll('[data-item-id]')].find(element => element.dataset.itemId === item.id); row?.classList.add('selected'); row?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } };
+  return { render, openPlan, openTour, openTransport, clearRemoval, attachPlace, selectItem(item) { chooseDay(item.day, 'day'); const row = [...$('day-content').querySelectorAll('[data-item-id]')].find(element => element.dataset.itemId === item.id); row?.classList.add('selected'); row?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } };
 }

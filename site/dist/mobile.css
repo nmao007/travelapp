@@ -1,0 +1,232 @@
+/* Phone working surfaces: one scroll owner, safe areas, and touch-sized controls. */
+.mobile-map-toggle,.mobile-drag-handle,#mobile-add-stop{display:none}
+.phone-sheet-heading,.phone-sheet-body{display:contents}
+@media(max-width:580px){
+  :root{--safe-top:env(safe-area-inset-top,0px);--safe-bottom:env(safe-area-inset-bottom,0px);--sheet-safe-bottom:var(--safe-bottom);--control-size:44px;--phone-nav:64px;--phone-header:56px}
+  :root.phone-keyboard-open{--sheet-safe-bottom:0px}
+  :root[data-device-preview=iphone16]{--safe-top:62px;--safe-bottom:34px}
+  :root[data-device-preview=iphone16],:root[data-device-preview=iphone16] *{cursor:none!important}
+  :root[data-device-preview=iphone16] :not(input,textarea,[contenteditable]){user-select:none}
+  :root[data-device-preview=iphone16] input,:root[data-device-preview=iphone16] textarea,:root[data-device-preview=iphone16] [contenteditable]{user-select:text}
+  :root.finger-scrolling{scroll-behavior:auto}
+  body:has(#workspace:not([hidden])){height:100dvh;overflow:hidden;overscroll-behavior:none}
+  .app-shell{min-height:100dvh}
+  .topbar{height:calc(var(--phone-header) + var(--safe-top));padding:calc(var(--safe-top) + 6px) 16px 6px;gap:12px}
+  .brand{font-size:22px;letter-spacing:-1px}
+  .my-trips{margin-left:auto;font-size:15px;gap:5px;padding:0 8px;min-height:44px}
+  .account-actions{margin-left:0;gap:0}
+  #account-email-label{display:none}
+  .account-actions button{height:44px;min-height:44px;font-size:15px;padding:0 10px}
+  #trip-count{display:none}
+  .home-view{padding:72px 22px calc(36px + var(--safe-bottom))}
+  .home-view h1{font-size:72px;line-height:.96;margin-bottom:32px}
+  .home-search{height:60px;padding:0 14px}
+  .home-search input{font-size:16px}
+  .recent{margin-top:40px}.recent-items{display:grid;gap:10px}.recent-trip{max-width:none;width:100%;min-height:64px}
+  .recent-trip strong{font-size:16px}.suggestion{min-height:60px}.suggestion-copy strong{font-size:16px}
+  .workspace{display:flex;flex-direction:column;--hero-height:112px;height:calc(100dvh - var(--phone-header) - var(--safe-top));min-height:0;padding:0 0 calc(var(--phone-nav) + var(--safe-bottom));overflow:hidden;animation:none}
+  .trip-masthead{position:relative;top:0;flex:none;z-index:25;padding:0;background:#fff}
+  .trip-masthead:has(.date-picker:not([hidden]),.trip-menu:not([hidden])){z-index:60}
+  .destination-hero{height:var(--hero-height);margin:0;animation:none;box-shadow:none}
+  .destination-hero:after,.banner-thumbnail{display:none}
+  .workspace .hero-gallery{opacity:1;transform:none}
+  .workspace .hero-photo-shade{opacity:1}
+  .workspace .trip-title-wrap{top:12px;left:16px;right:64px}
+  .workspace .destination-hero .trip-title-wrap h1,.workspace #trip-title-input{font-size:30px;color:#fff;line-height:1.06;letter-spacing:-.04em}
+  .workspace .destination-hero.long-title .trip-title-wrap h1{font-size:24px}
+  .workspace .destination-hero.long-title{height:136px}
+  #trip-title{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  #edit-trip-title{min-height:44px;gap:8px}
+  #edit-trip-title>.icon{width:17px;height:17px}
+  .workspace .hero-date{left:16px;bottom:8px;height:44px;transform:none;padding:0 12px;font-size:14px;background:#fff;color:var(--action);box-shadow:3px 3px 0 #20201f}
+  .workspace .hero-top{right:12px;top:12px;padding:0;border:0}
+  .workspace .hero-top .more-button{width:44px;height:44px}
+  .trip-masthead>.trip-menu{top:64px;right:14px;max-width:calc(100vw - 28px)}
+  .trip-menu button{min-height:48px;font-size:16px}
+  .trip-masthead:has(.route-bar[data-stop-count="1"]) #mobile-add-stop{display:flex}
+  .route-bar[data-stop-count="1"]{display:none}
+  .route-bar{min-height:44px;padding:0 12px;gap:4px;border-bottom:1px solid var(--line)}
+  .route-list{flex:1}.route-stop{min-height:44px;font-size:14px;padding:8px}
+  .route-add{min-height:44px;font-size:14px;padding:8px}.route-edit{width:44px;height:44px;background:transparent}
+  .route-controls button{width:44px;height:44px}
+  .workspace-nav{position:fixed;z-index:45;bottom:0;left:0;right:0;height:calc(var(--phone-nav) + var(--safe-bottom));padding:6px 12px max(6px,calc(var(--safe-bottom) - 8px));margin:0;gap:0;background:#fff;border-top:1px solid var(--line);border-bottom:0;box-shadow:0 -4px 16px #20201f04;justify-content:space-around}
+  .workspace-nav button{flex:1;min-width:0;min-height:52px;height:52px;padding:2px 0;gap:4px;flex-direction:column;justify-content:center;font-size:14px;line-height:18px;font-weight:600;transition:color .18s}
+  .workspace-nav button .icon{height:26px;width:26px}
+  .workspace-nav button:after{display:none}
+  .workspace-nav button[aria-pressed=true]{background:transparent;color:var(--action)}
+  .workspace>.trip-body,.trip-body[data-view=itinerary][data-mode=calendar],.trip-body[data-view=itinerary][data-mode=day],.trip-body[data-view=explore]{position:relative;display:flex;flex-direction:column;flex:1;height:auto;min-height:0;gap:0;padding:12px 16px 0;overflow:hidden}
+  .plan-panel,.discover-panel,.transport-panel{flex:1;min-height:0;overflow:hidden}
+  /* Preserve map geometry while concealed so Explore can search the viewport
+     immediately, without requiring the traveler to open the map first. */
+  .trip-body .map-column{display:block;position:absolute;inset:0;width:100%;height:100%;visibility:hidden;pointer-events:none}
+  .workspace>.trip-body[data-mobile-surface=map]{padding:0}
+  .trip-body[data-mobile-surface=map]>.plan-panel,.trip-body[data-mobile-surface=map]>.discover-panel{display:none}
+  .trip-body[data-mobile-surface=map]>.map-column:not([hidden]){visibility:visible;pointer-events:auto;order:0;min-height:0}
+  .workspace:has([data-mobile-surface=map]) .destination-hero{height:64px;background:#fff;border-bottom:1px solid var(--line)}
+  .workspace:has([data-mobile-surface=map]) .hero-date,.workspace:has([data-mobile-surface=map]) .hero-gallery,.workspace:has([data-mobile-surface=map]) .hero-photo-shade{display:none}
+  .workspace:has([data-mobile-surface=map]) #trip-title{font-size:24px;color:var(--ink);white-space:nowrap;display:block;text-overflow:ellipsis}
+  .workspace:has([data-mobile-surface=map]) #edit-trip-title{color:var(--action)}
+  .map-frame,.google-map{height:100%;min-height:0}
+  .mobile-map-toggle{position:absolute;top:15px;right:70px;bottom:auto;z-index:30;display:flex;align-items:center;justify-content:center;gap:8px;width:44px;height:44px;min-height:44px;padding:0;background:var(--ink);color:#fff;font-size:14px;font-weight:600;border:1px solid #fff}
+  .mobile-map-toggle:not([aria-pressed=true]) span{display:none}
+  .trip-body[data-view=explore]>.mobile-map-toggle{top:12px;right:16px}
+  .mobile-map-toggle .icon{width:19px;height:19px}
+  .trip-body>.mobile-map-toggle[aria-pressed=true],.trip-body[data-view=explore]>.mobile-map-toggle[aria-pressed=true]{top:auto;bottom:20px;left:50%;right:auto;transform:translateX(-50%);width:auto;padding:0 16px;background:#fff;color:var(--ink);border-color:var(--line);box-shadow:0 5px 16px #20201f25}
+  .panel-heading{height:44px;margin-bottom:10px}.panel-heading .section-label{font-size:18px}
+  .panel-heading .small-action{width:44px;height:44px}
+  .plan-panel>.panel-heading{height:50px;padding:3px 0}
+  .itinerary-toggle{height:50px;width:calc(100% - 108px);align-self:stretch;margin:0 108px 10px 0;padding:3px;gap:1px}
+  .itinerary-toggle button{height:44px;flex:1;justify-content:center;gap:5px;padding:0 6px;font-size:14px}
+  .itinerary-toggle .icon{display:none}
+  .day-tabs{margin-bottom:10px;scrollbar-width:none;padding-bottom:0;gap:6px}
+  .day-tab{min-width:66px;min-height:44px;padding:5px 10px;gap:2px}.day-tab span,.day-tab strong{font-size:13px}
+  .day-content,.nearby-results,#transport-content{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:0 0 16px}
+  .day-content{position:relative}.itinerary-day{margin-bottom:22px}.day-heading-button,.day-heading-title{font-size:19px;min-height:44px;padding:10px 0}
+  .timeline-row,.compact-service{min-height:68px;gap:10px;padding:9px 34px 9px 0}
+  .place-marker{width:40px;height:40px}.place-marker .icon{width:21px;height:21px}
+  .timeline-item:before{left:19px;top:48px;bottom:-13px}
+  .place-copy strong,.day-card-heading .place-copy strong{font-size:16px;line-height:1.3}
+  .place-copy{min-height:44px;justify-content:center}
+  .timeline-time{width:auto;font-size:13px}.timeline-rating{font-size:13px}
+  [data-flexible=true]{touch-action:pan-y;user-select:auto}
+  .mobile-drag-handle{display:grid;place-items:center;position:absolute;right:-6px;top:12px;width:44px;height:44px;padding:0;color:var(--muted);touch-action:none}
+  .mobile-drag-handle .icon{width:18px;height:18px}
+  .day-place-card{position:relative;padding:12px;margin-bottom:10px}
+  .day-place-card>.mobile-drag-handle{top:12px;bottom:auto;right:8px}
+  .day-card-heading{display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:8px;margin-bottom:8px;align-items:center}
+  .day-place-card[data-flexible=true] .day-card-heading{padding-right:44px}
+  .day-card-heading>.place-marker{grid-column:1;grid-row:1}
+  .day-card-heading>.place-copy{grid-column:2;grid-row:1;min-width:0}
+  .day-card-heading>.day-reorder,.day-card-heading>.fixed-indicator{grid-column:3;grid-row:1}
+  .day-reorder{gap:2px;margin-left:auto}.day-reorder-button{width:44px;height:44px}
+  .day-card-heading .place-copy{min-width:0}.day-card-heading>.timeline-time{grid-column:2 / -1;grid-row:2;width:auto;padding:0}
+  #day-content[data-mode=day] .itinerary-day-heading:has(.day-heading-title){display:none}
+  .day-card-details .detail-photo{width:96px;margin:0 0 8px 10px}.day-card-details .detail-photo img{height:80px}.day-card-details .detail-photo figcaption{font-size:12px;line-height:1.35;overflow-wrap:anywhere}
+  .day-card-details .detail-photo figcaption{display:none}
+  .day-card-details p,.day-card-note,.place-description{font-size:14px;line-height:1.5}
+  .day-card-details .place-description{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;max-height:4.5em;overflow:hidden}
+  .day-card-details .place-address{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;max-height:3em;overflow:hidden}
+  .day-card-details .place-links{clear:both;padding-right:24px;gap:6px}.day-card-details .place-links .detail-chip{min-height:44px;padding:8px;font-size:12px}
+  .day-route-bar{flex-wrap:wrap;gap:8px}.route-mode,.route-fit{min-width:44px;min-height:44px}.route-total{font-size:13px}
+  .open-day{min-height:48px;font-size:14px}
+  .day-content[data-mode=calendar]{display:flex;flex-direction:column}
+  .itinerary-month{height:100%;min-height:0;flex:1}.month-toolbar{margin-bottom:8px;height:44px}.month-toolbar h3{font-size:24px}
+  .month-controls button{width:44px;height:44px}
+  .itinerary-calendar{gap:4px;min-height:0;max-height:calc(24px + var(--weeks,5) * 80px);grid-template-rows:24px repeat(var(--weeks,5),minmax(54px,1fr));flex:1}
+  .itinerary-cell{min-height:54px;padding:4px;gap:2px}.calendar-date-button{width:24px;height:24px;font-size:16px}
+  .calendar-cell-head{justify-content:space-between}.calendar-event{padding:2px 0;font-size:11px;line-height:14px;min-width:0}
+  .calendar-event>.icon{display:block;width:12px;height:12px}.calendar-event span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .calendar-event-count{font-size:11px;min-width:14px}.calendar-weekday{font-size:12px}
+  .calendar-event{height:22px;width:22px;padding:4px;background:var(--tint);color:var(--action)}
+  .calendar-event>span,.calendar-event~.calendar-event{display:none}
+  .calendar-destination,.calendar-event:nth-of-type(n+3){display:none}
+  .calendar-more{display:none}
+  .discover-panel>.panel-heading{display:none}
+  .explore-day{min-height:44px;margin-bottom:10px;width:calc(100% - 54px)}.explore-day .dropdown-trigger{min-height:44px;font-size:14px}
+  .nearby-filters{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;flex:none;gap:6px;padding-bottom:4px;margin-bottom:8px}
+  .nearby-filters button{flex:none;min-height:44px;font-size:14px;padding:8px 12px}
+  .discover-panel>.add-block{margin-bottom:12px;flex:none}.search-field{height:48px}.search-field input{font-size:16px}
+  .nearby-results{display:flex;flex-direction:column;gap:10px}
+  .recommendation-card{display:grid;grid-template-columns:minmax(0,1fr) 44px;min-height:108px;padding:10px;gap:8px;overflow:hidden}
+  .recommendation-open{display:flex;min-height:86px;padding:0;gap:12px}
+  .recommendation-photo{width:82px;height:86px}.recommendation-copy{margin:0;gap:6px}.recommendation-copy strong{font-size:16px;line-height:1.25}
+  .recommendation-meta{font-size:12px;gap:3px}.recommendation-add{position:static;min-height:44px;width:44px;height:44px}
+  #transport-content{display:block}.transport-card{padding:16px}.transport-card-legs{gap:14px}.transport-leg>strong{font-size:26px}
+  .trip-status:not(:empty){position:fixed;bottom:calc(var(--phone-nav) + var(--safe-bottom) + 68px);left:16px;right:16px;transform:none;max-width:none;z-index:50;margin:0;padding:12px;background:white;box-shadow:var(--popover-shadow)}
+  .editor-dialog,.day-preview{position:fixed;inset:auto 0 var(--keyboard-rise,0px)!important;margin:0;width:100%;max-width:100%;max-height:calc(var(--visual-height,100dvh) - var(--safe-top) - 12px);padding:20px 20px calc(20px + var(--safe-bottom));border:0;border-top:3px solid var(--accent);box-shadow:0 -12px 48px #20201f22;overscroll-behavior:contain;animation:phone-sheet .3s cubic-bezier(.2,.8,.2,1) both}
+  .destination-picker[open]{width:100%;height:min(520px,calc(var(--visual-height,100dvh) - var(--safe-top) - 12px));max-height:calc(var(--visual-height,100dvh) - var(--safe-top) - 12px);padding:16px 16px calc(16px + var(--safe-bottom));overflow:hidden}
+  .destination-picker .editor-heading{margin-bottom:12px}.destination-picker .editor-heading h2{font-size:24px}
+  #clear-destination-query{width:44px}
+  .destination-picker .suggestion{min-height:68px;padding:10px 4px}.destination-picker .suggestion-copy small{font-size:13px}
+  .plan-sheet .sheet-top{position:sticky;top:-4px;right:auto;height:0;margin:0;z-index:5;pointer-events:none;justify-content:flex-end;align-items:flex-start}.plan-sheet .sheet-top .small-action{pointer-events:auto;background:#fff;box-shadow:0 0 0 4px #fff}.sheet-top .small-action,.editor-heading .small-action,.day-preview-top .small-action{width:44px;height:44px;flex:none}
+  .plan-sheet .editable-title,.plan-sheet h2{font-size:26px;padding-right:46px;line-height:1.2;margin-bottom:12px}
+  .editor-dialog input:not(.editable-title),.editor-dialog textarea,.dropdown-trigger,.dropdown-menu,.dropdown-option{font-size:16px}
+  .editor-dialog input:not(.editable-title){min-height:44px}.dropdown-trigger,.dropdown-option{min-height:44px}
+  .detail-chip,.quiet-action,.primary-action,.sheet-day-chips button{min-height:44px;font-size:14px}
+  .plan-sheet .plan-tools .detail-chip{min-height:44px}.editor-actions{position:sticky;bottom:calc(-20px - var(--safe-bottom));padding:12px 0 calc(12px + var(--safe-bottom));margin-bottom:calc(-20px - var(--safe-bottom));background:#fff;z-index:3;border-top:1px solid var(--line)}
+  .plan-sheet .detail-photo img{max-height:190px;object-fit:cover}.place-details p{font-size:14px;line-height:1.5}.place-details .place-links{gap:8px}
+  .transport-legs{grid-template-columns:1fr;gap:4px}.transport-legs .editor-pair{grid-template-columns:minmax(0,1fr) minmax(164px,1.2fr);gap:10px}.transport-legs h3{font-size:16px;margin-top:18px}
+  .time-picker{min-height:48px}.time-picker .time-number{min-height:44px!important;font-size:16px}.time-picker .dropdown-trigger{min-height:44px}
+  .inline-time>#plan-time-clear{height:48px;min-height:48px}.inline-time>label{min-width:0}
+  .account-dialog{max-height:calc(100dvh - var(--safe-top) - var(--safe-bottom) - 24px);padding:20px}.account-dialog input{height:48px;font-size:16px}.account-mode-toggle{min-height:44px;font-size:14px}
+  .day-preview-top{gap:10px}.day-preview-top h2{font-size:22px}.day-preview-events{max-height:46dvh}.day-preview #open-preview-day{width:100%;justify-content:center}
+  .date-picker{top:calc(var(--safe-top) + 54px)!important;right:12px!important;left:12px!important;width:calc(100% - 24px);max-width:none;max-height:calc(100dvh - var(--safe-top) - var(--safe-bottom) - 74px);padding:16px;overscroll-behavior:contain}
+  .date-presets button,.calendar-actions button{min-height:44px;font-size:14px}.calendar-grid{gap:2px}.calendar-grid button{height:44px;font-size:16px}.calendar-head button{width:44px;height:44px}
+  .removal-notice{left:12px;right:12px;max-width:none;bottom:calc(var(--phone-nav) + var(--safe-bottom) + 12px);gap:8px;padding:10px}.removal-notice p{white-space:normal;font-size:14px}.removal-notice .primary-action{padding:8px}
+  .map-open-link{width:44px;height:44px}.search-map-area{min-height:44px;font-size:14px}
+  .gm-style .map-entry-actions button,.gm-style .map-entry-actions .detail-chip{min-height:44px}.gm-style-iw-chr:has(.map-entry-title) .gm-ui-hover-effect{width:36px!important;height:36px!important}
+  /* The sheet itself never scrolls: only its content does. Controls remain
+     reachable while reading a place or entering a longer booking. */
+  .plan-sheet[open],.transport-dialog[open]{display:flex;flex-direction:column;padding:0;overflow:hidden;max-height:calc(var(--visual-height,100dvh) - var(--safe-top) - 12px)}
+  .phone-sheet-heading{display:block;position:relative;flex:none;padding:16px 16px 12px;border-bottom:1px solid var(--line);background:#fff}
+  .phone-sheet-heading .editable-title,.phone-sheet-heading h2{margin:0;min-height:44px;font-size:24px;line-height:1.25;padding:4px 52px 4px 0}
+  .plan-sheet .phone-sheet-heading .sheet-top{position:absolute;top:16px;right:12px;height:44px;pointer-events:none}
+  .phone-sheet-body{display:block;flex:1;min-height:0;padding:12px 16px 16px;overflow:auto;overscroll-behavior:contain;scrollbar-width:none;-webkit-overflow-scrolling:touch;scroll-padding:12px}
+  .plan-sheet .editor-actions,.transport-dialog .editor-actions{position:static;flex:none;margin:0;padding:12px 16px calc(12px + var(--sheet-safe-bottom));border-top:1px solid var(--line);gap:12px;background:#fff}
+  .plan-sheet .editor-actions>.primary-action,.transport-dialog .editor-actions>.primary-action{flex:1;justify-content:center;min-height:48px}
+  .plan-sheet .editor-actions>.quiet-action{min-width:80px}
+  .transport-dialog form{display:flex;flex-direction:column;min-height:0;max-height:inherit;overflow:hidden}
+  .transport-dialog form label{margin:8px 0}
+  .transport-dialog .editor-heading{flex:none;margin:0;padding:12px 16px;border-bottom:1px solid var(--line)}
+  .transport-dialog .editor-heading h2{font-size:24px;line-height:1.2}
+  .transport-legs .editor-pair{grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:12px}
+  .transport-legs .editor-pair>label>.coded-dropdown>.dropdown-trigger{height:48px;min-height:48px}
+  .transport-dialog .time-picker{gap:2px;padding:0 4px}
+  .transport-dialog .time-picker .time-number{width:29px}
+  .transport-dialog .time-picker .dropdown-trigger{padding:0 5px;gap:3px}
+  .transport-dialog .time-picker .dropdown-trigger .icon{width:14px;height:14px}
+  .plan-sheet .sheet-day-chips{gap:6px;margin:8px 0}
+  .plan-sheet .plan-tools{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+  .plan-sheet .plan-tools .detail-chip{justify-content:center;padding:8px 4px;font-size:13px;gap:4px}
+  .plan-sheet .plan-tools .icon{width:17px;height:17px;flex:none}
+  .plan-sheet .plan-position .quiet-action{padding:8px 10px}
+  .tour-settings{display:grid;grid-template-columns:1fr;gap:12px}
+  .tour-setting-label{font-size:14px}
+  .tour-people .small-action{width:44px;height:44px}
+  .tour-duration{flex-wrap:wrap}
+  .day-preview{overflow:hidden;display:flex;flex-direction:column;gap:12px}
+  .day-preview:not([open]){display:none}
+  .day-preview-top{flex:none;margin:0}.day-preview-events{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding-bottom:4px}
+  .day-preview #open-preview-day{flex:none;min-height:48px}
+  .account-local-note{display:none}
+  .dropdown-menu{max-width:calc(100vw - 24px)}
+  .phone-keyboard-open .workspace{height:calc(var(--visual-height,100dvh) - var(--phone-header) - var(--safe-top));padding-bottom:0}
+  .phone-keyboard-open .workspace-nav{display:none}
+  .phone-keyboard-open .workspace:has([data-view=explore]) .destination-hero,.phone-keyboard-open .workspace:has([data-view=explore]) .route-bar,.phone-keyboard-open .discover-panel>.explore-day,.phone-keyboard-open .discover-panel>.nearby-filters,.phone-keyboard-open .mobile-map-toggle{display:none}
+  @media(prefers-reduced-motion:reduce){.editor-dialog,.day-preview{animation:none}}
+  @keyframes phone-sheet{from{opacity:.6;translate:0 26px}to{opacity:1;translate:0 0}}
+}
+@media(max-width:360px){.brand{font-size:18px}.account-actions button{font-size:12px}.itinerary-toggle button{font-size:13px;gap:3px;padding:0 2px}.itinerary-toggle button .icon{display:none}.recommendation-photo{width:68px}.day-card-heading .place-copy{min-width:0}.transport-legs .editor-pair{grid-template-columns:1fr}}
+@media(max-width:580px) and (max-height:700px){.workspace{--hero-height:116px}.workspace .trip-title-wrap{top:8px}.workspace .hero-date{bottom:8px}.workspace>.trip-body{padding-top:10px}}
+
+@media(max-width:580px){
+  .workspace .destination-hero[data-stop-count]:not([data-stop-count="1"]){height:124px}
+  .workspace .destination-hero[data-stop-count]:not([data-stop-count="1"]) .trip-title-wrap h1{font-size:24px;line-height:1.15}
+  .route-bar{min-height:70px;padding:7px 12px;gap:4px}
+  .route-stop{min-height:54px;padding:8px 10px;gap:8px}
+  .route-copy{max-width:140px}.route-range{font-size:12px}.route-index{width:22px;height:22px;font-size:12px}
+  .route-all{min-width:54px;padding:6px;flex-direction:column;gap:3px;font-size:12px;line-height:16px}
+  .route-all .icon{width:20px;height:20px}.route-add{padding:0;width:44px}.route-add>span{display:none}
+  .route-edit{width:44px;height:44px}
+  .workspace:has([data-mobile-surface=map]) .destination-hero[data-stop-count]:not([data-stop-count="1"]){height:64px}
+  .workspace:has([data-mobile-surface=map]) .route-bar:not([data-stop-count="1"]){display:flex}
+  .itinerary-day-heading{gap:8px;align-items:center}.day-heading-button,.day-heading-title{font-size:17px}
+  .day-destination{padding:5px 7px;font-size:12px;max-width:38%}
+  #day-content[data-mode=day] .itinerary-day-heading:has(.day-destination){display:flex}
+  #day-content[data-mode=day] .itinerary-day-heading:has(.day-destination) .day-heading-title{display:none}
+  #day-content[data-mode=day] .day-destination{max-width:none;margin-left:auto;font-size:13px}
+  .calendar-destination{font-size:12px}.itinerary-cell .calendar-destination{display:block}
+  .stop-selection{padding:12px;gap:8px}.stop-selection h3{font-size:22px}.stop-selection-icon{width:28px}
+  .stop-date-fields{gap:10px}.stop-date-fields .dropdown-trigger{font-size:14px;padding:10px 8px}
+  .destination-picker:has(.stop-date-panel:not([hidden])){height:auto;min-height:0}
+  .stop-date-panel{gap:16px}.stop-route-actions .quiet-action{padding:8px;font-size:13px}
+}
+
+@media(max-width:580px){
+  .route-stop{padding:8px;gap:6px}.route-range{white-space:nowrap}
+  .workspace .destination-hero[data-stop-count]:not([data-stop-count="1"]) #trip-title{display:flex;flex-wrap:wrap;align-content:flex-start;align-items:center;gap:2px 8px;max-height:56px;overflow:hidden}
+  .workspace .destination-hero[data-stop-count]:not([data-stop-count="1"]) #trip-title>.icon{width:18px;height:18px;flex:none}
+  .workspace #hero-credits-toggle{right:12px;bottom:8px;width:44px;height:44px}
+  .hero-photo-credits{right:12px;bottom:60px;max-width:calc(100vw - 24px);font-size:14px}
+  .workspace:has([data-mobile-surface=map]) #hero-credits-toggle{display:none}
+}

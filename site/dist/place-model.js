@@ -1,3 +1,4 @@
+import { stopForDay } from './trip-store.js';
 import { activityInstant, isDate } from './domain.js';
 
 // Map entries have one marker per Google place, even across several trip days.
@@ -87,10 +88,7 @@ export function mergeGoogleContent(saved, live) {
 }
 
 export function destinationForDay(trip, stops, day) {
-  const dated = stops.map((stop, index) => ({ stop, date: stop.date || (index === 0 ? trip.startDate : null), index }))
-    .filter(entry => entry.date && entry.date <= day)
-    .sort((a, b) => b.date.localeCompare(a.date) || b.index - a.index);
-  return dated[0]?.stop || stops[0];
+  return stopForDay(trip, day, stops);
 }
 
 // Label placement uses screen geometry, so it works without another Maps query.

@@ -4,7 +4,7 @@ import { createPlaceDetails, createQuotaMemory } from '../dist/place-search.js';
 import { googlePlaceRecord } from '../dist/place-model.js';
 
 const saved = { placeId: 'exact', name: 'Actual stadium', address: 'Real address', latitude: 34, longitude: -118 };
-const place = (id = 'exact') => ({ id, displayName: 'Actual stadium', location: { lat: () => 34, lng: () => -118 }, editorialSummary: 'Actual Google description.', rating: 4.7 });
+const place = (id = 'exact') => ({ id, displayName: 'Actual stadium', location: { lat: () => 34, lng: () => -118 }, editorialSummary: 'Actual Google description.', rating: 4.7, primaryTypeDisplayName: 'Stadium' });
 
 test('opened place details request Google summaries once and coalesce repeated views', async () => {
   let calls = 0, fields;
@@ -75,8 +75,9 @@ test('twenty visible occurrences share one minimal rating request, then opened d
   const requested = [];
   const loader = createPlaceDetails({ fetch: async (id, fields) => { requested.push(fields); return place(id); }, text: () => { throw new Error('Unexpected search'); }, record: googlePlaceRecord });
   await Promise.all(Array.from({ length: 20 }, () => loader.load(saved, { compact: true })));
-  assert.deepEqual(requested, [['id', 'rating', 'userRatingCount']]);
+  assert.deepEqual(requested, [['id', 'rating', 'userRatingCount', 'primaryTypeDisplayName', 'primaryType', 'types']]);
   assert.equal(loader.peek('exact').rating, 4.7); assert.equal(loader.peek('exact').editorialSummary, undefined);
+  assert.equal(loader.peek('exact').category, 'Stadium');
   await loader.load(saved); assert.equal(requested.length, 2); assert.ok(requested[1].includes('editorialSummary'));
   await loader.load(saved, { compact: true }); assert.equal(requested.length, 2);
 });

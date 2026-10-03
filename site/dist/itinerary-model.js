@@ -72,6 +72,19 @@ export function reorderPlan(trip, sourceId, targetId) {
   return { ...trip, items };
 }
 
+// Swap neighboring flexible plans without moving bookings or other days.
+export function stepPlan(trip, id, direction) {
+  if (!['up', 'down'].includes(direction)) return trip;
+  const items = trip.items || [], source = items.find(item => item.id === id);
+  if (!source || fixedItem(source) || !datesForTrip(trip).includes(source.day)) return trip;
+  const flexible = items.filter(item => item.day === source.day && !fixedItem(item));
+  const index = flexible.indexOf(source), neighbor = flexible[index + (direction === 'up' ? -1 : 1)];
+  if (!neighbor) return trip;
+  const reordered = [...items], from = items.indexOf(source), to = items.indexOf(neighbor);
+  [reordered[from], reordered[to]] = [reordered[to], reordered[from]];
+  return { ...trip, items: reordered };
+}
+
 export function removeItineraryEvent(trip, collection, id) {
   if (!['items', 'transport'].includes(collection)) throw new Error('Unknown itinerary event.');
   const records = trip[collection] || [], index = records.findIndex(record => record.id === id);

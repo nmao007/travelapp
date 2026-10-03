@@ -1,4 +1,5 @@
-import { fixedItem } from './itinerary-model.js';
+import { fixedItem, datesForTrip } from './itinerary-model.js';
+import { isDate } from './domain.js';
 export const STORAGE_KEY = 'trippilot-site-trips-v1';
 const SESSION_KEY = 'trippilot-site-supabase-session-v1';
 let configPromise;
@@ -172,6 +173,39 @@ export function tripStops(trip) {
   return unique.length ? unique : [primary];
 }
 
+// Departure can share a day with the next arrival; that day belongs to the
+// arriving stop in the itinerary, while both stays retain their travel date.
+export function stopSchedule(trip, stops = tripStops(trip)) {
+  return stops.map((stop, index) => {
+    const start = isDate(stop.date) ? stop.date : index === 0 && isDate(trip.startDate) ? trip.startDate : null;
+    const next = stops.slice(index + 1).find(item => isDate(item.date));
+    const end = start ? (isDate(stop.endDate) ? stop.endDate : next?.date || (isDate(trip.endDate) ? trip.endDate : start)) : null;
+    return { stop, index, start, end };
+  });
+}
+
+export function stopForDay(trip, day, stops = tripStops(trip)) {
+  if (!isDate(day)) return null;
+  return stopSchedule(trip, stops).filter(entry => entry.start && entry.start <= day && entry.end >= day)
+    .sort((a, b) => b.start.localeCompare(a.start) || b.index - a.index)[0]?.stop || null;
+}
+
+export function datesForStop(trip, placeId) {
+  const entry = stopSchedule(trip).find(entry => entry.stop.placeId === placeId);
+  return entry?.start ? datesForTrip(trip).filter(day => day >= entry.start && day <= entry.end) : [];
+}
+
+export function setStopDates(trip, placeId, start, end) {
+  const days = datesForTrip(trip), stops = tripStops(trip), index = stops.findIndex(stop => stop.placeId === placeId);
+  if (index < 0) throw new Error('Choose a stop on this trip.');
+  if (!days.includes(start) || !days.includes(end)) throw new Error('Keep stop dates within the trip dates.');
+  if (end < start) throw new Error('Departure must be on or after arrival.');
+  const previous = stops.slice(0, index).map((stop, position) => ({ ...stop, date: stop.date || (position === 0 ? trip.startDate : null) })).filter(stop => stop.date).at(-1), next = stops.slice(index + 1).find(stop => stop.date);
+  if ((previous?.date || (index === 1 ? trip.startDate : null)) > start || previous?.endDate > start) throw new Error('Arrival must be on or after the previous stop’s departure.');
+  if (next?.date && end > next.date) throw new Error('Departure must be on or before the next stop’s arrival.');
+  return { ...trip, stops: stops.map((stop, position) => position === index ? { ...stop, date: start, endDate: end } : stop) };
+}
+
 function withStops(trip, stops) {
   const [first] = stops;
   return { ...trip, placeId: first.placeId, name: first.name, address: first.address || '', latitude: first.latitude, longitude: first.longitude, ...(first.timeZone ? { timeZone: first.timeZone } : {}), stops };
@@ -189,8 +223,9 @@ export function moveStop(trip, index, direction) {
   const stops = tripStops(trip);
   const target = index + direction;
   if (index < 0 || target < 0 || target >= stops.length) return trip;
+  const slots = stops.map(stop => ({ date: stop.date, endDate: stop.endDate }));
   [stops[index], stops[target]] = [stops[target], stops[index]];
-  return withStops(trip, stops);
+  return withStops(trip, stops.map((stop, position) => ({ ...stop, ...slots[position] })));
 }
 
 export function removeStop(trip, placeId) {

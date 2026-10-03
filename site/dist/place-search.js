@@ -11,8 +11,8 @@ export const placeSearchGroups = {
 };
 export const placeSearchFields = ['id', 'displayName', 'formattedAddress', 'location', 'photos', 'rating', 'userRatingCount', 'primaryType', 'types', 'primaryTypeDisplayName', 'businessStatus'];
 export const placeIdentityFields = ['id', 'displayName', 'formattedAddress', 'location'];
-export const placeRatingFields = ['id', 'rating', 'userRatingCount'];
-export const placeContactFields = ['id', 'displayName', 'formattedAddress', 'location', 'rating', 'userRatingCount', 'websiteURI', 'internationalPhoneNumber', 'businessStatus'];
+export const placeRatingFields = ['id', 'rating', 'userRatingCount', 'primaryTypeDisplayName', 'primaryType', 'types'];
+export const placeContactFields = ['id', 'displayName', 'formattedAddress', 'location', 'rating', 'userRatingCount', 'primaryTypeDisplayName', 'websiteURI', 'internationalPhoneNumber', 'businessStatus'];
 export const placeDetailFields = [...placeSearchFields, 'regularOpeningHours', 'currentOpeningHours', 'websiteURI', 'internationalPhoneNumber', 'googleMapsURI', 'editorialSummary', 'generativeSummary', 'priceLevel', 'accessibilityOptions', 'attributions'];
 export const quotaFailure = error => /RESOURCE_EXHAUSTED|OVER_QUERY_LIMIT|quota exceeded/i.test(String(error?.message || error));
 const mapClickGroup = { query: 'places', textOnly: true };
@@ -64,7 +64,7 @@ export function createPlaceDetails({ fetch, text, record, quotaMemory, now = Dat
     const fields = profile === 'identity' ? placeIdentityFields : profile === 'rating' ? placeRatingFields : profile === 'contact' ? placeContactFields : placeDetailFields;
     const detailsEndpoint = profile === 'full' ? 'details' : profile === 'identity' ? 'details-identity' : 'details-lite', textEndpoint = profile === 'full' ? 'text' : 'text-lite';
     const isBlocked = endpoint => profile === 'full' ? blocked(endpoint) : now() < Math.max(lightCooldowns.get(endpoint) || 0, quotaMemory?.read(endpoint) || 0);
-    const convert = place => profile === 'rating' ? { placeId: place.id, rating: place.rating, ratingCount: place.userRatingCount } : record(place, { photosRequested: profile === 'full' });
+    const convert = place => profile === 'rating' ? { placeId: place.id, rating: place.rating, ratingCount: place.userRatingCount, category: place.primaryTypeDisplayName || '', primaryType: place.primaryType || '', types: place.types || [] } : record(place, { photosRequested: profile === 'full' });
     if (!isBlocked(detailsEndpoint)) {
       try {
         const result = convert(await boundedPlaceRequest(() => fetch(saved.placeId, fields), timeoutMs));
@@ -191,14 +191,19 @@ export function topMapPlaces(groups, { perGroup = 3, minimumRating = 4.5, minimu
 }
 
 export function placeIcon(place) {
-  const type = place.primaryType || '', types = place.types || [];
+  const type = place.primaryType || (place.category || '').toLowerCase().replace(/\W+/g, '_'), types = place.types || [];
+  if (place.kind === 'Flight') return 'plane';
+  if (place.kind === 'Train') return 'train';
+  if (place.kind === 'Transport') return 'car';
   if (place.kind === 'Tour' || isTourOperator(place)) return 'guide';
   if (place.kind === 'Stay' || /hotel|lodging|resort|hostel|motel|guest_house|bed_and_breakfast|ryokan|inn/.test(type)) return 'stay';
   if (place.kind === 'Food' || /restaurant|cafe|bakery|bar|meal|coffee|tea_house|ice_cream/.test(type)) return 'food';
+  if (/stadium|sports_complex|arena/.test(type)) return 'sports';
   if (/amusement|aquarium|zoo/.test(type)) return 'landmark';
   if (/park|hiking|garden|beach|natural/.test(type)) return 'leaf';
   if (/museum|gallery|historical|landmark|monument|tourist_attraction|cultural|castle|temple|shrine|church|mosque/.test(type) || types.includes('tourist_attraction')) return 'landmark';
-  return 'pin';
+  if (!type && types.length) return placeIcon({ ...place, primaryType: types.find(value => !['point_of_interest', 'establishment'].includes(value)) || 'unknown', types: [] });
+  return place.kind === 'Activity' && !place.placeId ? 'day' : 'pin';
 }
 
 // A completed or failed old request cannot overwrite a newer filter or trip.
