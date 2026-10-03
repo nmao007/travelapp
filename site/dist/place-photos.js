@@ -24,35 +24,51 @@ export function createPhotoLookup(fetchPhotos, { limit = 3, now = Date.now, time
 
 export async function resolvePlacePhoto(record, { width, lookup, load, fallback }) {
   async function tryPhotos(photos) {
-    const tried = new Set(), candidates = (photos || []).slice(0, 10);
-    if (!candidates.length) return null;
-    // Usually one image is enough. Hedge only a slow first image instead of
-    // issuing two billable photo requests for every card immediately.
-    return new Promise(resolve => {
-      let index = 0, active = 0, settled = false, hedge;
-      function next() {
-        if (settled) return;
-        if (index >= candidates.length) { if (!active) { clearTimeout(hedge); resolve(null); } return; }
-        const photo = candidates[index++]; active++;
-        Promise.resolve().then(async () => {
-          const src = photo.getURI({ maxWidth: width });
-          if (!src || tried.has(src)) throw new Error('Duplicate photo');
-          tried.add(src);
-          return { src, image: await load(src), googlePhoto: photo };
-        }).then(result => { if (!settled) { settled = true; clearTimeout(hedge); resolve(result); } }, () => { active--; next(); });
-      }
-      next();
-      hedge = setTimeout(() => { if (!settled && active < 2) next(); }, 250);
-    });
+    const tried = new Set();
+    // Do not hedge a healthy image with another billable photo request.
+    // Try the next photo only if the current image actually fails.
+    for (const photo of (photos || []).slice(0, 10)) {
+      try {
+        const src = photo.getURI({ maxWidth: width });
+        if (!src || tried.has(src)) continue;
+        tried.add(src);
+        return { src, image: await load(src), googlePhoto: photo };
+      } catch { /* An expired or broken photo can try the next real image. */ }
+    }
+    return null;
   }
   const initial = [...new Set([...(record.photos || []), ...(record.photo ? [record.photo] : [])])];
   let result = await tryPhotos(initial);
   if (result) return result;
-  try { result = await tryPhotos(await lookup(record.placeId, initial.length > 0, record)); } catch { /* Try a verified public photo below. */ }
+  if (initial.length || !record.photosLoaded) {
+    try { result = await tryPhotos(await lookup(record.placeId, initial.length > 0, record)); } catch { /* Try a verified public photo below. */ }
+  }
   if (result) return result;
   try {
     const source = await fallback(record, width);
     if (!source?.src) return null;
     return { ...source, image: await load(source.src) };
   } catch { return null; }
+}
+
+
+// Reuse already displayed images during this visit, never persist Google photo
+// names or references. Each caller clones the loaded image before mounting it.
+export function createPhotoDisplayCache(resolve, { now = Date.now, ttl = 5 * 60000, limit = 64 } = {}) {
+  const cache = new Map();
+  return (record, width, destination = false) => {
+    const key = `${record.placeId}:${width}:${destination}`, existing = cache.get(key);
+    if (existing && (existing.pending || existing.expires > now())) return existing.promise;
+    const entry = { pending: true, expires: Infinity };
+    entry.promise = Promise.resolve().then(() => resolve(record, width, destination)).then(source => {
+      entry.pending = false; entry.expires = now() + (source ? ttl : 60000);
+      if (!source) return null;
+      const { googlePhoto, ...display } = source;
+      // Only retain the attribution needed by the displayed asset, not the Photo object.
+      return googlePhoto ? { ...display, googlePhoto: { authorAttributions: googlePhoto.authorAttributions, googleMapsURI: googlePhoto.googleMapsURI } } : display;
+    }, error => { entry.pending = false; entry.expires = now() + 60000; throw error; });
+    cache.set(key, entry);
+    if (cache.size > limit) for (const [id, value] of cache) if (!value.pending && id !== key) { cache.delete(id); break; }
+    return entry.promise;
+  };
 }

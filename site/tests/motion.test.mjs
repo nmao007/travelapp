@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { playMotion, morphFrames, morphFrom, revealSequence } from '../dist/motion.js';
+import { playMotion, stopMotion, morphFrames, morphFrom, revealSequence } from '../dist/motion.js';
 
 test('reduced motion skips both shared-element movement and staggered entrances', () => {
   const previous = globalThis.matchMedia;
@@ -23,4 +23,16 @@ test('day-preview movement is bounded and invalid geometry cannot create infinit
   assert.equal(frames.at(-1).opacity, 1);
   const reverse = [...frames].reverse().map(frame => ({ ...frame, offset: 1 - frame.offset }));
   assert.deepEqual(reverse.map(frame => frame.offset), [...reverse.map(frame => frame.offset)].sort((a, b) => a - b));
+});
+
+test('finished forwards-filled motion can be cancelled to release frozen layout styles', async () => {
+  const previous = globalThis.matchMedia; globalThis.matchMedia = () => ({ matches: false });
+  try {
+    let cancels = 0;
+    const element = { animate: () => ({ finished: Promise.resolve(), cancel: () => cancels++ }) };
+    playMotion(element, [{ height: '0px' }, { height: '100px' }], { fill: 'forwards' });
+    await Promise.resolve(); stopMotion(element); assert.equal(cancels, 1);
+    playMotion(element, [{ opacity: 0 }, { opacity: 1 }], { fill: 'both' });
+    await Promise.resolve(); playMotion(element, [{ opacity: 1 }, { opacity: 0 }]); assert.equal(cancels, 2);
+  } finally { globalThis.matchMedia = previous; }
 });

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { matchingOptions, nextEnabledOption } from '../dist/dropdowns.js';
+import { matchingOptions, nextEnabledOption, timeZoneLabel } from '../dist/dropdowns.js';
 
 test('keyboard navigation skips disabled choices, wraps, and handles empty menus', () => {
   const options = [{ label: 'A' }, { label: 'B', disabled: true }, { label: 'C' }];
@@ -23,4 +23,14 @@ test('time zones can be searched naturally by region or city without knowing und
   assert.deepEqual(matchingOptions(options, 'AMERICA york'), [options[1]]);
   assert.deepEqual(matchingOptions(options, '  '), options);
   assert.deepEqual(matchingOptions(options, 'missing city'), []);
+});
+
+
+test('time-zone presentation removes underscores while preserving canonical option values', () => {
+  const zone = 'America/Argentina/Buenos_Aires';
+  const option = { value: zone, label: timeZoneLabel(zone) };
+  assert.equal(option.label, 'America / Argentina / Buenos Aires');
+  assert.equal(option.value, zone);
+  assert.deepEqual(matchingOptions([option], 'Buenos Aires'), [option]);
+  assert.equal(timeZoneLabel('UTC'), 'UTC');
 });

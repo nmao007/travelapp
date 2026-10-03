@@ -182,6 +182,11 @@ createServer(async (request, response) => {
     return;
   }
   const assets = new Map([['/', 'index.html'], ['/index.html', 'index.html'], ['/app.css', 'app.css'], ['/app.js', 'app.js'], ['/trip-store.js', 'trip-store.js'], ['/date-range.js', 'date-range.js'], ['/domain.js', 'domain.js'], ['/trip-itinerary.js', 'trip-itinerary.js'], ['/itinerary-model.js', 'itinerary-model.js'], ['/itinerary-ui.js', 'itinerary-ui.js'], ['/place-model.js', 'place-model.js'], ['/motion.js', 'motion.js'], ['/flight-model.js', 'flight-model.js'], ['/planning-drag.js', 'planning-drag.js'], ['/dropdowns.js', 'dropdowns.js'], ['/explore-model.js', 'explore-model.js'], ['/place-photos.js', 'place-photos.js'], ['/day-route-model.js', 'day-route-model.js'], ['/day-routes.js', 'day-routes.js'], ['/maps-links.js', 'maps-links.js'], ['/tour-model.js', 'tour-model.js'], ['/place-search.js', 'place-search.js'], ['/trip-banner.js', 'trip-banner.js']]);
+  assets.set('/calendar-export.js', 'calendar-export.js');
+  assets.set('/notices.js', 'notices.js');
+  assets.set('/time-picker.js', 'time-picker.js');
+  assets.set('/expansion.js', 'expansion.js');
+  assets.set('/day-motion.js', 'day-motion.js');
   const asset = assets.get(pathname);
   if (!asset) { response.writeHead(404); response.end('Not found'); return; }
   try {

@@ -1,12 +1,17 @@
 // Motion stays on compositor properties and respects the system motion preference.
 export const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 const active = new WeakMap();
+export function stopMotion(element) {
+  active.get(element)?.cancel(); active.delete(element);
+}
 export function playMotion(element, frames, options = {}) {
   if (!element || reducedMotion()) return null;
-  active.get(element)?.cancel();
+  stopMotion(element);
   const animation = element.animate(frames, { duration: 480, easing: 'cubic-bezier(.2,.8,.2,1)', ...options });
   active.set(element, animation);
-  animation.finished.then(() => { if (active.get(element) === animation) active.delete(element); }).catch(() => {});
+  // A forwards-filled animation still controls styles after it finishes.
+  // Retain its handle so callers can release the frozen height or opacity.
+  animation.finished.then(() => { if (active.get(element) === animation && !['forwards', 'both'].includes(options.fill)) active.delete(element); }).catch(() => {});
   return animation;
 }
 export function morphFrames(source, target) {

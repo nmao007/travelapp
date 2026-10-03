@@ -41,7 +41,7 @@ export function createSearchAreaTracker() {
         const span = area => area.rectangle.allLongitudes ? 360 : ((area.rectangle.east - area.rectangle.west + 360) % 360);
         const widthRatio = span(next) / span(previous);
         const ratio = next.radius / previous.radius;
-        if (widthRatio >= .85 && widthRatio <= 1.18 && ratio >= .85 && ratio <= 1.18 && heightRatio >= .85 && heightRatio <= 1.18 && distanceMeters(next.center, previous.center) <= Math.min(next.radius, previous.radius) * .12) return previous;
+        if (widthRatio >= .85 && widthRatio <= 1.18 && ratio >= .85 && ratio <= 1.18 && heightRatio >= .85 && heightRatio <= 1.18 && distanceMeters(next.center, previous.center) <= Math.min(next.radius, previous.radius) * .3) return previous;
       }
       previous = next; return next;
     },

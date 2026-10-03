@@ -134,3 +134,40 @@ test('reloading preserves quota retry deadlines without storing Google place con
   const denied = createQuotaMemory({ getItem() { throw new Error(); }, setItem() { throw new Error(); } }, () => clock);
   assert.equal(denied.read('text'), 0); assert.equal(denied.block('text'), clock + 30 * 60000);
 });
+
+test('repeated Search this area clicks cannot recharge the same area within a minute', async () => {
+  let clock = 0, calls = 0;
+  const service = createPlaceSearch({ record, now: () => clock, nearby: async () => { calls++; return { places: [place('castle')] }; }, text: () => { throw new Error('Unexpected search'); } });
+  await service.search('see', area);
+  for (let i = 0; i < 20; i++) await service.search('see', area, { force: true });
+  assert.equal(calls, 1); clock = 60001; await service.search('see', area, { force: true }); assert.equal(calls, 2);
+});
+test('obsolete queued filter changes are discarded before reaching Google', async () => {
+  const calls = []; let finish, current = true;
+  const service = createPlaceSearch({ record, concurrency: 1, nearby: request => { calls.push(request.includedTypes || request.includedPrimaryTypes); if (calls.length === 1) return new Promise(resolve => { finish = resolve; }); return Promise.resolve({ places: [] }); }, text: () => { throw new Error('Unexpected fallback'); } });
+  const running = service.search('see', area);
+  const obsolete = assert.rejects(service.search('stay', area, { isCurrent: () => current }), /SUPERSEDED/);
+  const next = service.search('eat', area);
+  current = false; await new Promise(resolve => setImmediate(resolve)); finish({ places: [] });
+  await Promise.all([running, obsolete, next]); assert.equal(calls.length, 2); assert.ok(!calls.some(types => types.includes('hotel')));
+});
+test('a current coalesced caller keeps a shared queued request alive', async () => {
+  let finish, calls = 0;
+  const service = createPlaceSearch({ record, concurrency: 1, nearby: () => { calls++; return calls === 1 ? new Promise(resolve => { finish = resolve; }) : Promise.resolve({ places: [] }); }, text: () => { throw new Error('Unexpected fallback'); } });
+  const running = service.search('see', area), stale = service.search('eat', area, { isCurrent: () => false });
+  assert.equal(service.search('eat', area, { isCurrent: () => true }), stale);
+  await new Promise(resolve => setImmediate(resolve)); finish({ places: [] });
+  await Promise.all([running, stale]); assert.equal(calls, 2);
+});
+
+test('small neighborhood pans reuse results, but moving beyond the loaded area refreshes', async () => {
+  const { createSearchAreaTracker } = await import('../dist/explore-model.js');
+  const tracker = createSearchAreaTracker(), bounds = { north: 38.74, south: 38.70, east: -9.10, west: -9.18 };
+  let calls = 0;
+  const service = createPlaceSearch({ record, nearby: async () => { calls++; return { places: [] }; }, text: () => { throw new Error('Unexpected fallback'); } });
+  await service.search('mixed', tracker.read(bounds));
+  await service.search('mixed', tracker.read({ ...bounds, north: bounds.north + .007, south: bounds.south + .007 }));
+  assert.equal(calls, 1);
+  await service.search('mixed', tracker.read({ ...bounds, north: bounds.north + .02, south: bounds.south + .02 }));
+  assert.equal(calls, 2);
+});

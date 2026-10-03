@@ -29,8 +29,9 @@ export function createDayRoutes({ state, commit, icon, cancelCamera }) {
     if (!section) return;
     section.querySelectorAll('.day-route-bar,.travel-leg,.route-notice').forEach(element => element.remove());
     const legs = dayRouteLegs(state.trip, state.day); if (!legs.length) { fittedKey = ''; return; }
-    const mode = routeModes[state.trip.routeMode] ? state.trip.routeMode : 'WALK';
+    const mode = routeModes[state.trip.routeMode] ? state.trip.routeMode : 'DRIVE';
     const bar = node('div', 'day-route-bar'), controls = node('div', 'route-modes'); controls.setAttribute('role', 'group'); controls.setAttribute('aria-label', 'Travel mode');
+    bar.dataset.motionKey = `route-bar:${state.day}`;
     for (const [value, details] of Object.entries(routeModes)) {
       const button = node('button', 'route-mode'); button.type = 'button'; button.innerHTML = icon(details.icon);
       button.setAttribute('aria-label', details.label); button.title = details.label; button.setAttribute('aria-pressed', String(value === mode));
@@ -41,6 +42,7 @@ export function createDayRoutes({ state, commit, icon, cancelCamera }) {
     if (mode === 'TRANSIT') bar.after(node('p', 'route-notice', 'Transit estimates use current schedules.'));
     const holders = legs.map(leg => {
       const holder = node('div', 'travel-leg'); holder.dataset.routeKey = leg.key;
+      holder.dataset.motionKey = `route:${leg.key}`;
       holder.append(node('span', 'travel-loading', 'Calculating…'));
       const target = [...section.querySelectorAll('[data-item-id]')].find(row => row.dataset.itemId === leg.to.id); target?.before(holder); return holder;
     });

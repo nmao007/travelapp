@@ -80,3 +80,16 @@ test('automatic trip names follow all stops and update after route changes', () 
   assert.equal(tripTitle(moveStop(routed, 1, -1)), 'Porto → Lisbon');
   assert.equal(tripTitle(removeStop(routed, 'porto')), 'Lisbon');
 });
+
+test('a clicked map location can be named and saved when Google details are unavailable, without invented provider data', () => {
+  const storage = memory(), trip = { ...lisbon, startDate: '2026-10-10', endDate: '2026-10-13', items: [] };
+  const clicked = { placeId: 'google-clicked-place', latitude: 38.71, longitude: -9.13, day: '2026-10-10' };
+  assert.throws(() => addPlace(trip, clicked), /Choose a place/);
+  const next = addPlace(trip, { ...clicked, name: 'Place named by the traveler', kind: 'Activity' });
+  saveTrip(next, storage);
+  const reopened = readTrips(storage)[0].items[0];
+  for (const [key, value] of Object.entries(clicked)) assert.equal(reopened[key], value);
+  assert.equal(reopened.name, 'Place named by the traveler');
+  assert.equal(reopened.rating, undefined); assert.equal(reopened.editorialSummary, undefined);
+  assert.equal(addPlace(next, { ...clicked, name: reopened.name }), next);
+});

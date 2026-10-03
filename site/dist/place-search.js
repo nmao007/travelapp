@@ -10,6 +10,9 @@ export const placeSearchGroups = {
   tour: { types: ['tour_agency'], query: 'tour operators', primary: true },
 };
 export const placeSearchFields = ['id', 'displayName', 'formattedAddress', 'location', 'photos', 'rating', 'userRatingCount', 'primaryType', 'types', 'primaryTypeDisplayName', 'businessStatus'];
+export const placeIdentityFields = ['id', 'displayName', 'formattedAddress', 'location'];
+export const placeRatingFields = ['id', 'rating', 'userRatingCount'];
+export const placeContactFields = ['id', 'displayName', 'formattedAddress', 'location', 'rating', 'userRatingCount', 'websiteURI', 'internationalPhoneNumber', 'businessStatus'];
 export const placeDetailFields = [...placeSearchFields, 'regularOpeningHours', 'currentOpeningHours', 'websiteURI', 'internationalPhoneNumber', 'googleMapsURI', 'editorialSummary', 'generativeSummary', 'priceLevel', 'accessibilityOptions', 'attributions'];
 export const quotaFailure = error => /RESOURCE_EXHAUSTED|OVER_QUERY_LIMIT|quota exceeded/i.test(String(error?.message || error));
 const mapClickGroup = { query: 'places', textOnly: true };
@@ -50,37 +53,42 @@ export function createQuotaMemory(storage, now = Date.now) {
 // Load details only for opened/visible places. If Google's Details endpoint is
 // limited, Text Search may still supply the exact place; never use a neighbor.
 export function createPlaceDetails({ fetch, text, record, quotaMemory, now = Date.now, timeoutMs = 8000, cache = new Map() }) {
-  const queue = [];
+  const queue = [], lightCache = new Map(), lightCooldowns = new Map();
   let active = 0, detailsUntil = 0, textUntil = 0;
   const blocked = endpoint => now() < Math.max(endpoint === 'details' ? detailsUntil : textUntil, quotaMemory?.read(endpoint) || 0);
   function block(endpoint) {
     const until = quotaMemory?.block(endpoint) || now() + 30 * 60000;
     if (endpoint === 'details') detailsUntil = until; else textUntil = until;
   }
-  async function resolveDetails(saved) {
-    if (!blocked('details')) {
+  async function resolveDetails(saved, profile) {
+    const fields = profile === 'identity' ? placeIdentityFields : profile === 'rating' ? placeRatingFields : profile === 'contact' ? placeContactFields : placeDetailFields;
+    const detailsEndpoint = profile === 'full' ? 'details' : profile === 'identity' ? 'details-identity' : 'details-lite', textEndpoint = profile === 'full' ? 'text' : 'text-lite';
+    const isBlocked = endpoint => profile === 'full' ? blocked(endpoint) : now() < Math.max(lightCooldowns.get(endpoint) || 0, quotaMemory?.read(endpoint) || 0);
+    const convert = place => profile === 'rating' ? { placeId: place.id, rating: place.rating, ratingCount: place.userRatingCount } : record(place, { photosRequested: profile === 'full' });
+    if (!isBlocked(detailsEndpoint)) {
       try {
-        const result = record(await boundedPlaceRequest(() => fetch(saved.placeId, placeDetailFields), timeoutMs));
+        const result = convert(await boundedPlaceRequest(() => fetch(saved.placeId, fields), timeoutMs));
         if (result.placeId !== saved.placeId) throw new Error('PLACE_DETAILS_MISMATCH');
         return result;
       } catch (error) {
-        if (quotaFailure(error)) block('details');
+        if (quotaFailure(error)) { if (profile === 'full') block('details'); else lightCooldowns.set(detailsEndpoint, quotaMemory?.block(detailsEndpoint) || now() + 30 * 60000); }
         else if (error?.message !== 'PLACE_SEARCH_TIMEOUT') throw error;
+        if (profile === 'rating' || profile === 'identity') throw error;
       }
     }
-    if (blocked('text')) throw new Error('PLACE_DETAILS_QUOTA');
+    if (profile === 'rating' || profile === 'identity' || isBlocked(textEndpoint)) throw new Error('PLACE_DETAILS_QUOTA');
     if (!saved.name?.trim()) throw new Error('PLACE_DETAILS_UNAVAILABLE');
     let response;
     try {
-      response = await boundedPlaceRequest(() => text({ fields: placeDetailFields, textQuery: [saved.name, saved.address].filter(Boolean).join(', '), language: 'en', maxResultCount: 5,
+      response = await boundedPlaceRequest(() => text({ fields: [...new Set([...fields, 'id', 'displayName', 'location'])], textQuery: [saved.name, saved.address].filter(Boolean).join(', '), language: 'en', maxResultCount: 5,
         ...(Number.isFinite(saved.latitude) && Number.isFinite(saved.longitude) ? { locationBias: { center: { lat: saved.latitude, lng: saved.longitude }, radius: 500 } } : {}) }), timeoutMs);
     } catch (error) {
-      if (quotaFailure(error)) { block('text'); throw new Error('PLACE_DETAILS_QUOTA'); }
+      if (quotaFailure(error)) { if (profile === 'full') block('text'); else lightCooldowns.set(textEndpoint, quotaMemory?.block(textEndpoint) || now() + 30 * 60000); throw new Error('PLACE_DETAILS_QUOTA'); }
       throw error;
     }
     const match = response.places?.find(place => place.id === saved.placeId);
     if (!match) throw new Error('PLACE_DETAILS_UNAVAILABLE');
-    const result = record(match);
+    const result = convert(match);
     if (result.placeId !== saved.placeId) throw new Error('PLACE_DETAILS_MISMATCH');
     return result;
   }
@@ -90,17 +98,31 @@ export function createPlaceDetails({ fetch, text, record, quotaMemory, now = Dat
       Promise.resolve().then(job.run).then(job.resolve, job.reject).finally(() => { active--; drain(); });
     }
   }
-  return { load(saved) {
-    if (!saved?.placeId) return Promise.reject(new Error('PLACE_DETAILS_UNAVAILABLE'));
-    const existing = cache.get(saved.placeId);
-    if (existing && (existing.pending || existing.expires > now())) return existing.promise;
-    const entry = { pending: true, expires: Infinity };
-    entry.promise = new Promise((resolve, reject) => { queue.push({ run: () => resolveDetails(saved), resolve, reject }); drain(); });
-    cache.set(saved.placeId, entry);
-    entry.promise = entry.promise.then(result => { entry.pending = false; entry.expires = now() + 5 * 60000; return result; }, error => { entry.pending = false; entry.expires = now() + 30000; throw error; });
-    if (cache.size > 60) for (const [id, value] of cache) if (!value.pending && id !== saved.placeId) { cache.delete(id); break; }
-    return entry.promise;
-  } };
+  const usable = entry => entry && (entry.pending || entry.expires > now());
+  return {
+    peek(id) {
+      const full = cache.get(id), contact = lightCache.get(`contact:${id}`), rating = lightCache.get(`rating:${id}`);
+      return [full, contact, rating, lightCache.get(`identity:${id}`)].find(entry => entry?.value && entry.expires > now())?.value;
+    },
+    load(saved, { compact = false, contactOnly = false, identityOnly = false } = {}) {
+      if (!saved?.placeId) return Promise.reject(new Error('PLACE_DETAILS_UNAVAILABLE'));
+      const profile = identityOnly ? 'identity' : compact ? 'rating' : contactOnly ? 'contact' : 'full';
+      const full = cache.get(saved.placeId);
+      // A full in-flight/result request also satisfies lighter views.
+      if (profile !== 'full' && usable(full) && (full.pending || full.value)) return full.promise;
+      const contact = lightCache.get(`contact:${saved.placeId}`);
+      if ((compact || identityOnly) && usable(contact) && (contact.pending || contact.value)) return contact.promise;
+      const store = profile === 'full' ? cache : lightCache, key = profile === 'full' ? saved.placeId : `${profile}:${saved.placeId}`;
+      const existing = store.get(key);
+      if (usable(existing)) return existing.promise;
+      const entry = { pending: true, expires: Infinity };
+      entry.promise = new Promise((resolve, reject) => { queue.push({ run: () => resolveDetails(saved, profile), resolve, reject }); drain(); });
+      store.set(key, entry);
+      entry.promise = entry.promise.then(result => { entry.value = result; entry.pending = false; entry.expires = now() + 5 * 60000; return result; }, error => { entry.pending = false; entry.expires = now() + 60000; throw error; });
+      if (store.size > 100) for (const [id, value] of store) if (!value.pending && id !== key) { store.delete(id); break; }
+      return entry.promise;
+    },
+  };
 }
 export function createPlaceSearch({ nearby, text, record, now = Date.now, timeoutMs = 10000, concurrency = 2, quotaMemory }) {
   const cache = new Map(), records = new Map(), queue = [];
@@ -113,13 +135,14 @@ export function createPlaceSearch({ nearby, text, record, now = Date.now, timeou
   }
   const queued = (run, priority) => new Promise((resolve, reject) => { queue[priority ? 'unshift' : 'push']({ run, resolve, reject }); drain(); });
   const bounded = call => boundedPlaceRequest(call, timeoutMs);
-  function search(category, area, { force = false } = {}) {
+  function search(category, area, { force = false, isCurrent = () => true } = {}) {
     const group = category === 'map-click' ? mapClickGroup : category === 'mixed' ? mixedGroup : placeSearchGroups[category];
     if (!group || !area) return Promise.reject(new Error('Choose a map area and category.'));
     const key = `${category}:${area.key}`, saved = cache.get(key);
-    if (saved && (saved.pending || (!force && saved.expires > now()))) return saved.promise;
-    const entry = { pending: true, expires: Infinity };
+    if (saved && (saved.pending || ((!force || now() < saved.refreshed + 60000) && saved.expires > now()))) { saved.checks.add(isCurrent); return saved.promise; }
+    const entry = { pending: true, expires: Infinity, refreshed: now(), checks: new Set([isCurrent]) };
     entry.promise = queued(async () => {
+      if (![...entry.checks].some(check => check())) throw new Error('PLACE_SEARCH_SUPERSEDED');
       const fields = [...placeSearchFields, ...(category === 'tour' ? ['websiteURI', 'internationalPhoneNumber'] : [])];
       let response;
       if (!group.textOnly && now() >= nearbyBlockedUntil) {
@@ -134,7 +157,7 @@ export function createPlaceSearch({ nearby, text, record, now = Date.now, timeou
       const matches = [];
       for (const place of response.places || []) {
         try {
-          const value = record(place);
+          const value = record(place, { photosRequested: true });
           if (!value.placeId || !inSearchArea(area, { lat: value.latitude, lng: value.longitude }) || (category === 'tour' && !isTourOperator(value))) continue;
           records.set(value.placeId, value); matches.push(value);
         } catch { /* A malformed individual record must not freeze the category. */ }

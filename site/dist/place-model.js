@@ -40,14 +40,14 @@ export function scheduleUnassigned(trip) {
   return changed ? { ...trip, items } : trip;
 }
 
-export function googlePlaceRecord(place) {
+export function googlePlaceRecord(place, { photosRequested = false } = {}) {
   if (!place?.id || !place.location) throw new Error('This place has no map location.');
   const field = name => { try { return place[name]; } catch { return undefined; } };
   const photos = field('photos') || [], types = field('types') || [];
   return {
     placeId: place.id, name: field('displayName') || 'Place', address: field('formattedAddress') || '',
     latitude: place.location.lat(), longitude: place.location.lng(),
-    photo: photos[0] || null, photos, rating: field('rating'), ratingCount: field('userRatingCount'), types,
+    photo: photos[0] || null, photos, photosLoaded: photosRequested || Array.isArray(field('photos')), rating: field('rating'), ratingCount: field('userRatingCount'), types,
     websiteURI: field('websiteURI') || '', internationalPhoneNumber: field('internationalPhoneNumber') || '', businessStatus: field('businessStatus') || '',
     category: field('primaryTypeDisplayName') || '', primaryType: field('primaryType') || '', tourOperator: types.includes('tour_agency'),
     editorialSummary: googleDescription(field('editorialSummary')), generativeSummary: googleGenerativeSummary(field('generativeSummary')), googleMapsURI: field('googleMapsURI') || '',

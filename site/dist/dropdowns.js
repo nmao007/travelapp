@@ -1,5 +1,6 @@
 import { playMotion } from './motion.js';
 
+export const timeZoneLabel = value => String(value || '').replaceAll('_', ' ').replaceAll('/', ' / ');
 const controls = new WeakMap();
 let active = null, installed = false;
 const symbols = name => `<svg class="icon" aria-hidden="true"><use href="#i-${name}"/></svg>`;
@@ -22,9 +23,10 @@ function enhance(source) {
   if (source.closest('.gm-style')) return null;
   if (controls.has(source)) return controls.get(source);
   const editable = source.tagName === 'INPUT', listId = source.getAttribute('list');
+  const formatted = editable && listId === 'time-zones';
   const host = document.createElement('span'); host.className = 'coded-dropdown';
   source.before(host); host.append(source);
-  const trigger = editable ? source : document.createElement('button');
+  const trigger = formatted ? source.cloneNode(false) : editable ? source : document.createElement('button');
   const label = source.closest('label'), labelCopy = label?.cloneNode(true);
   labelCopy?.querySelectorAll('select,input,svg').forEach(element => element.remove());
   const accessibleName = source.getAttribute('aria-label') || labelCopy?.textContent.trim() || source.name || 'Choose an option';
@@ -38,8 +40,13 @@ function enhance(source) {
     if (label) label.htmlFor = trigger.id;
     source.hidden = true; source.tabIndex = -1; source.setAttribute('aria-hidden', 'true'); host.append(trigger);
   } else {
-    source.removeAttribute('list'); source.autocomplete = 'off'; source.setAttribute('aria-autocomplete', 'list');
-    source.setAttribute('aria-label', accessibleName); host.classList.add('editable-dropdown');
+    if (formatted) {
+      trigger.removeAttribute('list'); trigger.removeAttribute('name'); trigger.required = source.required; trigger.id = `${menu.id}-trigger`;
+      source.type = 'hidden'; source.hidden = true; source.tabIndex = -1; source.setAttribute('aria-hidden', 'true'); host.append(trigger);
+      if (label) label.htmlFor = trigger.id;
+    }
+    source.removeAttribute('list'); trigger.autocomplete = 'off'; trigger.setAttribute('aria-autocomplete', 'list');
+    trigger.setAttribute('aria-label', accessibleName); host.classList.add('editable-dropdown');
     host.insertAdjacentHTML('beforeend', `<span class="dropdown-input-chevron" aria-hidden="true">${symbols('chevron')}</span>`);
   }
   source.dataset.codedDropdown = '';
@@ -49,7 +56,7 @@ function enhance(source) {
 
   function readOptions() {
     const entries = editable ? document.getElementById(listId)?.options || [] : source.options;
-    options = [...entries].map(option => ({ value: option.value, label: option.label || option.textContent || option.value, disabled: Boolean(option.disabled || option.parentElement?.disabled) }));
+    options = [...entries].map(option => ({ value: option.value, label: formatted ? timeZoneLabel(option.value) : option.label || option.textContent || option.value, disabled: Boolean(option.disabled || option.parentElement?.disabled) }));
   }
   function sync() {
     readOptions();
@@ -58,8 +65,9 @@ function enhance(source) {
       trigger.querySelector('.dropdown-value').textContent = source.selectedOptions[0]?.label || 'Choose';
       trigger.setAttribute('aria-required', String(source.required));
     }
+    if (formatted) { trigger.value = timeZoneLabel(source.value); trigger.disabled = source.disabled; if (source.value) trigger.setCustomValidity(''); }
     if (opened && source.disabled) close();
-    else if (opened) render(editable ? source.value : '');
+    else if (opened) render(editable ? trigger.value : '');
   }
   function close(focus = false) {
     if (!opened) return;
@@ -77,7 +85,7 @@ function enhance(source) {
   }
   function choose(position) {
     const option = visible[position]; if (!option || option.disabled) return;
-    source.value = option.value; trigger.removeAttribute('aria-invalid'); close(true);
+    source.value = option.value; if (formatted) { trigger.value = option.label; trigger.setCustomValidity(''); } trigger.removeAttribute('aria-invalid'); close(true);
     if (!editable) trigger.querySelector('.dropdown-value').textContent = option.label;
     selecting = true;
     try { source.dispatchEvent(new Event('input', { bubbles: true })); source.dispatchEvent(new Event('change', { bubbles: true })); }
@@ -134,9 +142,24 @@ function enhance(source) {
     }
   });
   if (editable) {
-    source.addEventListener('focus', () => open());
-    source.addEventListener('input', () => { if (!selecting) open(source.value); });
-    source.addEventListener('blur', () => close());
+    trigger.addEventListener('focus', () => open());
+    trigger.addEventListener('input', () => {
+      if (selecting) return;
+      if (formatted) {
+        const normalize = value => value.toLowerCase().replaceAll('_', ' ').replaceAll(' / ', '/').trim();
+        source.value = options.find(option => normalize(option.label) === normalize(trigger.value) || normalize(option.value) === normalize(trigger.value))?.value || '';
+        source.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      open(trigger.value);
+    });
+    trigger.addEventListener('blur', () => {
+      close();
+      if (formatted) {
+        const invalid = Boolean(trigger.value && !source.value);
+        trigger.setCustomValidity(invalid ? 'Choose a time zone from the list.' : '');
+        if (!invalid) source.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
   }
   source.addEventListener('change', sync);
   if (!editable) {

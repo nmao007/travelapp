@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createPhotoLookup, resolvePlacePhoto } from '../dist/place-photos.js';
+import { createPhotoLookup, createPhotoDisplayCache, resolvePlacePhoto } from '../dist/place-photos.js';
 import { matchingPhotoPage } from '../wiki-photo-match.mjs';
 const photo = src => ({ getURI: () => src, authorAttributions: [{ displayName: 'Photographer' }] });
 test('a failed Google image tries another real Google photo and keeps its attribution', async () => {
@@ -52,9 +52,12 @@ test('all available Google photos can be used and an empty array does not hide t
   const primary = await resolvePlacePhoto({ placeId: 'real', photos: [], photo: photo('primary') }, { width: 420, load: async src => src, lookup: () => [], fallback: () => null });
   assert.equal(primary.src, 'primary');
 });
-test('a fast successful photo renders without waiting for its slow neighbor', async () => {
-  const source = await resolvePlacePhoto({ photos: [photo('slow'), photo('fast')] }, { width: 420, load: src => src === 'slow' ? new Promise(() => {}) : Promise.resolve(src), lookup: () => [], fallback: () => null });
-  assert.equal(source.src, 'fast');
+test('a slow healthy photo does not start a second billable image request', async () => {
+  let finish; const requested = [];
+  const pending = resolvePlacePhoto({ photos: [photo('slow'), photo('fast')] }, { width: 420, load: src => { requested.push(src); return new Promise(resolve => { finish = resolve; }); }, lookup: () => [], fallback: () => null });
+  await new Promise(resolve => setTimeout(resolve, 300));
+  assert.deepEqual(requested, ['slow']); finish('loaded');
+  assert.equal((await pending).src, 'slow');
 });
 test('fresh photo metadata can retry the same URI after a transient image failure', async () => {
   let attempts = 0;
@@ -77,4 +80,26 @@ test('a healthy first image does not request additional Google photos', async ()
   const requested = [];
   const source = await resolvePlacePhoto({ photos: [photo('first'), photo('second'), photo('third')] }, { width: 420, load: async src => { requested.push(src); return src; }, lookup: () => { throw new Error('Unexpected lookup'); }, fallback: () => null });
   assert.equal(source.src, 'first'); assert.deepEqual(requested, ['first']);
+});
+
+test('a search that already requested photos but returned none does not trigger another Google lookup', async () => {
+  let lookups = 0;
+  const source = await resolvePlacePhoto({ placeId: 'no-photo', photos: [], photosLoaded: true }, { width: 420, lookup: () => { lookups++; return []; }, fallback: async () => ({ src: 'verified' }), load: async src => src });
+  assert.equal(source.src, 'verified'); assert.equal(lookups, 0);
+});
+test('repeated panel redraws reuse one displayed image without retaining photo resource names', async () => {
+  let clock = 0, calls = 0;
+  const googlePhoto = { ...photo('actual-photo'), name: 'places/id/photos/resource', googleMapsURI: 'https://maps.google.com' };
+  const display = createPhotoDisplayCache(async () => { calls++; return { src: 'actual-photo', image: {}, googlePhoto }; }, { now: () => clock });
+  const record = { placeId: 'real' }, pending = display(record, 420); assert.equal(display(record, 420), pending);
+  const sources = await Promise.all(Array.from({ length: 20 }, () => display(record, 420))); assert.equal(calls, 1);
+  assert.deepEqual(sources[0].googlePhoto.authorAttributions, googlePhoto.authorAttributions);
+  assert.equal(sources[0].googlePhoto.name, undefined); assert.equal(sources[0].googlePhoto.getURI, undefined);
+  await display(record, 900); assert.equal(calls, 2); clock = 300001; await display(record, 420); assert.equal(calls, 3);
+});
+test('unavailable displayed photos wait a minute before retrying', async () => {
+  let clock = 0, calls = 0;
+  const display = createPhotoDisplayCache(async () => { calls++; return null; }, { now: () => clock });
+  await display({ placeId: 'none' }, 420); await display({ placeId: 'none' }, 420); assert.equal(calls, 1);
+  clock = 60001; await display({ placeId: 'none' }, 420); assert.equal(calls, 2);
 });

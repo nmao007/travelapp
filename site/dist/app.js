@@ -9,9 +9,13 @@ import { datesForTrip, eventsForDay, mappedPlace, fixedItem } from './itinerary-
 import { createDayRoutes } from './day-routes.js';
 import { createItineraryUI } from './itinerary-ui.js';
 import { mapEntries, scheduleUnassigned, googlePlaceRecord, destinationForDay, googlePlaceSummary, googleRatingLabel, mergeGoogleContent, mapLabelPosition } from './place-model.js';
-import { enhanceDropdowns } from './dropdowns.js';
+import { enhanceDropdowns, refreshDropdowns } from './dropdowns.js';
 import { viewportSearchArea, inSearchArea, createSearchAreaTracker } from './explore-model.js';
-import { createPhotoLookup, resolvePlacePhoto } from './place-photos.js';
+import { createPhotoLookup, resolvePlacePhoto, createPhotoDisplayCache } from './place-photos.js';
+import { downloadTripCalendar } from './calendar-export.js';
+import { createTransientNotice } from './notices.js';
+import { enhanceTimePickers } from './time-picker.js';
+import { enhanceDisclosures } from './expansion.js';
 
 
 const $ = id => document.getElementById(id);
@@ -20,13 +24,14 @@ let resolveMapsReady;
 const mapsReady = new Promise(resolve => { resolveMapsReady = resolve; });
 let quotaStorage; try { quotaStorage = sessionStorage; } catch { /* Storage is optional. */ }
 const quotaMemory = createQuotaMemory(quotaStorage);
-const state = { maps: null, places: null, markerClass: null, map: null, marker: null, stopMarkers: [], placeMarkers: [], suggestionMarkers: [], suggestions: [], selected: null, trip: null, day: 'ideas', animation: 0, config: null, pendingNearby: null, nearbyRequest: 0, photoRequest: 0, calendarRange: { start: null, end: null }, calendarYear: 0, calendarMonth: 0, routeEditing: false, planMode: 'list', workspaceView: 'itinerary', nearbyCategory: 'see', detailCooldownUntil: quotaMemory.read('details'), photoCooldownUntil: quotaMemory.read('photo-details'), photoSearchCooldownUntil: quotaMemory.read('photo-text'), detailCache: new Map(), operatorCache: new Map(), imageCache: new Map(), infoWindow: null, activePlaceId: null, discoveryPlace: null, nearbyCache: new Map(), mapSuggestions: [], mapAreaKey: null, mapSearchVersion: 0, mapSearchTimer: null, placeClickVersion: 0, nearbyAreaKey: null, nearbyTimer: null, cameraMoving: false };
+const state = { maps: null, places: null, markerClass: null, map: null, marker: null, stopMarkers: [], placeMarkers: [], suggestionMarkers: [], suggestions: [], selected: null, trip: null, day: 'ideas', animation: 0, config: null, pendingNearby: null, nearbyRequest: 0, photoRequest: 0, calendarRange: { start: null, end: null }, calendarYear: 0, calendarMonth: 0, routeEditing: false, planMode: 'list', workspaceView: 'itinerary', nearbyCategory: 'see', detailCooldownUntil: quotaMemory.read('selection-details'), photoCooldownUntil: quotaMemory.read('photo-details'), detailCache: new Map(), imageCache: new Map(), infoWindow: null, activePlaceId: null, discoveryPlace: null, mapSuggestions: [], mapAreaKey: null, mapSearchVersion: 0, mapSearchTimer: null, placeClickVersion: 0, nearbyAreaKey: null, nearbyTimer: null, cameraMoving: false };
 const tripBanner = createTripBanner({ workspace: $('workspace'), header: $('trip-masthead'), hero: $('destination-hero'), onResize: () => { if (state.map) requestAnimationFrame(() => google.maps.event.trigger(state.map, 'resize')); } });
 const dateLabel = value => new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T12:00:00Z`));
 const dateLong = value => new Intl.DateTimeFormat('en', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T12:00:00Z`));
 const tripDateLabel = trip => trip.startDate && trip.endDate ? `${dateLabel(trip.startDate)} – ${dateLabel(trip.endDate)}` : 'Add dates';
 const coordinates = place => ({ lat: place.latitude, lng: place.longitude });
-const status = (id, text = '') => { $(id).textContent = text; };
+const notices = new Map(['home-status', 'trip-status'].map(id => [id, createTransientNotice($(id), { onHide: () => { $(id).textContent = ''; } })]));
+const status = (id, text = '') => { if (!text) { notices.get(id).clear(); return; } $(id).textContent = text; notices.get(id).show(); };
 
 const daysForTrip = datesForTrip;
 
@@ -181,8 +186,8 @@ function selectStop(stop, syncDay = true) {
   $('map-caption').textContent = stop.name;
 
   renderRoute(); renderPlan(); showMap(stop, true); drawMarkers();
-  if (state.places?.Place) { loadDestinationPhoto(stop); exploreNearby('see'); }
-  else state.pendingNearby = 'see';
+  if (state.places?.Place) loadDestinationPhoto(stop);
+  if (state.workspaceView === 'explore') { state.pendingNearby = state.nearbyCategory; scheduleAreaSearch(); }
 }
 
 function commitRoute(next, selectedId) {
@@ -229,8 +234,7 @@ function showWorkspace(place, trip = null) {
   }
   tripBanner.reset();
   showMap(place, true, true);
-  if (state.places?.Place) { loadDestinationPhoto(place); exploreNearby('see'); }
-  else state.pendingNearby = 'see';
+  if (state.places?.Place) loadDestinationPhoto(place);
 }
 
 function openTrip(trip) { showWorkspace(trip, trip); }
@@ -280,12 +284,7 @@ async function wikimediaImage(place, width, destination = false) {
   return data.image || null;
 }
 
-const heroPhotos = new Map();
-async function destinationPhoto(destination) {
-  const key = destination.placeId;
-  if (!heroPhotos.has(key)) heroPhotos.set(key, resolvePlacePhoto(destination, { width: 1200, lookup: lookupGooglePhotos, load: loadPhotoImage, fallback: (place, size) => wikimediaImage(place, size, true) }));
-  try { return await heroPhotos.get(key); } finally { heroPhotos.delete(key); }
-}
+const destinationPhoto = destination => displayedPhotos(destination, 1200, true);
 
 async function loadDestinationPhoto() {
   if (!state.trip) return;
@@ -307,7 +306,7 @@ async function loadDestinationPhoto() {
   }
 }
 
-function animateMap(target, zoom = 12) {
+function animateMap(target, zoom = 12, onSettled = () => {}) {
   if (!state.map) return;
   cancelAnimationFrame(state.animation);
   state.cameraMoving = true; clearTimeout(state.nearbyTimer); state.nearbyRequest++;
@@ -315,7 +314,7 @@ function animateMap(target, zoom = 12) {
   const fromPoint = state.map.getCenter();
   const from = fromPoint ? { lat: fromPoint.lat(), lng: fromPoint.lng() } : to;
   const fromZoom = state.map.getZoom() || 5;
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) { state.map.moveCamera({ center: to, zoom }); state.cameraMoving = false; scheduleAreaSearch(); scheduleMapSuggestions(); return; }
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) { state.map.moveCamera({ center: to, zoom }); state.cameraMoving = false; onSettled(); scheduleAreaSearch(); scheduleMapSuggestions(); return; }
   let lngDelta = to.lng - from.lng;
   if (lngDelta > 180) lngDelta -= 360;
   if (lngDelta < -180) lngDelta += 360;
@@ -326,7 +325,7 @@ function animateMap(target, zoom = 12) {
     const ease = 1 - Math.pow(1 - t, 3);
     state.map.moveCamera({ center: { lat: from.lat + (to.lat - from.lat) * ease, lng: from.lng + lngDelta * ease }, zoom: fromZoom + (zoom - fromZoom) * ease });
     if (t < 1) state.animation = requestAnimationFrame(frame);
-    else { state.cameraMoving = false; state.animation = 0; scheduleAreaSearch(); scheduleMapSuggestions(); }
+    else { state.cameraMoving = false; state.animation = 0; onSettled(); scheduleAreaSearch(); scheduleMapSuggestions(); }
   };
   state.animation = requestAnimationFrame(frame);
 }
@@ -359,30 +358,82 @@ function showMapLabel(marker, pin, entry, priority) {
   mapLabel.style.left = `${position.left}px`; mapLabel.style.top = `${position.top}px`;
 }
 
-function showMapEntry(entry) {
+function openMapCard(entry, title, content, { native = false, recenter = true, version = state.placeClickVersion } = {}) {
+  const show = () => {
+    if (version !== state.placeClickVersion) return;
+    if (!state.infoWindow) {
+      state.infoWindow = new state.maps.InfoWindow();
+      state.infoWindow.addListener('closeclick', () => { state.placeClickVersion++; scheduleAreaSearch(); scheduleMapSuggestions(); });
+    }
+    clearTimeout(state.nearbyTimer); clearTimeout(state.mapSearchTimer);
+    state.infoWindow.close();
+    state.infoWindow.setOptions({ disableAutoPan: false, maxWidth: 344, pixelOffset: new google.maps.Size(0, native ? -28 : -48), ariaLabel: title.textContent });
+    content.style.width = `${Math.max(180, Math.min(288, $('map-column').clientWidth - 64))}px`;
+    state.infoWindow.setHeaderContent(title); state.infoWindow.setContent(content); state.infoWindow.setPosition(coordinates(entry));
+    state.infoWindow.open({ map: state.map, shouldFocus: false });
+  };
+  if (recenter) animateMap(entry, 15, show); else show();
+}
+function mapCardLink(entry) {
+  const link = document.createElement('a'); link.className = 'detail-chip'; link.href = placeMapsURL(entry); link.target = '_blank'; link.rel = 'noopener noreferrer'; link.innerHTML = icon('external'); link.append(document.createTextNode('Google Maps')); return link;
+}
+function mapAddLabel() {
+  const day = daysForTrip(state.trip).includes(state.day) ? state.day : daysForTrip(state.trip)[0];
+  return day ? `Add to ${dateLabel(day)}` : 'Choose dates';
+}
+function showMapEntry(entry, options = {}) {
   hideMapLabel();
-  state.placeClickVersion++;
+  const version = ++state.placeClickVersion;
   state.activePlaceId = entry.placeId || entry.id;
-  animateMap(entry, 15);
   if (entry.planned) {
     const item = state.trip.items.find(item => item.placeId === entry.placeId && item.day === state.day) || state.trip.items.find(item => item.id === entry.id);
     if (item) { setWorkspaceView('itinerary'); itinerary.selectItem(item); }
-  } else {
-    setWorkspaceView('explore');
-    const card = [...$('nearby-results').querySelectorAll('[data-place-id]')].find(card => card.dataset.placeId === entry.placeId);
-    card?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
   document.querySelectorAll('[data-place-id]').forEach(element => element.classList.toggle('selected', element.dataset.placeId === entry.placeId));
   const content = document.createElement('div'); content.className = 'map-entry-info';
-  const title = document.createElement('strong'); title.textContent = entry.name;
-  const button = document.createElement('button'); button.type = 'button'; button.textContent = entry.planned ? 'Open plan' : 'View place';
-  button.addEventListener('click', () => entry.planned ? itinerary.openPlan(state.trip.items.find(item => item.placeId === entry.placeId && item.day === state.day) || state.trip.items.find(item => item.id === entry.id)) : openDiscovery(entry));
-  const external = document.createElement('a'); external.className = 'detail-chip'; external.href = placeMapsURL(entry); external.target = '_blank'; external.rel = 'noopener noreferrer'; external.innerHTML = icon('external'); external.append(document.createTextNode('Google Maps'));
-  const actions = document.createElement('div'); actions.className = 'map-entry-actions'; actions.append(button, external); content.append(title); const rating = googleRatingLabel(knownGoogleContent(entry)); if (rating) { const score = document.createElement('span'); score.className = 'map-entry-rating'; score.innerHTML = icon('star'); score.append(document.createTextNode(rating)); content.append(score); } content.append(actions);
-  state.infoWindow ||= new state.maps.InfoWindow({ disableAutoPan: true });
-  state.infoWindow.setContent(content);
-  state.infoWindow.setPosition(coordinates(entry));
-  state.infoWindow.open({ map: state.map, shouldFocus: false });
+  const title = document.createElement('strong'); title.className = 'map-entry-title';
+  if (entry.planned) title.textContent = entry.name;
+  else {
+    const details = document.createElement('button'); details.type = 'button'; details.className = 'map-entry-name'; details.textContent = entry.name; details.setAttribute('aria-label', `View ${entry.name} details`);
+    details.addEventListener('click', () => { state.infoWindow?.close(); openDiscovery(entry); }); title.append(details);
+  }
+  const score = document.createElement('span'); score.className = 'map-entry-rating'; score.setAttribute('role', 'status'); content.append(score);
+  const renderRating = record => {
+    score.replaceChildren(); score.removeAttribute('aria-busy');
+    const rating = googleRatingLabel(record);
+    score.classList.toggle('rating-unavailable', !rating);
+    if (rating) { score.innerHTML = icon('star'); score.append(document.createTextNode(rating)); }
+    else score.textContent = 'Rating unavailable';
+  };
+  const available = knownGoogleContent(entry);
+  if (googleRatingLabel(available)) renderRating(available);
+  else {
+    score.textContent = 'Loading rating…'; score.setAttribute('aria-busy', 'true');
+    detailedGooglePlace(available, { compact: true }).then(fresh => { if (version === state.placeClickVersion) renderRating(mergeGoogleContent(available, fresh)); }, () => { if (version === state.placeClickVersion) renderRating(available); });
+  }
+  const actions = document.createElement('div'); actions.className = 'map-entry-actions';
+  const button = document.createElement('button'); button.type = 'button'; button.textContent = entry.planned ? 'Open plan' : isTourOperator(entry) ? 'Plan a tour' : mapAddLabel();
+  button.addEventListener('click', () => {
+    if (entry.planned) { state.infoWindow?.close(); itinerary.openPlan(state.trip.items.find(item => item.placeId === entry.placeId && item.day === state.day) || state.trip.items.find(item => item.id === entry.id)); }
+    else planDiscoveredPlace(entry);
+  });
+  actions.append(button, mapCardLink(entry)); content.append(actions);
+  openMapCard(entry, title, content, { ...options, version });
+}
+function showLimitedMapEntry(placeId, point) {
+  if (!point) return;
+  const entry = { placeId, latitude: point.lat, longitude: point.lng };
+  const title = document.createElement('strong'); title.className = 'map-entry-title'; title.textContent = 'Add a place';
+  const content = document.createElement('form'); content.className = 'map-entry-info map-entry-fallback';
+  const note = document.createElement('p'); note.className = 'map-entry-note'; note.textContent = 'Google details are unavailable. You can still add this location by name.';
+  const label = document.createElement('label'); label.className = 'map-entry-field'; label.textContent = 'Place name';
+  const name = document.createElement('input'); name.type = 'text'; name.required = true; name.maxLength = 240; name.autocomplete = 'off'; label.append(name);
+  const actions = document.createElement('div'); actions.className = 'map-entry-actions';
+  const add = document.createElement('button'); add.type = 'submit'; add.textContent = mapAddLabel(); add.disabled = true;
+  name.addEventListener('input', () => { add.disabled = !name.value.trim(); });
+  content.addEventListener('submit', event => { event.preventDefault(); if (name.value.trim()) addToDay({ ...entry, name: name.value.trim() }); });
+  actions.append(add, mapCardLink(entry)); content.append(note, label, actions);
+  openMapCard(entry, title, content, { native: true, recenter: false });
 }
 
 function drawMarkers() {
@@ -418,27 +469,27 @@ function currentSearchArea() {
 }
 function scheduleAreaSearch() {
   clearTimeout(state.nearbyTimer);
-  if (!state.trip || state.workspaceView !== 'explore' || state.cameraMoving || $('place-dialog').open || $('plan-dialog').open) return;
+  if (!state.trip || state.workspaceView !== 'explore' || state.cameraMoving || state.infoWindow?.isOpen || $('place-dialog').open || $('plan-dialog').open) return;
   const area = currentSearchArea();
   if (!area || `${state.nearbyCategory}:${area.key}` === state.nearbyAreaKey) return;
-  state.nearbyTimer = setTimeout(() => exploreNearby(state.nearbyCategory), 900);
+  state.nearbyTimer = setTimeout(() => exploreNearby(state.nearbyCategory), 1400);
 }
 function clearMapSearch() {
   searchAreaTracker.reset(); clearTimeout(state.mapSearchTimer); state.mapSearchVersion++; state.mapAreaKey = null; state.mapSuggestions = []; state.placeClickVersion++;
 }
 function scheduleMapSuggestions() {
   clearTimeout(state.mapSearchTimer);
-  if (!state.trip || !state.places || !state.map || state.cameraMoving || state.workspaceView === 'transportation' || $('place-dialog').open || $('plan-dialog').open) return;
+  if (!state.trip || !state.places || !state.map || state.cameraMoving || state.workspaceView !== 'itinerary' || state.infoWindow?.isOpen || $('place-dialog').open || $('plan-dialog').open) return;
   const area = currentSearchArea();
   if (!area || state.mapAreaKey === `${state.trip.id}:${area.key}`) return;
-  state.mapSearchTimer = setTimeout(() => updateMapSuggestions(area), 1100);
+  state.mapSearchTimer = setTimeout(() => updateMapSuggestions(area), 1400);
 }
 async function updateMapSuggestions(area, force = false) {
   const tripId = state.trip?.id, version = ++state.mapSearchVersion;
   if (!tripId || state.cameraMoving) return;
   state.mapAreaKey = `${tripId}:${area.key}`;
   try {
-    const places = await placeSearch.search('mixed', area, { force });
+    const places = await placeSearch.search('mixed', area, { force, isCurrent: () => version === state.mapSearchVersion && state.workspaceView === 'itinerary' && state.trip?.id === tripId });
     if (version !== state.mapSearchVersion || state.trip?.id !== tripId || currentSearchArea()?.key !== area.key) return;
     state.mapSuggestions = mixedMapPlaces(places); drawMarkers();
   } catch { /* Keep itinerary markers and Google's native places available. */ }
@@ -451,7 +502,7 @@ function renderSearchFailure(error, category) {
   container.append(note, link);
 }
 async function exploreNearby(category, { force = false } = {}) {
-  if (!state.trip || !nearbyTypes[category]) return;
+  if (!state.trip || state.workspaceView !== 'explore' || !nearbyTypes[category]) return;
   clearTimeout(state.nearbyTimer);
   const changed = state.nearbyCategory !== category;
   state.nearbyCategory = category; state.pendingNearby = null;
@@ -468,9 +519,10 @@ async function exploreNearby(category, { force = false } = {}) {
   if (!container.childNodes.length) container.textContent = 'Finding places…';
   $('search-map-area').hidden = false; $('search-map-area').disabled = true; $('search-map-area').textContent = 'Updating…';
   try {
-    const places = await placeSearch.search(category, area, { force });
+    const places = await placeSearch.search(category, area, { force, isCurrent: () => selection.current(ticket) && state.workspaceView === 'explore' });
     if (!selection.current(ticket) || requestId !== state.nearbyRequest || ticket.tripId !== state.trip?.id || category !== state.nearbyCategory) return;
     state.suggestions = places; container.dataset.areaKey = area.key;
+    state.mapSuggestions = mixedMapPlaces([...state.mapSuggestions.filter(place => inSearchArea(area, coordinates(place))), ...places]);
     renderRecommendations(); drawMarkers(); $('search-map-area').hidden = true;
   } catch (error) {
     if (!selection.current(ticket) || requestId !== state.nearbyRequest || ticket.tripId !== state.trip?.id) return;
@@ -483,7 +535,7 @@ async function exploreNearby(category, { force = false } = {}) {
 function addToDay(place) {
   if (!state.trip) return;
   const days = daysForTrip(state.trip);
-  if (!days.length) { $('place-dialog').close(); openCalendar(); $('save-dates').focus({ preventScroll: true }); status('trip-status', 'Choose a day for your trip first.'); return; }
+  if (!days.length) { state.infoWindow?.close(); $('place-dialog').close(); openCalendar(); $('save-dates').focus({ preventScroll: true }); status('trip-status', 'Choose a day for your trip first.'); return; }
   if (!days.includes(state.day)) state.day = days[0];
   // Live Google content stays in memory; only itinerary choices and the place ID are saved.
   const item = { placeId: place.placeId, name: place.name, address: place.address, latitude: place.latitude, longitude: place.longitude, day: state.day, timeZone: state.selected?.timeZone || state.trip.timeZone, kind: place.primaryType === 'hotel' ? 'Stay' : ['restaurant', 'cafe', 'bakery'].includes(place.primaryType) ? 'Food' : 'Activity' };
@@ -503,14 +555,8 @@ const lookupGooglePhotos = createPhotoLookup(async (id, record) => {
       if (place.photos?.length) return place.photos;
     } catch (error) { if (quotaFailure(error)) state.photoCooldownUntil = quotaMemory.block('photo-details'); }
   }
-  // Photos-only requests have their own availability. A failed richer details
-  // request must not stop a working photo request or exact-place search.
-  const known = placeSearch.find(id) || record || state.trip?.items?.find(item => item.placeId === id);
-  if (!known?.name || Date.now() < state.photoSearchCooldownUntil) return [];
-  try {
-    const { places } = await boundedPlaceRequest(() => state.places.Place.searchByText({ fields: ['id', 'photos', 'location'], textQuery: known.name, language: 'en', maxResultCount: 20, ...(mappedPlace(known) ? { locationBias: { center: coordinates(known), radius: 1000 } } : {}) }), 4500);
-    return places?.find(place => place.id === id)?.photos || [];
-  } catch (error) { if (quotaFailure(error)) state.photoSearchCooldownUntil = quotaMemory.block('photo-text'); return []; }
+  return [];
+
 }, { limit: 2, timeoutMs: 10000 });
 
 function loadPhotoImage(src) {
@@ -522,26 +568,27 @@ function loadPhotoImage(src) {
     image.src = src;
   });
 }
+const displayedPhotos = createPhotoDisplayCache((record, width, destination) => resolvePlacePhoto(record, { width, lookup: lookupGooglePhotos, load: loadPhotoImage, fallback: async (place, size) => {
+    const key = `${place.placeId}:photo:${size}:${destination}`;
+    const cached = state.imageCache.get(key);
+    if (!cached || cached.expires < Date.now()) state.imageCache.set(key, { expires: Date.now() + 60000, promise: wikimediaImage(place, size, destination).catch(() => null) });
+    return state.imageCache.get(key).promise;
+  } }));
+
 async function showPlacePhoto(container, record, className = 'detail-photo') {
   const request = crypto.randomUUID(); container.dataset.photoRequest = request;
   const width = className === 'detail-photo' ? 900 : 420;
-  const source = await resolvePlacePhoto(record, { width, lookup: lookupGooglePhotos, load: loadPhotoImage, fallback: async (place, size) => {
-    const key = `${place.placeId}:photo:${size}`;
-    const cached = state.imageCache.get(key);
-    if (!cached || cached.expires < Date.now()) state.imageCache.set(key, { expires: Date.now() + 60000, promise: wikimediaImage(place, size).catch(() => null) });
-    return state.imageCache.get(key).promise;
-  } });
+  const source = await displayedPhotos(record, width);
   if (!source || !container.isConnected || container.dataset.photoRequest !== request || container.dataset.photoPlace !== record.placeId) return;
-  const image = source.image; image.alt = record.name;
-  const credit = document.createElement(className === 'detail-photo' ? 'figcaption' : 'span');
-  if (source.googlePhoto) photoCredits(credit, source.googlePhoto); else wikimediaCredits(credit, source);
+  const image = source.image.cloneNode(true); image.alt = record.name;
   if (className === 'detail-photo') {
+    const credit = document.createElement('figcaption');
+    if (source.googlePhoto) photoCredits(credit, source.googlePhoto); else wikimediaCredits(credit, source);
     const figure = document.createElement('figure'); figure.className = className; figure.append(image, credit);
     const existing = container.querySelector('.detail-photo'); if (existing) existing.replaceWith(figure); else container.prepend(figure);
   } else {
     container.replaceChildren(image);
-    const row = container.closest('.recommendation-card'); row?.querySelector('.photo-credit')?.remove();
-    credit.className = 'photo-credit'; if (!credit.hidden) row?.append(credit);
+    // Credits stay with the full photo in the opened place details.
   }
 }
 const photoObserver = new IntersectionObserver(entries => {
@@ -580,47 +627,29 @@ function renderRecommendations() {
 }
 
 function notePlaceQuota(error) {
-  if (quotaFailure(error)) { state.detailCooldownUntil = quotaMemory.block('details'); return true; }
+  if (quotaFailure(error)) { state.detailCooldownUntil = quotaMemory.block('selection-details'); return true; }
   return false;
 }
 const placeDetails = createPlaceDetails({
   fetch: async (id, fields) => {
     if (!state.places?.Place) throw new Error('Google Maps unavailable');
     const place = new state.places.Place({ id, requestedLanguage: 'en' });
-    try { await place.fetchFields({ fields }); }
-    catch (error) { notePlaceQuota(error); throw error; }
+    await place.fetchFields({ fields });
     return place;
   },
   text: request => state.places.Place.searchByText(request), record: googlePlaceRecord,
   quotaMemory, cache: state.detailCache,
 });
-const detailedGooglePlace = record => placeDetails.load(record);
+const detailedGooglePlace = (record, options) => placeDetails.load(record, options);
 
 async function tourOperatorContacts(record) {
-  const available = placeSearch.find(record.placeId) || state.suggestions.find(place => place.placeId === record.placeId) || record;
+  const available = knownGoogleContent(record);
   if (available.websiteURI || available.internationalPhoneNumber) return available;
-  if (!state.places?.Place) return null;
-  if (state.operatorCache.has(record.placeId)) return state.operatorCache.get(record.placeId);
-  const fields = ['id', 'displayName', 'formattedAddress', 'location', 'primaryType', 'types', 'primaryTypeDisplayName', 'rating', 'userRatingCount', 'websiteURI', 'internationalPhoneNumber', 'businessStatus'];
-  const request = (async () => {
-    if (mappedPlace(record)) {
-      try {
-        const { places } = await state.places.Place.searchNearby({ fields, locationRestriction: { center: coordinates(record), radius: 100 }, includedPrimaryTypes: ['tour_agency'], maxResultCount: 20, language: 'en' });
-        const match = places?.find(place => place.id === record.placeId);
-        if (match) return googlePlaceRecord(match);
-      } catch { /* Exact text search below also supports older saved outings. */ }
-    }
-    const { places } = await state.places.Place.searchByText({ fields, textQuery: record.name, includedType: 'tour_agency', useStrictTypeFiltering: true, maxResultCount: 20, language: 'en', ...(mappedPlace(record) ? { locationBias: { center: coordinates(record), radius: 1000 } } : {}) });
-    // Never substitute a similarly named business for the saved guide.
-    const match = places?.find(place => place.id === record.placeId); return match ? googlePlaceRecord(match) : null;
-  })();
-  state.operatorCache.set(record.placeId, request);
-  if (state.operatorCache.size > 100) state.operatorCache.delete(state.operatorCache.keys().next().value);
-  try { return await request; } catch { state.operatorCache.delete(record.placeId); return null; }
+  return detailedGooglePlace(record, { contactOnly: true });
 }
 
 function knownGoogleContent(record) {
-  return mergeGoogleContent(record, placeSearch.find(record.placeId) || state.suggestions.find(place => place.placeId === record.placeId));
+  return mergeGoogleContent(mergeGoogleContent(record, placeSearch.find(record.placeId) || state.suggestions.find(place => place.placeId === record.placeId) || state.mapSuggestions.find(place => place.placeId === record.placeId)), placeDetails.peek(record.placeId));
 }
 function renderPlaceContent(container, record, { contactOnly = false, compact = false } = {}) {
   const photo = container.querySelector('.detail-photo'); container.replaceChildren();
@@ -676,23 +705,29 @@ async function hydratePlace(container, record, { contactOnly = false, compact = 
   const request = crypto.randomUUID(); container.dataset.request = request; container.dataset.photoPlace = record.placeId;
   let available = knownGoogleContent(record);
   renderPlaceContent(container, available, { contactOnly, compact });
-  // A timeline rating uses already loaded data; opening a place loads its details.
-  if (compact) return;
-  if (!visible && container.classList.contains('day-card-details')) {
-    pendingDayDetails.set(container, () => { if (container.isConnected && container.dataset.request === request) hydratePlace(container, record, { contactOnly, visible: true }); });
+  if (compact && googleRatingLabel(available)) { container.setAttribute('aria-busy', 'false'); return; }
+  if (compact) container.setAttribute('aria-busy', 'true');
+  if (!visible && (compact || container.classList.contains('day-card-details'))) {
+    pendingDayDetails.set(container, () => { if (container.isConnected && container.dataset.request === request) hydratePlace(container, record, { contactOnly, compact, visible: true }); });
     dayDetailObserver.observe(container); return;
   }
   try {
     if (!state.places) await boundedPlaceRequest(() => mapsReady);
     if (!container.isConnected || container.dataset.request !== request) return;
     const operator = contactOnly ? await tourOperatorContacts(record) : null;
-    const fresh = operator || await detailedGooglePlace(available);
+    const fresh = operator || await detailedGooglePlace(available, { compact });
+    // Publish to every mounted timeline occurrence, including other days.
+    for (const rating of document.querySelectorAll('.timeline-rating')) if (rating.dataset.photoPlace === record.placeId) {
+      renderPlaceContent(rating, mergeGoogleContent(record, fresh), { compact: true }); rating.setAttribute('aria-busy', 'false');
+    }
     if (!container.isConnected || container.dataset.request !== request) return;
     available = mergeGoogleContent(available, fresh);
     renderPlaceContent(container, available, { contactOnly, compact });
-    if (!contactOnly) showPlacePhoto(container, available).catch(() => {});
+    container.setAttribute('aria-busy', 'false');
+    if (!contactOnly && !compact) showPlacePhoto(container, available).catch(() => {});
   } catch (error) {
-    if (!contactOnly && container.isConnected && container.dataset.request === request) showPlacePhoto(container, available).catch(() => {});
+    container.setAttribute('aria-busy', 'false');
+    if (!compact && !contactOnly && container.isConnected && container.dataset.request === request) showPlacePhoto(container, available).catch(() => {});
     if (!compact && !contactOnly && !googlePlaceSummary(available).text && container.isConnected && container.dataset.request === request) {
       const message = document.createElement('p'); message.className = 'place-details-status'; message.setAttribute('role', 'status');
       message.textContent = error?.message === 'PLACE_DETAILS_QUOTA' ? 'Google’s daily place-detail limit has been reached.' : 'Google place details could not load. Reopen to try again.';
@@ -717,13 +752,14 @@ function openDiscovery(place) {
   $('place-dialog').showModal(); hydratePlace($('discovery-place-details'), place); syncDiscovery();
 }
 function planDiscoveredPlace(place) {
+  state.infoWindow?.close();
   if (isTourOperator(place)) {
     if (!daysForTrip(state.trip).length) { $('place-dialog').close(); openCalendar(); return; }
     $('place-dialog').close(); itinerary.openTour(place);
   } else { addToDay(place); syncDiscovery(); }
 }
 $('add-discovery-place').addEventListener('click', () => planDiscoveredPlace(state.discoveryPlace));
-$('search-map-area').addEventListener('click', () => { setWorkspaceView('explore'); exploreNearby(state.nearbyCategory, { force: true }); const area = currentSearchArea(); if (area) updateMapSuggestions(area, true); });
+$('search-map-area').addEventListener('click', () => { setWorkspaceView('explore'); exploreNearby(state.nearbyCategory, { force: true }); });
 for (const id of ['place-dialog', 'plan-dialog']) $(id).addEventListener('close', () => { scheduleAreaSearch(); scheduleMapSuggestions(); });
 
 function updateMapLink() {
@@ -763,28 +799,18 @@ function showMap(place, fly = false) {
       const clickVersion = ++state.placeClickVersion, tripId = state.trip?.id;
       const item = state.trip?.items?.find(item => item.placeId === event.placeId && item.day === state.day) || state.trip?.items?.find(item => item.placeId === event.placeId);
       const known = item || placeSearch.find(event.placeId) || state.suggestions.find(place => place.placeId === event.placeId);
-      const open = record => {
-        if (clickVersion !== state.placeClickVersion || tripId !== state.trip?.id) return;
-        status('trip-status');
-        if (item) { setWorkspaceView('itinerary'); itinerary.selectItem(item); itinerary.openPlan(item); }
-        else openDiscovery(record);
-      };
-      if (known) { event.stop(); state.infoWindow?.close(); open(known); return; }
-      // Keep Google's own place popup working while optional app details load.
-      // Never suppress it and replace it with a quota-error toast.
-      state.infoWindow?.close(); status('trip-status');
+      if (known) { event.stop(); state.infoWindow?.close(); showMapEntry({ ...known, planned: Boolean(item) }, { native: true, recenter: false }); return; }
+      event.stop(); state.infoWindow?.close(); status('trip-status');
       const point = event.latLng?.toJSON();
-      let match; try { match = await placeSearch.findAt(event.placeId, point); } catch { /* Details may still be available. */ }
-      if (clickVersion !== state.placeClickVersion || tripId !== state.trip?.id) return;
-      if (match) { open(match); return; }
-      try { open(await detailedGooglePlace({ placeId: event.placeId })); }
+      let match;
+      try { match = await detailedGooglePlace({ placeId: event.placeId }); }
       catch {
-        if (clickVersion !== state.placeClickVersion || tripId !== state.trip?.id) return;
-        if (!point) return;
-        const content = document.createElement('div'); content.className = 'map-entry-info';
-        const link = document.createElement('a'); link.className = 'detail-chip'; link.href = placeMapsURL({ placeId: event.placeId, latitude: point.lat, longitude: point.lng }); link.target = '_blank'; link.rel = 'noopener noreferrer'; link.innerHTML = icon('external'); link.append(document.createTextNode('View in Google Maps')); content.append(link);
-        state.infoWindow ||= new state.maps.InfoWindow({ disableAutoPan: true }); state.infoWindow.setContent(content); state.infoWindow.setPosition(point); state.infoWindow.open({ map: state.map, shouldFocus: false });
+        try { match = await detailedGooglePlace({ placeId: event.placeId }, { identityOnly: true }); }
+        catch { try { match = await placeSearch.findAt(event.placeId, point); } catch { /* Keep adding available when Google cannot return details. */ } }
       }
+      if (clickVersion !== state.placeClickVersion || tripId !== state.trip?.id) return;
+      if (match) showMapEntry({ ...match, planned: false }, { native: true, recenter: false });
+      else showLimitedMapEntry(event.placeId, point);
     });
   }
   // The map container was hidden on the start screen; allow layout to settle before moving its camera.
@@ -814,6 +840,7 @@ function syncSuggestionCards() {
 function setupAutocomplete(inputId, listId, onSelect, biasToTrip = false) {
   const input = $(inputId), list = $(listId);
   let timer, requestId = 0, token = null;
+  const predictions = new Map(); let autocompleteBlockedUntil = 0;
   const hide = () => { list.hidden = true; list.replaceChildren(); input.setAttribute('aria-expanded', 'false'); };
   async function search(query, id) {
     if (!state.places) { status(inputId === 'destination' ? 'home-status' : 'trip-status', 'Search is unavailable right now.'); return; }
@@ -822,7 +849,14 @@ function setupAutocomplete(inputId, listId, onSelect, biasToTrip = false) {
       const request = { input: query, sessionToken: token, language: 'en' };
       if (inputId === 'destination' || inputId === 'stop-search') request.includedPrimaryTypes = ['(regions)'];
       if (biasToTrip && state.trip) request.locationBias = { center: coordinates(state.selected || state.trip), radius: 50000 };
-      const { suggestions } = await state.places.AutocompleteSuggestion.fetchAutocompleteSuggestions(request);
+      if (Date.now() < autocompleteBlockedUntil) { hide(); return; }
+      const key = `${state.selected?.placeId || ''}:${query.toLocaleLowerCase()}`;
+      if (!predictions.has(key)) {
+        const pending = state.places.AutocompleteSuggestion.fetchAutocompleteSuggestions(request).catch(error => { predictions.delete(key); if (quotaFailure(error)) autocompleteBlockedUntil = Date.now() + 60000; throw error; });
+        predictions.set(key, pending);
+        if (predictions.size > 30) predictions.delete(predictions.keys().next().value);
+      }
+      const { suggestions } = await predictions.get(key);
       if (id !== requestId || input.value.trim() !== query) return;
       list.replaceChildren();
       for (const suggestion of suggestions || []) {
@@ -836,7 +870,7 @@ function setupAutocomplete(inputId, listId, onSelect, biasToTrip = false) {
           hide();
           try {
             let selected;
-            const known = [...(state.trip?.items || []), ...state.suggestions].find(place => place.placeId === prediction.placeId && mappedPlace(place));
+            const known = placeSearch.find(prediction.placeId) || [...(state.trip?.items || []), ...state.suggestions, ...state.mapSuggestions].find(place => place.placeId === prediction.placeId && mappedPlace(place));
             if (known) selected = { placeId: known.placeId, name: known.name, address: known.address || '', latitude: known.latitude, longitude: known.longitude, ...(known.primaryType ? { primaryType: known.primaryType, tourOperator: known.tourOperator } : {}) };
             else try {
               if (Date.now() < state.detailCooldownUntil) throw new Error('PLACE_DETAILS_QUOTA');
@@ -860,7 +894,7 @@ function setupAutocomplete(inputId, listId, onSelect, biasToTrip = false) {
               selected = { placeId: result.place_id, name: prediction.mainText?.toString() || result.formatted_address, address: result.formatted_address, latitude: result.geometry.location.lat(), longitude: result.geometry.location.lng() };
               }
             }
-            input.value = ['departure-search', 'arrival-search'].includes(inputId) ? selected.name : ''; token = null;
+            input.value = ['departure-search', 'arrival-search'].includes(inputId) ? selected.name : ''; token = null; predictions.clear();
             await onSelect(selected);
             status(inputId === 'destination' ? 'home-status' : 'trip-status');
           } catch (error) {
@@ -878,7 +912,7 @@ function setupAutocomplete(inputId, listId, onSelect, biasToTrip = false) {
   input.addEventListener('input', () => {
     clearTimeout(timer); const query = input.value.trim(); const id = ++requestId;
     if (query.length < 2) { hide(); return; }
-    timer = setTimeout(() => search(query, id), 300);
+    timer = setTimeout(() => search(query, id), 450);
   });
   input.addEventListener('keydown', event => {
     if (event.key === 'Escape') hide();
@@ -907,9 +941,10 @@ function setWorkspaceView(view) {
   for (const button of document.querySelectorAll('[data-workspace-view]')) button.setAttribute('aria-pressed', String(button.dataset.workspaceView === view));
   if (view !== 'transportation' && state.map) requestAnimationFrame(() => google.maps.event.trigger(state.map, 'resize'));
   renderPlan();
-  if (view !== 'transportation') scheduleMapSuggestions();
+  if (view === 'itinerary') scheduleMapSuggestions();
+  else { clearTimeout(state.mapSearchTimer); state.mapSearchVersion++; state.mapAreaKey = null; }
   if (view === 'explore') scheduleAreaSearch();
-  else { clearTimeout(state.nearbyTimer); state.nearbyRequest++; state.nearbyAreaKey = null; $('search-map-area').hidden = true; $('nearby-results').setAttribute('aria-busy', 'false'); }
+  else { clearTimeout(state.nearbyTimer); selection.invalidate(); state.nearbyRequest++; state.nearbyAreaKey = null; $('search-map-area').hidden = true; $('nearby-results').setAttribute('aria-busy', 'false'); }
   const panel = view === 'explore' ? $('discover-panel') : view === 'transportation' ? $('transport-panel') : $('plan-panel');
   revealSequence([...panel.children].filter(child => !child.hidden), { step: 35 });
 }
@@ -940,7 +975,10 @@ const itinerary = createItineraryUI({ state, commit: commitTrip,
   onModeChange: mode => { if ($('plan-controls').dataset.mode === mode) return; $('plan-controls').dataset.mode = mode; if (state.map) requestAnimationFrame(() => google.maps.event.trigger(state.map, 'resize')); },
   chooseDates: () => { $('edit-date-picker').hidden = true; openCalendar(); $('save-dates').focus({ preventScroll: true }); },
   focusPlace: place => { animateMap(place, 15); document.querySelectorAll('[data-place-id]').forEach(element => element.classList.toggle('selected', element.dataset.placeId === place.placeId)); }, hydratePlace, icon });
-enhanceDropdowns();
+enhanceTimePickers(); enhanceDropdowns(); enhanceDisclosures();
+new MutationObserver(records => {
+  for (const record of records) for (const added of record.addedNodes) if (added.nodeType === 1 && !added.closest('.gm-style, .day-transition-snapshot')) enhanceDisclosures(added);
+}).observe(document.body, { childList: true, subtree: true });
 for (const button of document.querySelectorAll('[data-workspace-view]')) button.addEventListener('click', () => setWorkspaceView(button.dataset.workspaceView));
 for (const leg of ['departure', 'arrival']) {
   $(`${leg}-search`).addEventListener('input', event => { delete event.target.dataset.placeId; });
@@ -951,7 +989,7 @@ for (const leg of ['departure', 'arrival']) {
   form.dataset.pendingZones = String(Number(form.dataset.pendingZones || 0) + 1); form.querySelector('[type="submit"]').disabled = true;
   try {
     const timeZone = await placeZone(place);
-    if (version === form.dataset.version && timeZone && form.elements[`${leg}_location`].dataset.placeId === selectedPlaceId && form.elements[`${leg}_time_zone`].value === previousZone) form.elements[`${leg}_time_zone`].value = timeZone;
+    if (version === form.dataset.version && timeZone && form.elements[`${leg}_location`].dataset.placeId === selectedPlaceId && form.elements[`${leg}_time_zone`].value === previousZone) { form.elements[`${leg}_time_zone`].value = timeZone; refreshDropdowns(form); }
   } catch { /* Keep the editable time zone. */ }
   finally { if (version === form.dataset.version) { form.dataset.pendingZones = String(Math.max(0, Number(form.dataset.pendingZones) - 1)); form.querySelector('[type="submit"]').disabled = Number(form.dataset.pendingZones) > 0; } }
   });
@@ -1046,6 +1084,14 @@ function moveCalendarMonth(delta) {
 $('previous-month').addEventListener('click', () => moveCalendarMonth(-1));
 $('next-month').addEventListener('click', () => moveCalendarMonth(1));
 $('trip-menu-button').addEventListener('click', () => { $('trip-menu').hidden = !$('trip-menu').hidden; $('delete-trip').textContent = 'Delete trip'; $('delete-trip').dataset.confirm = 'false'; });
+$('export-calendar').addEventListener('click', () => {
+  try {
+    downloadTripCalendar(state.trip);
+    $('trip-menu').hidden = true;
+    $('trip-menu-button').focus({ preventScroll: true });
+    status('trip-status', 'Calendar downloaded. Import it into your calendar; later trip edits need a new export.');
+  } catch (error) { status('trip-status', error.message); }
+});
 document.querySelectorAll('[data-nearby]').forEach(button => button.addEventListener('click', () => exploreNearby(button.dataset.nearby)));
 $('delete-trip').addEventListener('click', event => {
   if (!state.trip) return;
