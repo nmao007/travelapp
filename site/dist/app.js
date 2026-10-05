@@ -1,10 +1,11 @@
+import { phoneMediaQuery, phoneViewport } from './phone-devices.js';
 import { placeMapsURL, mapViewURL, directionsMapsURL } from './maps-links.js';
 import { createPlaceSearch, createPlaceDetails, placeSearchGroups, mixedMapPlaces, createQuotaMemory, placeIcon, createSearchSelection, quotaFailure, boundedPlaceRequest } from './place-search.js';
 import { isTourOperator } from './tour-model.js';
 import { playMotion, revealSequence, reducedMotion } from './motion.js';
 import { createTripBanner } from './trip-banner.js';
 import { readTrips, saveTrip, deleteTrip, addPlace, removePlace, movePlace, addStop, moveStop, removeStop, tripStops, stopSchedule, datesForStop, setStopDates, tripTitle, renameTrip, currentAccount, createAccount, signIn, signOut, restoreSession, loadCloudTrips } from './trip-store.js';
-import { calendarMonth, presetRange, rangeLength, selectDateRange } from './date-range.js';
+import { calendarMonth, presetRange, rangeLength } from './date-range.js';
 import { datesForTrip, eventsForDay, mappedPlace, fixedItem } from './itinerary-model.js';
 import { createDayRoutes } from './day-routes.js';
 import { createItineraryUI } from './itinerary-ui.js';
@@ -17,10 +18,19 @@ import { createTransientNotice } from './notices.js';
 import { enhanceTimePickers } from './time-picker.js';
 import { enhanceDisclosures } from './expansion.js';
 import { enablePhoneTouch } from './phone-touch.js';
+import { calendarStops, calendarStopOnDay, renderCalendarStops } from './calendar-stops.js';
 
 
 const $ = id => document.getElementById(id);
 enablePhoneTouch(document);
+const phoneHeaderLayout = matchMedia(phoneMediaQuery);
+// Credits open outside the photo strip so the narrow header cannot clip them.
+function positionHeroCredits() {
+  if (phoneHeaderLayout.matches) $('trip-masthead').append($('hero-photo-credits'));
+  else $('hero-credits-toggle').after($('hero-photo-credits'));
+}
+positionHeroCredits();
+phoneHeaderLayout.addEventListener('change', positionHeroCredits);
 const icon = name => `<svg class="icon" aria-hidden="true"><use href="#i-${name}"/></svg>`;
 let resolveMapsReady;
 const mapsReady = new Promise(resolve => { resolveMapsReady = resolve; });
@@ -179,9 +189,17 @@ function renderRoute() {
   if (activeCard && activeCard.offsetLeft + activeCard.offsetWidth > list.scrollLeft + list.clientWidth) list.scrollLeft = activeCard.offsetLeft + activeCard.offsetWidth - list.clientWidth;
   if (activeCard && activeCard.offsetLeft < list.scrollLeft) list.scrollLeft = activeCard.offsetLeft;
   if (focusedStop && !list.hidden) Array.from(list.querySelectorAll('button')).find(button => button.dataset.stopId === focusedStop)?.focus({ preventScroll:true });
-  $('edit-route').hidden = entries.length < 2;
-  $('edit-route').innerHTML = icon('calendar'); $('edit-route').setAttribute('aria-label', `Edit ${state.selected?.name || entries[0].stop.name} stop dates`);
-  refreshDropdowns(list);
+  const destinationPicker = $('mobile-stop-selector');
+  const options = [new Option('All stops', 'all')];
+  options[0].label = `All stops\n${entries.length} destinations`;
+  for (const entry of entries) {
+    const option = new Option(entry.stop.name, entry.stop.placeId);
+    option.label = `${entry.stop.name}\n${stopRangeLabel(entry)}`;
+    options.push(option);
+  }
+  destinationPicker.replaceChildren(...options);
+  destinationPicker.value = state.stopFilter || 'all';
+  refreshDropdowns(destinationPicker);
 }
 
 function selectStop(stop, syncDay = true) {
@@ -230,7 +248,7 @@ function showWorkspace(place, trip = null) {
   $('map-caption').textContent = place.name;
   $('trip-dates').textContent = tripDateLabel(trip);
   $('trip-menu').hidden = true;
-  $('edit-date-picker').hidden = true;
+  $('edit-date-picker').close();
   $('route-search').close();
   state.routeEditing = false; state.stopFilter = null;
   status('trip-status');
@@ -300,9 +318,10 @@ const destinationPhoto = destination => displayedPhotos(destination, 1200, true)
 
 async function loadDestinationPhoto() {
   if (!state.trip) return;
-  const gallery = $('hero-gallery'), stops = tripStops(state.trip), route = stops.map(stop => stop.placeId).join('|');
+  // The first destination supplies one continuous cover, independent of the active stop.
+  const gallery = $('hero-gallery'), stops = tripStops(state.trip).slice(0, 1), route = `${state.trip.id}:${stops[0].placeId}`;
   if (gallery.dataset.route === route && gallery.childNodes.length) return;
-  gallery.dataset.route = route; gallery.replaceChildren(); $('hero-photo-credits').replaceChildren(); $('hero-credits-toggle').hidden = true; $('hero-photo-credits').hidden = true; $('hero-credits-toggle').setAttribute('aria-expanded', 'false');
+  gallery.dataset.route = route; gallery.replaceChildren(); $('hero-photo-credits').replaceChildren(); $('hero-credits-toggle').hidden = true; $('menu-photo-credits').hidden = true; $('hero-photo-credits').hidden = true; $('hero-credits-toggle').setAttribute('aria-expanded', 'false');
   for (const [index, stop] of stops.entries()) {
     const segment = document.createElement('figure'); segment.className = 'hero-segment';
     segment.style.setProperty('--segment-delay', `${Math.min(index * 90, 360)}ms`);
@@ -314,7 +333,7 @@ async function loadDestinationPhoto() {
       image.onload = () => { image.hidden = false; }; image.onerror = () => { image.hidden = true; };
       image.src = source.src;
       if (source.googlePhoto) { credit.dataset.google = 'true'; photoCredits(credit, source.googlePhoto); } else wikimediaCredits(credit, source);
-      if (!credit.hidden) { const group = document.createElement('div'), title = document.createElement('strong'); title.textContent = stop.name; group.append(title, ...Array.from(credit.childNodes, node => node.cloneNode(true))); $('hero-photo-credits').append(group); $('hero-credits-toggle').hidden = false; }
+      if (!credit.hidden) { const group = document.createElement('div'), title = document.createElement('strong'); title.textContent = stop.name; group.append(title, ...Array.from(credit.childNodes, node => node.cloneNode(true))); $('hero-photo-credits').append(group); $('hero-credits-toggle').hidden = false; $('menu-photo-credits').hidden = false; }
     });
   }
 }
@@ -407,7 +426,7 @@ function showMapEntry(entry, options = {}) {
   if (entry.planned) {
     const item = state.trip.items.find(item => item.placeId === entry.placeId && item.day === state.day) || state.trip.items.find(item => item.id === entry.id);
     if (item) {
-      const keepMobileMap = matchMedia('(max-width:580px)').matches && $('plan-controls').dataset.mobileSurface === 'map';
+      const keepMobileMap = matchMedia(phoneMediaQuery).matches && $('plan-controls').dataset.mobileSurface === 'map';
       setWorkspaceView('itinerary', { keepMobileMap }); itinerary.selectItem(item);
     }
   }
@@ -719,9 +738,10 @@ function renderPlaceContent(container, record, { contactOnly = false, compact = 
   const links = document.createElement('div'); links.className = 'place-links';
   for (const [label, url] of [['Website', record.websiteURI], ['Google Maps', placeMapsURL(record)], ...(!contactOnly ? [['Directions', directionsMapsURL(record)]] : []), [record.internationalPhoneNumber, record.internationalPhoneNumber ? `tel:${record.internationalPhoneNumber}` : null]]) {
     if (!url || !label || !/^(https?:|tel:)/i.test(url)) continue;
-    const link = document.createElement('a'); link.innerHTML = icon(url.startsWith('tel:') ? 'phone' : label === 'Directions' ? 'directions' : 'external'); link.append(document.createTextNode(label)); link.href = url; link.className = 'detail-chip'; if (!url.startsWith('tel:')) { link.target = '_blank'; link.rel = 'noopener noreferrer'; } links.append(link);
+    const link = document.createElement('a'); link.innerHTML = icon(url.startsWith('tel:') ? 'phone' : label === 'Directions' ? 'directions' : label === 'Google Maps' ? 'map' : 'external'); const text = document.createElement('span'); text.textContent = label; link.append(text); link.setAttribute('aria-label', label); link.title = label; link.href = url; link.className = 'detail-chip'; if (!url.startsWith('tel:')) { link.target = '_blank'; link.rel = 'noopener noreferrer'; } links.append(link);
   }
-  container.append(links);
+  const dayLinks = container.closest('.day-place-card')?.querySelector('.day-card-links');
+  if (dayLinks) dayLinks.replaceChildren(links); else container.append(links);
   const features = document.createElement('div'); features.className = 'place-features';
   if (record.priceLevel) { const price = document.createElement('span'); price.textContent = String(record.priceLevel).replaceAll('_', ' ').toLowerCase(); features.append(price); }
   if (record.accessibilityOptions?.hasWheelchairAccessibleEntrance === true) { const accessible = document.createElement('span'); accessible.textContent = 'Step-free entrance'; features.append(accessible); }
@@ -890,7 +910,7 @@ function showMap(place, fly = false) {
   });
 }
 
-function renderPlan() { renderRoute(); updateTripTitle(); $('trip-heading').setAttribute('aria-label', tripTitle(state.trip)); itinerary.render(); syncSuggestionCards(); }
+function renderPlan() { $('trip-dates').textContent = tripDateLabel(state.trip); renderRoute(); updateTripTitle(); $('trip-heading').setAttribute('aria-label', tripTitle(state.trip)); itinerary.render(); syncSuggestionCards(); }
 
 function syncSuggestionCards() {
   for (const card of $('nearby-results').querySelectorAll('.recommendation-card')) {
@@ -1028,10 +1048,12 @@ function setWorkspaceView(view, { keepMobileMap = false } = {}) {
   if (view === 'explore') scheduleAreaSearch();
   else { clearTimeout(state.nearbyTimer); selection.invalidate(); state.nearbyRequest++; state.nearbyAreaKey = null; $('search-map-area').hidden = true; $('nearby-results').setAttribute('aria-busy', 'false'); }
   const panel = view === 'explore' ? $('discover-panel') : view === 'transportation' ? $('transport-panel') : $('plan-panel');
-  revealSequence([...panel.children].filter(child => !child.hidden), { step: 35 });
+  if (matchMedia(phoneMediaQuery).matches) playMotion(panel, [{ opacity: .4, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 220 });
+  else revealSequence([...panel.children].filter(child => !child.hidden), { step: 35 });
 }
 function setMobileMap(show) {
   const button = $('mobile-map-toggle'), controls = $('plan-controls');
+  const changed = controls.dataset.mobileSurface !== (show ? 'map' : 'content');
   controls.dataset.mobileSurface = show ? 'map' : 'content';
   button.setAttribute('aria-pressed', String(show));
   button.setAttribute('aria-label', show ? (state.workspaceView === 'explore' ? 'Show results' : 'Show itinerary') : 'Show map');
@@ -1039,7 +1061,7 @@ function setMobileMap(show) {
   button.querySelector('span').textContent = show ? (state.workspaceView === 'explore' ? 'Results' : 'Itinerary') : 'Map';
   button.hidden = state.workspaceView === 'transportation';
   if (state.map) requestAnimationFrame(() => google.maps.event.trigger(state.map, 'resize'));
-  if (matchMedia('(max-width:580px)').matches) {
+  if (changed && matchMedia(phoneMediaQuery).matches) {
     const surface = show ? $('map-column') : $(state.workspaceView === 'explore' ? 'discover-panel' : state.workspaceView === 'transportation' ? 'transport-panel' : 'plan-panel');
     playMotion(surface, [{ opacity: .55, translate: '0 8px' }, { opacity: 1, translate: '0 0' }], { duration: 230 });
   }
@@ -1047,17 +1069,25 @@ function setMobileMap(show) {
 $('mobile-map-toggle').addEventListener('click', () => setMobileMap($('plan-controls').dataset.mobileSurface !== 'map'));
 // Safari's keyboard changes the visual viewport rather than the layout height.
 // Keep sheets and their primary actions above it without disabling page zoom.
+let phoneViewportFrame = 0;
 function syncPhoneKeyboard() {
-  const viewport = window.visualViewport;
-  const phone = matchMedia('(max-width:580px)').matches;
-  const keyboard = phone && viewport && viewport.scale === 1 ? Math.max(0, innerHeight - viewport.height - viewport.offsetTop) : 0;
-  document.documentElement.classList.toggle('phone-keyboard-open', keyboard > 80);
-  document.documentElement.style.setProperty('--keyboard-rise', `${keyboard}px`);
-  document.documentElement.style.setProperty('--visual-height', `${phone && viewport ? viewport.height : innerHeight}px`);
+  phoneViewportFrame = 0;
+  const viewport = window.visualViewport, phone = matchMedia(phoneMediaQuery).matches;
+  const focused = document.activeElement;
+  const editing = Boolean(focused?.matches('textarea,[contenteditable="true"],input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=button])'));
+  const metrics = phoneViewport({ layoutHeight: innerHeight, visualHeight: viewport?.height, offsetTop: viewport?.offsetTop, scale: viewport?.scale, editing: phone && editing });
+  document.documentElement.classList.toggle('phone-keyboard-open', metrics.keyboard);
+  document.documentElement.style.setProperty('--keyboard-rise', `${metrics.rise}px`);
+  document.documentElement.style.setProperty('--visual-height', `${metrics.height}px`);
 }
-window.visualViewport?.addEventListener('resize', syncPhoneKeyboard);
-window.visualViewport?.addEventListener('scroll', syncPhoneKeyboard);
-window.addEventListener('resize', syncPhoneKeyboard);
+function schedulePhoneViewport() {
+  if (!phoneViewportFrame) phoneViewportFrame = requestAnimationFrame(syncPhoneKeyboard);
+}
+window.visualViewport?.addEventListener('resize', schedulePhoneViewport);
+window.visualViewport?.addEventListener('scroll', schedulePhoneViewport);
+window.addEventListener('resize', schedulePhoneViewport);
+document.addEventListener('focusin', schedulePhoneViewport);
+document.addEventListener('focusout', schedulePhoneViewport);
 syncPhoneKeyboard();
 async function placeZone(place) {
   const response = await fetch(`/api/timezone?lat=${place.latitude}&lng=${place.longitude}`, { signal: AbortSignal.timeout(8000) });
@@ -1085,10 +1115,10 @@ const dayRoutes = createDayRoutes({ state, commit: commitTrip, icon, cancelCamer
 const itinerary = createItineraryUI({ state, commit: commitTrip,
   explore: () => { updateDayContext(state.day); setWorkspaceView('explore'); },
   onDayChange: updateDayContext,
-  editStopDates: () => openStopEditor(tripStops(state.trip).find(stop => stop.placeId === state.stopFilter) || state.selected),
+  editStopDates: stop => openStopEditor(stop?.placeId ? stop : tripStops(state.trip).find(stop => stop.placeId === state.stopFilter) || state.selected),
   onRendered: () => { pruneDayDetails(); dayRoutes.render(); drawMarkers(); },
   onModeChange: mode => { if ($('plan-controls').dataset.mode === mode) return; $('plan-controls').dataset.mode = mode; if (state.map) requestAnimationFrame(() => google.maps.event.trigger(state.map, 'resize')); },
-  chooseDates: () => { $('edit-date-picker').hidden = true; openCalendar(); $('save-dates').focus({ preventScroll: true }); },
+  chooseDates: () => { $('edit-date-picker').close(); openCalendar(); $('save-dates').focus({ preventScroll: true }); },
   focusPlace: place => { animateMap(place, 15); document.querySelectorAll('[data-place-id]').forEach(element => element.classList.toggle('selected', element.dataset.placeId === place.placeId)); }, hydratePlace, decoratePlaceIcon, icon });
 enhanceTimePickers(); enhanceDropdowns(); enhanceDisclosures();
 new MutationObserver(records => {
@@ -1112,7 +1142,7 @@ for (const leg of ['departure', 'arrival']) {
 setupAutocomplete('destination', 'suggestions', createOrOpenTrip);
 setupAutocomplete('plan-location-search', 'plan-location-suggestions', place => { itinerary.attachPlace(place); animateMap(place, 15); }, true);
 setupAutocomplete('place-search', 'place-suggestions', place => { animateMap(place, 15); openDiscovery(place); }, true);
-let pendingStop = null, editingStopId = null;
+let pendingStop = null, editingStopId = null, stopCalendarReturn = null;
 function renderStopDraft(place, existing = false) {
   pendingStop = place; $('destination-picker-status').textContent = ''; $('destination-picker-status').classList.remove('error');
   $('stop-date-panel').hidden = false; $('stop-suggestions').hidden = true;
@@ -1120,22 +1150,20 @@ function renderStopDraft(place, existing = false) {
   $('stop-selection-name').textContent = place.name; $('stop-selection-address').textContent = place.address || '';
   $('destination-picker-title').textContent = existing ? 'Edit stop' : 'Add stop';
   $('save-stop').firstChild.textContent = existing ? 'Save changes' : 'Add stop';
-  const days = daysForTrip(state.trip), entries = stopSchedule(state.trip);
+  const entries = stopSchedule(state.trip);
   const entry = entries.find(item => item.stop.placeId === place.placeId);
-  const last = entries.at(-1);
-  const initial = entry?.start || (last?.stop.endDate ? last.end : days[Math.min(days.length - 1, Math.max(0, days.indexOf(last?.start) + 1))]);
-  $('stop-date-fields').hidden = !days.length;
-  for (const [id, value] of [['stop-arrival', initial], ['stop-departure', entry?.end || state.trip.endDate]]) {
-    const select = $(id); select.replaceChildren();
-    for (const day of days) { const option = document.createElement('option'); option.value = day; option.textContent = dateLong(day); select.append(option); }
-    if (value) select.value = value; refreshDropdowns(select);
-  }
+  const initial = entry?.start || entries.at(-1)?.end || '';
+  $('stop-date-fields').hidden = false;
+  $('stop-arrival').value = initial;
+  $('stop-departure').value = entry?.end || initial;
+  updateStopDateFields();
   $('stop-route-actions').hidden = !existing; $('change-stop-place').hidden = existing;
+  $('back-to-trip-calendar').hidden = !existing;
   const index = entries.findIndex(item => item.stop.placeId === place.placeId);
   $('stop-earlier').disabled = index <= 0; $('stop-later').disabled = index >= entries.length - 1;
   $('remove-stop').disabled = entries.length < 2;
-  if (!days.length) $('destination-picker-status').textContent = 'Add trip dates to schedule this stop.';
   revealSequence($('stop-date-panel').children, { step: 45 });
+  $('stop-arrival').focus({ preventScroll: true });
 }
 const stopAutocomplete = setupAutocomplete('stop-search', 'stop-suggestions', place => {
   if (!state.trip || !$('route-search').open) return;
@@ -1146,10 +1174,11 @@ $('save-stop').addEventListener('click', () => {
   if (!pendingStop || !state.trip) return;
   try {
     let next = editingStopId ? state.trip : addStop(state.trip, pendingStop);
-    if (daysForTrip(state.trip).length) next = setStopDates(next, pendingStop.placeId, $('stop-arrival').value, $('stop-departure').value);
+    if ($('stop-arrival').value || $('stop-departure').value) next = setStopDates(next, pendingStop.placeId, $('stop-arrival').value, $('stop-departure').value, { extendTrip: true });
     const stop = tripStops(next).find(stop => stop.placeId === pendingStop.placeId);
     saveTrip(next); state.trip = next; state.stopFilter = stop.placeId; updateRecent(); $('route-search').close(); selectStop(stop);
     status('trip-status', editingStopId ? 'Stop dates updated' : `Added ${stop.name}`);
+    if (stopCalendarReturn) returnToTripCalendar(true);
     if (!stop.timeZone) placeZone(stop).then(timeZone => {
       if (!timeZone || state.trip?.id !== next.id || !tripStops(state.trip).some(item => item.placeId === stop.placeId)) return;
       const updated = { ...state.trip, stops: tripStops(state.trip).map(item => item.placeId === stop.placeId ? { ...item, timeZone } : item) };
@@ -1157,21 +1186,49 @@ $('save-stop').addEventListener('click', () => {
     }).catch(() => {});
   } catch (error) { $('destination-picker-status').textContent = error.message || 'Could not save this stop.'; $('destination-picker-status').classList.add('error'); }
 });
-$('stop-arrival').addEventListener('change', () => {
-  if ($('stop-departure').value < $('stop-arrival').value) { $('stop-departure').value = $('stop-arrival').value; refreshDropdowns($('stop-departure')); }
-  $('destination-picker-status').textContent = '';
-});
-$('stop-departure').addEventListener('change', () => { $('destination-picker-status').textContent = ''; });
+function updateStopDateFields() {
+  for (const [id, label] of [['stop-arrival', 'Arrival'], ['stop-departure', 'Departure']]) {
+    const button = $(id);
+    button.innerHTML = `${icon('calendar')}<span>${button.value ? dateLong(button.value) : 'Set date'}</span>`;
+    button.setAttribute('aria-label', `${label}: ${button.value ? dateLong(button.value) : 'Set date'}`);
+  }
+  const start = $('stop-arrival').value, end = $('stop-departure').value;
+  const extendsTrip = start && end && (!state.trip.startDate || start < state.trip.startDate || !state.trip.endDate || end > state.trip.endDate);
+  $('stop-date-effect').textContent = extendsTrip ? `Trip dates will extend to ${dateLabel(state.trip.startDate && state.trip.startDate < start ? state.trip.startDate : start)} – ${dateLabel(state.trip.endDate && state.trip.endDate > end ? state.trip.endDate : end)}.` : '';
+  const saved = stopSchedule(state.trip).find(entry => entry.stop.placeId === editingStopId);
+  const changed = saved && (start !== (saved.start || '') || end !== (saved.end || ''));
+  $('back-to-trip-calendar').querySelector('span').textContent = changed ? 'Cancel & back to trip calendar' : 'Back to trip calendar';
+}
+$('stop-arrival').addEventListener('click', () => openCalendar('stop', 'start', $('stop-arrival')));
+$('stop-departure').addEventListener('click', () => openCalendar('stop', 'end', $('stop-departure')));
 $('change-stop-place').addEventListener('click', () => {
   if (editingStopId) { $('route-search').close(); openDestinationPicker(); return; }
   pendingStop = null; $('stop-date-panel').hidden = true; $('stop-search').closest('.search-field').hidden = false;
   stopAutocomplete.reset(); $('stop-search').focus({ preventScroll: true });
 });
-function openStopEditor(stop) {
+function openStopEditor(stop, calendarReturn = null) {
   if (!stop || !state.trip) return;
+  stopCalendarReturn = calendarReturn;
   editingStopId = stop.placeId; $('trip-menu').hidden = true;
   stopAutocomplete.reset(); $('route-search').showModal(); renderStopDraft(stop, true);
 }
+function returnToTripCalendar(saved = false) {
+  const previous = stopCalendarReturn; stopCalendarReturn = null;
+  $('route-search').close(); openCalendar();
+  if (previous) {
+    state.calendarRange = { ...previous.range };
+    if (saved) {
+      if (state.trip.startDate < state.calendarRange.start) state.calendarRange.start = state.trip.startDate;
+      if (state.trip.endDate > state.calendarRange.end) state.calendarRange.end = state.trip.endDate;
+    }
+    calendarEndpoint = previous.endpoint;
+    state.calendarYear = previous.year; state.calendarMonth = previous.month;
+    renderCalendar();
+    $('edit-date-picker').querySelector('.calendar-scroll-body').scrollTop = previous.scrollTop;
+    $('date-summary').querySelector(`[data-calendar-endpoint="${calendarEndpoint}"]`).focus({ preventScroll: true });
+  }
+}
+$('back-to-trip-calendar').addEventListener('click', () => returnToTripCalendar());
 for (const [id, direction] of [['stop-earlier', -1], ['stop-later', 1]]) $(id).addEventListener('click', () => {
   const index = tripStops(state.trip).findIndex(stop => stop.placeId === editingStopId);
   commitRoute(moveStop(state.trip, index, direction), editingStopId);
@@ -1189,13 +1246,15 @@ $('clear-destination-query').addEventListener('click', () => {
   $('stop-search').focus({ preventScroll: true });
 });
 
-$('hero-credits-toggle').addEventListener('click', () => {
+function toggleHeroCredits() {
   const panel = $('hero-photo-credits'); panel.hidden = !panel.hidden;
   $('hero-credits-toggle').setAttribute('aria-expanded', String(!panel.hidden));
   if (!panel.hidden) playMotion(panel, [{opacity:0,transform:'scale(.98)'},{opacity:1,transform:'none'}], {duration:180});
-});
-document.addEventListener('pointerdown', event => { if (!$('hero-photo-credits').hidden && !event.target.closest('#hero-photo-credits,#hero-credits-toggle')) { $('hero-photo-credits').hidden = true; $('hero-credits-toggle').setAttribute('aria-expanded','false'); } });
-document.addEventListener('keydown', event => { if (event.key === 'Escape' && !$('hero-photo-credits').hidden) { $('hero-photo-credits').hidden = true; $('hero-credits-toggle').setAttribute('aria-expanded','false'); $('hero-credits-toggle').focus({preventScroll:true}); } });
+}
+$('hero-credits-toggle').addEventListener('click', toggleHeroCredits);
+$('menu-photo-credits').addEventListener('click', () => { $('trip-menu').hidden = true; toggleHeroCredits(); });
+document.addEventListener('pointerdown', event => { if (!$('hero-photo-credits').hidden && !event.target.closest('#hero-photo-credits,#hero-credits-toggle,#menu-photo-credits')) { $('hero-photo-credits').hidden = true; $('hero-credits-toggle').setAttribute('aria-expanded','false'); } });
+document.addEventListener('keydown', event => { if (event.key === 'Escape' && !$('hero-photo-credits').hidden) { $('hero-photo-credits').hidden = true; $('hero-credits-toggle').setAttribute('aria-expanded','false'); (phoneHeaderLayout.matches ? $('trip-menu-button') : $('hero-credits-toggle')).focus({preventScroll:true}); } });
 $('back-button').addEventListener('click', () => showHome());
 $('mobile-back').addEventListener('click', () => showHome());
 $('my-trips').addEventListener('click', () => showHome());
@@ -1205,7 +1264,7 @@ document.querySelector('.brand').addEventListener('click', event => {
 });
 function openDestinationPicker() {
   $('trip-menu').hidden = true;
-  editingStopId = null; pendingStop = null; stopAutocomplete.reset();
+  editingStopId = null; pendingStop = null; stopCalendarReturn = null; stopAutocomplete.reset();
   $('destination-picker-title').textContent = 'Add stop'; $('stop-date-panel').hidden = true; $('stop-search').closest('.search-field').hidden = false;
   $('clear-destination-query').hidden = true;
   $('route-search').showModal();
@@ -1215,10 +1274,27 @@ $('add-stop').addEventListener('click', openDestinationPicker);
 $('mobile-add-stop').addEventListener('click', openDestinationPicker);
 $('close-destination-picker').addEventListener('click', () => $('route-search').close());
 $('route-search').addEventListener('close', () => stopAutocomplete.reset());
-$('edit-route').addEventListener('click', () => openStopEditor(state.selected));
+$('mobile-stop-selector').addEventListener('change', event => {
+  const stop = tripStops(state.trip).find(stop => stop.placeId === event.target.value);
+  if (stop) navigateStop(stop);
+  else { state.stopFilter = null; renderRoute(); renderPlan(); $('day-content').scrollTop = 0; }
+});
+phoneHeaderLayout.addEventListener('change', () => { if (state.trip) renderRoute(); });
 function renderCalendar() {
   const { start, end } = state.calendarRange;
-  $('date-summary').innerHTML = `<span><small>DEPART</small><strong>${start ? dateLong(start) : 'Choose a day'}</strong></span>${icon('arrow')}<span><small>RETURN</small><strong>${end ? dateLong(end) : start ? 'Choose a day' : '—'}</strong></span>`;
+  $('date-summary').innerHTML = `<button type="button" data-calendar-endpoint="start" aria-pressed="${calendarEndpoint === 'start'}"><span>${calendarContext === 'stop' ? 'Arrival' : 'Start'}</span><strong>${start ? dateLong(start) : 'Choose a day'}</strong></button>${icon('arrow')}<button type="button" data-calendar-endpoint="end" aria-pressed="${calendarEndpoint === 'end'}"><span>${calendarContext === 'stop' ? 'Departure' : 'End'}</span><strong>${end ? dateLong(end) : 'Choose a day'}</strong></button>`;
+  for (const button of $('date-summary').querySelectorAll('button')) button.addEventListener('click', () => {
+    calendarEndpoint = button.dataset.calendarEndpoint;
+    const value = state.calendarRange[calendarEndpoint];
+    if (value) { const date = new Date(`${value}T12:00:00Z`); state.calendarYear = date.getUTCFullYear(); state.calendarMonth = date.getUTCMonth(); }
+    renderCalendar(); $('date-summary').querySelector(`[data-calendar-endpoint="${calendarEndpoint}"]`).focus({ preventScroll: true });
+  });
+  const calendarTrip = calendarContext === 'trip' ? { ...state.trip, startDate: start, endDate: end } : state.trip;
+  const stopEntries = calendarStops(calendarTrip);
+  renderCalendarStops($('calendar-stops'), calendarContext === 'trip' ? stopEntries : [], { rangeLabel: stopRangeLabel, icon, onEdit: stop => {
+    const previous = { range: { ...state.calendarRange }, endpoint: calendarEndpoint, year: state.calendarYear, month: state.calendarMonth, scrollTop: $('edit-date-picker').querySelector('.calendar-scroll-body').scrollTop };
+    $('edit-date-picker').close(); openStopEditor(stop, previous);
+  } });
   const month = new Date(Date.UTC(state.calendarYear, state.calendarMonth, 1));
   $('calendar-month').textContent = new Intl.DateTimeFormat('en', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(month);
   const grid = $('calendar-grid'); grid.replaceChildren();
@@ -1227,35 +1303,53 @@ function renderCalendar() {
   }
   for (const date of calendarMonth(state.calendarYear, state.calendarMonth)) {
     if (!date) { const blank = document.createElement('span'); grid.append(blank); continue; }
-    const button = document.createElement('button'); button.type = 'button'; button.textContent = String(Number(date.slice(-2)));
+    const button = document.createElement('button'); button.type = 'button'; button.dataset.date = date; button.textContent = String(Number(date.slice(-2)));
     button.setAttribute('aria-label', new Intl.DateTimeFormat('en', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${date}T12:00:00Z`)));
+    const entry = stopEntries.length > 1 ? calendarStopOnDay(calendarTrip, date, stopEntries) : null;
+    if (entry) { button.dataset.stopId = entry.stop.placeId; button.style.setProperty('--stop-color', entry.color); button.title = entry.stop.name; button.setAttribute('aria-label', `${button.getAttribute('aria-label')}, ${entry.stop.name}`); }
     button.setAttribute('aria-pressed', String(date === start || date === end));
     if (date === start || date === end) button.classList.add('selected');
     if (start && end && date > start && date < end) button.classList.add('in-range');
-    button.addEventListener('click', () => { state.calendarRange = selectDateRange(state.calendarRange, date); $('calendar-message').replaceChildren(); renderCalendar(); });
+    button.addEventListener('click', () => {
+      if (calendarEndpoint === 'start' || !state.calendarRange.start) {
+        state.calendarRange = { start: date, end: state.calendarRange.end >= date ? state.calendarRange.end : null };
+        calendarEndpoint = 'end';
+      } else if (date < state.calendarRange.start) {
+        $('calendar-message').textContent = 'Choose an end date on or after the start.'; return;
+      } else state.calendarRange.end = date;
+      $('calendar-message').replaceChildren(); renderCalendar();
+      $('calendar-grid').querySelector(`[data-date="${date}"]`)?.focus({ preventScroll: true });
+    });
     grid.append(button);
   }
   $('save-dates').disabled = !start || !end;
 }
-function openCalendar() {
+let calendarContext = 'trip', calendarEndpoint = 'start', calendarTrigger = null;
+function openCalendar(context = 'trip', endpoint = 'start', trigger = $('edit-dates')) {
   const picker = $('edit-date-picker');
-  if (!picker.hidden) { picker.hidden = true; return; }
-  state.calendarRange = { start: state.trip?.startDate || null, end: state.trip?.endDate || null };
-  const focusDate = state.calendarRange.start ? new Date(`${state.calendarRange.start}T12:00:00Z`) : new Date();
+  if (picker.open) { picker.close(); return; }
+  calendarContext = context; calendarEndpoint = endpoint; calendarTrigger = trigger;
+  state.calendarRange = context === 'stop' ? { start: $('stop-arrival').value || null, end: $('stop-departure').value || null } : { start: state.trip?.startDate || null, end: state.trip?.endDate || null };
+  const value = state.calendarRange[endpoint] || state.calendarRange.start;
+  const focusDate = value ? new Date(`${value}T12:00:00Z`) : new Date();
   state.calendarYear = focusDate.getUTCFullYear(); state.calendarMonth = focusDate.getUTCMonth();
-  $('calendar-message').replaceChildren(); renderCalendar(); picker.hidden = false;
-  picker.style.left = '16px'; picker.style.right = 'auto'; picker.style.top = '16px';
-  const trigger = $('edit-dates').getBoundingClientRect(), rect = picker.getBoundingClientRect();
-  picker.style.left = `${Math.max(16, Math.min(innerWidth - rect.width - 16, trigger.left))}px`;
-  picker.style.top = `${Math.max(16, Math.min(innerHeight - rect.height - 16, trigger.bottom + 10))}px`;
+  $('date-picker-title').textContent = context === 'stop' ? `${pendingStop.name} dates` : 'Trip dates';
+  $('save-dates').firstChild.textContent = context === 'stop' ? 'Use dates ' : 'Save dates ';
+  $('calendar-message').replaceChildren(); renderCalendar(); picker.showModal();
+  picker.querySelector('.calendar-scroll-body').scrollTop = 0;
+  $('date-summary').querySelector(`[data-calendar-endpoint="${endpoint}"]`).focus({ preventScroll: true });
 }
-$('edit-dates').addEventListener('click', openCalendar);
+$('edit-dates').addEventListener('click', () => openCalendar());
+$('edit-date-picker').addEventListener('close', () => calendarTrigger?.focus({ preventScroll: true }));
 function saveDates(startDate, endDate, moveOutside = false) {
   if (!state.trip) return;
   if (Boolean(startDate) !== Boolean(endDate) || (startDate && endDate < startDate) || (startDate && rangeLength(startDate, endDate) > 366)) {
     $('calendar-message').textContent = 'Choose a range of up to one year.'; return;
   }
   const validDays = daysForTrip({ startDate, endDate });
+  const excludedStop = tripStops(state.trip).find(stop => (stop.date && !validDays.includes(stop.date)) || (stop.endDate && !validDays.includes(stop.endDate)));
+  if (excludedStop) { $('calendar-message').textContent = `These dates exclude ${excludedStop.name}. Edit its stop dates first.`; return; }
+
   const outside = (state.trip.items || []).filter(item => item.day !== 'ideas' && !validDays.includes(item.day));
   if ((state.trip.transport || []).some(segment => !validDays.includes(segment.departure_date) || !validDays.includes(segment.arrival_date)) || outside.some(fixedItem)) {
     $('calendar-message').textContent = 'These dates exclude fixed plans. Edit their dates first.'; return;
@@ -1269,14 +1363,23 @@ function saveDates(startDate, endDate, moveOutside = false) {
   }
   const items = (state.trip.items || []).map(item => item.day === 'ideas' || validDays.includes(item.day) ? item : { ...item, day: validDays[0] || 'ideas' });
   const next = { ...state.trip, startDate, endDate, items, stops: tripStops(state.trip).map(stop => ({ ...stop, date: validDays.includes(stop.date) ? stop.date : null, endDate: validDays.includes(stop.endDate) ? stop.endDate : null })) };
-  try { const scheduled = scheduleUnassigned(next); saveTrip(scheduled); state.trip = scheduled; state.day = validDays[0] || 'ideas'; $('edit-date-picker').hidden = true; $('trip-dates').textContent = tripDateLabel(next); renderPlan(); status('trip-status'); }
+  try { const scheduled = scheduleUnassigned(next); saveTrip(scheduled); state.trip = scheduled; state.day = validDays[0] || 'ideas'; $('edit-date-picker').close(); $('trip-dates').textContent = tripDateLabel(next); renderPlan(); status('trip-status'); }
   catch { $('calendar-message').textContent = 'Could not save dates on this device.'; }
 }
-$('save-dates').addEventListener('click', () => saveDates(state.calendarRange.start, state.calendarRange.end));
-$('clear-dates').addEventListener('click', () => { $('edit-date-picker').hidden = true; $('edit-dates').focus({ preventScroll: true }); });
+$('save-dates').addEventListener('click', () => {
+  const { start, end } = state.calendarRange;
+  if (calendarContext === 'trip') { saveDates(start, end); return; }
+  try {
+    const draft = editingStopId ? state.trip : addStop(state.trip, pendingStop);
+    setStopDates(draft, pendingStop.placeId, start, end, { extendTrip: true });
+    $('stop-arrival').value = start; $('stop-departure').value = end;
+    updateStopDateFields(); $('destination-picker-status').textContent = ''; $('edit-date-picker').close();
+  } catch (error) { $('calendar-message').textContent = error.message; }
+});
+$('clear-dates').addEventListener('click', () => $('edit-date-picker').close());
 document.querySelectorAll('[data-date-preset]').forEach(button => button.addEventListener('click', () => {
   const range = presetRange(button.dataset.datePreset);
-  if (range) saveDates(range.start, range.end);
+  if (range) { state.calendarRange = range; calendarEndpoint = 'start'; const date = new Date(`${range.start}T12:00:00Z`); state.calendarYear = date.getUTCFullYear(); state.calendarMonth = date.getUTCMonth(); $('calendar-message').replaceChildren(); renderCalendar(); }
 }));
 function moveCalendarMonth(delta) {
   const date = new Date(Date.UTC(state.calendarYear, state.calendarMonth + delta, 1));
@@ -1358,9 +1461,7 @@ $('trip-title-input').addEventListener('blur', () => { if (!cancellingTitle) fin
 $('trip-title-input').addEventListener('keydown', event => {
   if (event.key === 'Enter' || event.key === 'Escape') { event.preventDefault(); cancellingTitle = event.key === 'Escape'; finishTitle(cancellingTitle); $('edit-trip-title').focus({ preventScroll: true }); cancellingTitle = false; }
 });
-document.addEventListener('keydown', event => { if (event.key === 'Escape' && !$('edit-date-picker').hidden) { $('edit-date-picker').hidden = true; $('edit-dates').focus({ preventScroll: true }); } });
 document.addEventListener('pointerdown', event => {
-  if (!$('edit-date-picker').hidden && !$('edit-date-picker').contains(event.target) && !$('edit-dates').contains(event.target)) $('edit-date-picker').hidden = true;
   if (!$('trip-menu').hidden && !$('trip-menu').contains(event.target) && !$('trip-menu-button').contains(event.target)) $('trip-menu').hidden = true;
 });
 

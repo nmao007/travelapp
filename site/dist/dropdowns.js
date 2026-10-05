@@ -1,3 +1,4 @@
+import { dropdownBounds } from './phone-devices.js';
 import { playMotion } from './motion.js';
 
 export const timeZoneLabel = value => String(value || '').replaceAll('_', ' ').replaceAll('/', ' / ');
@@ -80,7 +81,7 @@ function enhance(source) {
     index = next;
     [...menu.querySelectorAll('[role="option"]')].forEach((option, position) => option.classList.toggle('highlighted', position === index));
     const selected = menu.querySelectorAll('[role="option"]')[index];
-    if (selected) { trigger.setAttribute('aria-activedescendant', selected.id); selected.scrollIntoView({ block: 'nearest' }); }
+    if (selected) { trigger.setAttribute('aria-activedescendant', selected.id); const row = selected.getBoundingClientRect(), box = menu.getBoundingClientRect(); if (row.top < box.top) menu.scrollTop += row.top - box.top; else if (row.bottom > box.bottom) menu.scrollTop += row.bottom - box.bottom; }
     else trigger.removeAttribute('aria-activedescendant');
   }
   function choose(position) {
@@ -107,15 +108,13 @@ function enhance(source) {
   }
   function positionMenu() {
     if (!opened) return;
-    const rect = trigger.getBoundingClientRect(), width = Math.min(Math.max(rect.width, editable ? 260 : 180), window.innerWidth - 16);
-    menu.style.width = `${width}px`; menu.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - width - 8))}px`;
-    const below = window.innerHeight - rect.bottom - 8, above = rect.top - 8;
-    const upward = below < Math.min(menu.scrollHeight, 180) && above > below;
-    const height = Math.min(280, Math.max(40, upward ? above : below));
-    menu.style.maxHeight = `${height}px`;
-    menu.style.top = `${upward ? Math.max(8, rect.top - Math.min(menu.scrollHeight, height) - 4) : rect.bottom + 4}px`;
-    menu.style.transformOrigin = upward ? 'bottom' : 'top';
+    const viewport = window.visualViewport;
+    const bounds = dropdownBounds(trigger.getBoundingClientRect(), menu.scrollHeight, { width: viewport?.width || innerWidth, height: viewport?.height || innerHeight, top: viewport?.offsetTop || 0, left: viewport?.offsetLeft || 0, minimumWidth: editable ? 260 : 180 });
+    menu.style.width = `${bounds.width}px`; menu.style.left = `${bounds.left}px`;
+    menu.style.maxHeight = `${bounds.height}px`; menu.style.top = `${bounds.top}px`;
+    menu.style.transformOrigin = bounds.upward ? 'bottom' : 'top';
   }
+
   function open(query = '') {
     if (source.disabled) return;
     if (active && active !== controller) active.close(); readOptions(); opened = true; active = controller;
@@ -177,7 +176,9 @@ export function enhanceDropdowns(root = document) {
     document.addEventListener('pointerdown', event => { if (active && !active.host.contains(event.target)) active.close(); });
     document.addEventListener('scroll', event => { if (active && !active.menu.contains(event.target)) active.positionMenu(); }, true);
     document.addEventListener('close', event => { if (active?.source.closest('dialog') === event.target) active.close(); }, true);
-    window.addEventListener('resize', () => active?.close());
+    window.addEventListener('resize', () => active?.positionMenu());
+    window.visualViewport?.addEventListener('resize', () => active?.positionMenu());
+    window.visualViewport?.addEventListener('scroll', () => active?.positionMenu());
     new MutationObserver(records => {
       for (const record of records) for (const added of record.addedNodes) if (added.nodeType === 1) enhanceDropdowns(added);
     }).observe(document.body, { childList: true, subtree: true });

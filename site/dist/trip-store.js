@@ -195,7 +195,21 @@ export function datesForStop(trip, placeId) {
   return entry?.start ? datesForTrip(trip).filter(day => day >= entry.start && day <= entry.end) : [];
 }
 
-export function setStopDates(trip, placeId, start, end) {
+export function setStopDates(trip, placeId, start, end, { extendTrip = false } = {}) {
+  if (extendTrip) {
+    if (!isDate(start) || !isDate(end)) throw new Error('Choose arrival and departure dates.');
+    if (end < start) throw new Error('Departure must be on or after arrival.');
+    const startDate = isDate(trip.startDate) && trip.startDate < start ? trip.startDate : start;
+    const endDate = isDate(trip.endDate) && trip.endDate > end ? trip.endDate : end;
+    if ((Date.parse(endDate) - Date.parse(startDate)) / 86400000 >= 366) throw new Error('Keep the trip within one year.');
+    // Preserve earlier stays when a new destination extends the journey.
+    // In-range transfers can still share a day with the previous stop.
+    trip = { ...trip, startDate, endDate, stops: stopSchedule(trip).map(entry => entry.stop.placeId === placeId ? entry.stop : {
+      ...entry.stop,
+      ...(entry.start ? { date: entry.start } : {}),
+      ...(entry.end && endDate > trip.endDate && entry.end < start ? { endDate: entry.end } : {})
+    }) };
+  }
   const days = datesForTrip(trip), stops = tripStops(trip), index = stops.findIndex(stop => stop.placeId === placeId);
   if (index < 0) throw new Error('Choose a stop on this trip.');
   if (!days.includes(start) || !days.includes(end)) throw new Error('Keep stop dates within the trip dates.');

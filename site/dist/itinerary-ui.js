@@ -1,3 +1,4 @@
+import { phoneMediaQuery } from './phone-devices.js';
 import { tourDraft, tourSummary, tourEndLabel } from './tour-model.js';
 import { playMotion, morphFrom, morphFrames, revealSequence } from './motion.js';
 import { datesForTrip, monthsForTrip, calendarDisplayCells, eventsForDay, fixedItem, mappedPlace, makePlan, makeTransport, upsertTransport, reorderPlan, stepPlan, removeItineraryEvent, restoreItineraryEvent, duplicatePlan } from './itinerary-model.js';
@@ -10,6 +11,7 @@ import { createTransientNotice } from './notices.js';
 import { refreshTimePickers, formatClock } from './time-picker.js';
 import { panelIsOpen, setPanelOpen } from './expansion.js';
 import { createDayMotion } from './day-motion.js';
+import { calendarStops, calendarStopOnDay, renderCalendarStops } from './calendar-stops.js';
 
 const $ = id => document.getElementById(id);
 const format = (date, options = { weekday: 'short', month: 'short', day: 'numeric' }) => new Intl.DateTimeFormat('en', { ...options, timeZone: 'UTC' }).format(new Date(`${date}T12:00:00Z`));
@@ -19,10 +21,21 @@ const action = (label, callback, className = 'quiet-action') => { const button =
 export function createItineraryUI({ state, commit, explore, chooseDates, focusPlace, hydratePlace, decoratePlaceIcon, onDayChange, onModeChange, onRendered, editStopDates, icon }) {
   const dayMotion = createDayMotion($('day-content'), $('plan-panel'));
   function revealPhoneSection(section) {
-    if (!matchMedia('(max-width:580px)').matches || section.hidden || !section.closest('dialog')?.open) return;
+    if (!matchMedia(phoneMediaQuery).matches || section.hidden || !section.closest('dialog')?.open) return;
     section.scrollIntoView({ block: 'nearest', behavior: matchMedia('(prefers-reduced-motion:reduce)').matches ? 'instant' : 'smooth' });
   }
+  function syncViewIndicators() {
+    const mode = document.querySelector('[data-plan-mode][aria-pressed="true"]');
+    if (mode) { const toggle = mode.parentElement; toggle.style.setProperty('--pill-x', `${mode.offsetLeft}px`); toggle.style.setProperty('--pill-width', `${mode.offsetWidth}px`); }
+    const tabs = $('day-tabs'), day = tabs.querySelector('[aria-selected="true"]');
+    if (day && !tabs.hidden) { tabs.style.setProperty('--day-pill-x', `${day.offsetLeft}px`); tabs.style.setProperty('--day-pill-width', `${day.offsetWidth}px`); tabs.style.setProperty('--day-pill-height', `${day.offsetHeight}px`); }
+  }
+  // Rotation only remeasures controls; it never reloads place data.
+  let indicatorFrame = 0;
+  const indicators = new ResizeObserver(() => { cancelAnimationFrame(indicatorFrame); indicatorFrame = requestAnimationFrame(syncViewIndicators); });
+  indicators.observe(document.querySelector('.itinerary-toggle')); indicators.observe($('day-tabs'));
   let editingPlan = null, editingTransport = null, selectedFlight = null, flightTimer = 0, flightRequest = null, draft = null, displayedMonth = null, displayedTrip = null, previewDay = null, previewAnchor = null, closingPreview = false;
+  let automaticArrivalDate = true;
   const defaultZone = () => state.selected?.timeZone || state.trip?.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
   const dayOptions = (select, selected, ideas = false) => {
     select.replaceChildren();
@@ -180,6 +193,7 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
   function openTransport(segment = null, day = state.day) {
     if (!datesForTrip(state.trip).length) { chooseDates(); return; }
     editingTransport = segment;
+    automaticArrivalDate = !segment?.arrival_date;
     const form = $('transport-form'); form.reset();
     form.dataset.version = String(Number(form.dataset.version || 0) + 1); form.dataset.pendingZones = '0'; form.querySelector('[type="submit"]').disabled = false;
     $('transport-dialog-title').textContent = segment ? segment.service_id : 'Add flight or train';
@@ -192,12 +206,27 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
       form.elements[`${leg}_time`].value = segment?.[`${leg}_time`]?.slice(0, 5) || '';
       $(`${leg}-suggestions`).hidden = true;
     }
+    syncArrivalDate();
     form.elements.mode.value = segment?.mode || 'Flight'; form.elements.service_id.value = segment?.service_id || ''; form.elements.notes.value = segment?.notes || '';
     refreshDropdowns(form);
     refreshTimePickers(form);
     $('delete-transport').hidden = !segment;
     $('transport-error').textContent = ''; $('transport-dialog').showModal(); $('transport-dialog').querySelector('.phone-sheet-body').scrollTop = 0; form.elements.service_id.focus();
   }
+
+  function syncArrivalDate() {
+    if (!automaticArrivalDate) return;
+    const form = $('transport-form'), departure = form.elements.departure_date, arrival = form.elements.arrival_date;
+    if (departure.value && arrival.value !== departure.value) {
+      arrival.value = departure.value;
+      refreshDropdowns(arrival);
+    }
+  }
+  $('transport-form').elements.departure_date.addEventListener('change', syncArrivalDate);
+  $('transport-form').elements.arrival_date.addEventListener('change', () => { automaticArrivalDate = false; });
+  // Entering the arrival airport keeps the suggested date tied to departure.
+  // An explicitly chosen date or a real flight's local dates stay untouched.
+  $('arrival-search').addEventListener('input', syncArrivalDate);
 
   function clearFlightLookup() {
     clearTimeout(flightTimer); flightRequest?.abort(); flightRequest = null;
@@ -224,6 +253,7 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
         const button = action('', () => {
           if (![flight.departure_date, flight.arrival_date].every(day => datesForTrip(state.trip).includes(day))) { $('transport-error').textContent = 'This flight falls outside your trip dates. Extend the trip dates before adding it.'; return; }
           for (const key of ['service_id', 'departure_date', 'departure_time', 'departure_time_zone', 'departure_location', 'arrival_date', 'arrival_time', 'arrival_time_zone', 'arrival_location']) form.elements[key].value = flight[key];
+          automaticArrivalDate = false;
           for (const leg of ['departure', 'arrival']) delete form.elements[`${leg}_location`].dataset.placeId;
           selectedFlight = flight; $('transport-error').textContent = ''; clearFlightLookup();
           refreshDropdowns(form);
@@ -257,6 +287,7 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
   function planRow(item, detailed = false) {
     const row = node('div', detailed ? 'day-place-card' : 'place-item timeline-item'); row.dataset.kind = item.kind || 'Activity'; row.dataset.itemId = item.id; row.dataset.placeId = item.placeId || ''; row.draggable = false;
     const head = node('div', detailed ? 'day-card-heading' : 'timeline-row');
+    let reorderControls = null;
     const marker = node('span', 'place-marker'); marker.append(placeSymbol(item)); marker.setAttribute('aria-hidden', 'true');
     const copy = action('', () => { if (mappedPlace(item)) focusPlace(item); openPlan(item); }, 'place-copy'); copy.setAttribute('aria-label', `Open ${item.name}`); copy.append(node('strong', '', item.name));
     if (!detailed && item.booked) copy.append(node('small', '', 'Confirmed'));
@@ -275,7 +306,7 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
         button.disabled = direction === 'up' ? index === 0 : index === flexible.length - 1;
         controls.append(button);
       }
-      head.append(controls);
+      reorderControls = controls;
     }
     row.append(head);
     if (!fixedItem(item)) {
@@ -290,11 +321,16 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
     }
     if (detailed) {
       const detail = node('div', 'place-details day-card-details'); row.append(detail);
-      if (item.placeId) hydratePlace(detail, item.kind === 'Tour' ? { ...item, name: item.tour?.meetingName || item.name } : item);
-      else if (item.address) detail.append(node('p', 'place-address', item.address));
       if (item.notes) row.append(node('p', 'day-card-note', item.notes));
       if (item.reference) row.append(node('p', 'booking-reference', `Booking · ${item.reference}`));
-
+      const footer = node('div', 'day-card-footer');
+      footer.append(node('div', 'day-card-links'));
+      if (reorderControls) footer.append(reorderControls);
+      const grip = row.querySelector('.mobile-drag-handle');
+      if (grip) footer.append(grip);
+      row.append(footer);
+      if (item.placeId) hydratePlace(detail, item.kind === 'Tour' ? { ...item, name: item.tour?.meetingName || item.name } : item);
+      else if (item.address) detail.append(node('p', 'place-address', item.address));
     }
     if (!fixedItem(item)) {
       row.dataset.flexible = 'true';
@@ -387,7 +423,8 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
     const target = dialog.getBoundingClientRect();
     dialog.style.left = `${Math.max(16, Math.min(innerWidth - target.width - 16, source.left + source.width / 2 - target.width / 2))}px`;
     dialog.style.top = `${Math.max(16, Math.min(innerHeight - target.height - 16, source.top - 30))}px`;
-    morphFrom(dialog, source); revealSequence(body.children, { delay: 130, step: 40 });
+    if (matchMedia(phoneMediaQuery).matches) playMotion(dialog, [{opacity:0,translate:'0 20px'}, {opacity:1,translate:'0 0'}], {duration:260});
+    else { morphFrom(dialog, source); revealSequence(body.children, { delay: 130, step: 40 }); }
     $('open-preview-day').focus({ preventScroll: true });
   }
   function clearPreview() {
@@ -398,7 +435,7 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
     const dialog = $('day-preview'); if (!dialog.open || closingPreview) return;
     closingPreview = true;
     const frames = previewAnchor?.isConnected ? morphFrames(previewAnchor.getBoundingClientRect(), dialog.getBoundingClientRect()) : null;
-    const animation = frames ? playMotion(dialog, [...frames].reverse().map(frame => ({ ...frame, offset: 1 - frame.offset })), { duration: 220 }) : null;
+    const animation = matchMedia(phoneMediaQuery).matches ? playMotion(dialog, [{opacity:1,translate:'0 0'}, {opacity:0,translate:'0 18px'}], {duration:180}) : frames ? playMotion(dialog, [...frames].reverse().map(frame => ({ ...frame, offset: 1 - frame.offset })), { duration: 220 }) : null;
     if (animation) await animation.finished.catch(() => {});
     dialog.close(); clearPreview();
   }
@@ -409,7 +446,7 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
   $('open-preview-day').addEventListener('click', () => {
     if (!previewDay || closingPreview) return;
     const day = previewDay, source = $('day-preview').getBoundingClientRect(); $('day-preview').close(); clearPreview();
-    chooseDay(day, 'day'); morphFrom($('plan-panel'), source, { duration: 440 });
+    chooseDay(day, 'day'); if (!matchMedia(phoneMediaQuery).matches) morphFrom($('plan-panel'), source, { duration: 440 });
     const heading = $('day-content').querySelector('h3'); if (heading) { heading.tabIndex = -1; heading.focus({ preventScroll: true }); }
   });
 
@@ -462,6 +499,10 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
         toolbar.append(controls);
       }
       section.append(toolbar);
+      const stopEntries = calendarStops(state.trip);
+      const stopList = node('div', 'calendar-stop-list calendar-stop-key'); stopList.setAttribute('aria-label', 'Edit stop dates');
+      renderCalendarStops(stopList, stopEntries, { icon, onEdit: editStopDates, rangeLabel: entry => !entry.start ? 'Set dates' : entry.start === entry.end ? format(entry.start, {month:'short',day:'numeric'}) : `${format(entry.start, {month:'short',day:'numeric'})} – ${format(entry.end, entry.start.slice(0,7) === entry.end.slice(0,7) ? {day:'numeric'} : {month:'short',day:'numeric'})}` });
+      section.append(stopList);
       const grid = node('div', 'itinerary-calendar');
       for (const day of ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']) grid.append(node('span', 'calendar-weekday', day));
       const displayCells = calendarDisplayCells(month); grid.style.setProperty('--weeks', String(displayCells.length / 7)); const visibleEventLimit = displayCells.length > 21 ? 1 : 2; grid.classList.toggle('dense-calendar', visibleEventLimit === 1);
@@ -476,7 +517,14 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
         const dateNumber = node('span', 'calendar-date-button', String(Number(date.slice(-2)))); heading.append(dateNumber);
         if (events.length) heading.append(node('span', 'calendar-event-count', String(events.length)));
         cell.append(heading);
-        if (tripStops(state.trip).length > 1) { const destination = destinationForDay(state.trip, tripStops(state.trip), date); if (destination) { const label = node('span', 'calendar-destination', destination.name); label.title = destination.name; cell.append(label); } }
+        if (stopEntries.length > 1) {
+          const entry = calendarStopOnDay(state.trip, date, stopEntries);
+          if (entry) {
+            cell.style.setProperty('--stop-color', entry.color); cell.dataset.stopId = entry.stop.placeId;
+            cell.title = entry.stop.name;
+            cell.setAttribute('aria-label', `${cell.getAttribute('aria-label')}, ${entry.stop.name}`);
+          }
+        }
         for (const event of events.slice(0, visibleEventLimit)) {
           const item = event.kind === 'transport' ? event.transport : event.item;
           const label = node('span', 'calendar-event'); label.dataset.kind = event.kind === 'transport' ? item.mode : item.kind || 'Activity';
@@ -493,9 +541,11 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
     } else if (state.planMode === 'day' && days.length) content.append(daySection(state.day, true));
     else for (const day of days) content.append(daySection(day));
     renderTransport();
-    const selectedMode = [...document.querySelectorAll('[data-plan-mode]')].find(button => button.dataset.planMode === state.planMode);
-    if (selectedMode) { const toggle = selectedMode.parentElement; toggle.style.setProperty('--pill-x', `${selectedMode.offsetLeft}px`); toggle.style.setProperty('--pill-width', `${selectedMode.offsetWidth}px`); }
-    if (previousMode !== state.planMode) revealSequence(content.children, { step: 55 });
+    syncViewIndicators();
+    if (previousMode !== state.planMode) {
+      if (matchMedia(phoneMediaQuery).matches) playMotion(content, [{opacity:.3,translate:'0 8px'}, {opacity:1,translate:'0 0'}], {duration:220});
+      else revealSequence(content.children, { step: 55 });
+    }
     onRendered?.();
     animateDay();
   }

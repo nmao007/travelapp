@@ -138,3 +138,36 @@ test('unscheduled added destinations do not take ownership of existing days', ()
   assert.deepEqual(datesForStop(trip, 'coimbra'), []);
   assert.equal(stopForDay(trip, '2026-10-07').name, 'Porto');
 });
+
+
+test('adding a later stay extends trip dates while preserving the first stay and bookings', () => {
+  const original = { ...lisbon, startDate: '2026-10-01', endDate: '2026-10-04', items: datedRoute().items, transport: datedRoute().transport };
+  const porto = { placeId: 'porto', name: 'Porto', latitude: 41.15, longitude: -8.63 };
+  const extended = setStopDates(addStop(original, porto), 'porto', '2026-10-06', '2026-10-10', { extendTrip: true });
+  assert.equal(extended.startDate, '2026-10-01'); assert.equal(extended.endDate, '2026-10-10');
+  assert.deepEqual(stopSchedule(extended).map(({start, end}) => [start, end]), [['2026-10-01', '2026-10-04'], ['2026-10-06', '2026-10-10']]);
+  assert.equal(stopForDay(extended, '2026-10-05'), null);
+  assert.equal(extended.items, original.items); assert.equal(extended.transport, original.transport);
+  const storage = memory(); saveTrip(extended, storage);
+  assert.equal(readTrips(storage)[0].endDate, '2026-10-10');
+});
+
+test('stop edits can extend either end of a trip while retaining neighboring stays', () => {
+  const trip = datedRoute();
+  const earlier = setStopDates(trip, lisbon.placeId, '2026-09-29', '2026-10-04', { extendTrip: true });
+  assert.equal(earlier.startDate, '2026-09-29');
+  assert.equal(stopSchedule(earlier)[1].start, '2026-10-04');
+  const later = setStopDates(earlier, 'porto', '2026-10-04', '2026-10-11', { extendTrip: true });
+  assert.equal(later.endDate, '2026-10-11');
+  assert.equal(stopSchedule(later)[0].end, '2026-10-04');
+  assert.throws(() => setStopDates(trip, lisbon.placeId, '2026-09-29', '2026-10-05', { extendTrip: true }), /next stop/);
+  assert.throws(() => setStopDates(trip, 'porto', '2026-09-29', '2026-10-10', { extendTrip: true }), /previous stop/);
+});
+
+test('stop dates establish an undated trip and reject invalid or excessive ranges', () => {
+  const dated = setStopDates(lisbon, lisbon.placeId, '2026-12-30', '2027-01-03', { extendTrip: true });
+  assert.equal(dated.startDate, '2026-12-30'); assert.equal(dated.endDate, '2027-01-03');
+  assert.throws(() => setStopDates(dated, lisbon.placeId, '2027-01-05', '2027-01-04', { extendTrip: true }), /Departure/);
+  assert.throws(() => setStopDates(dated, lisbon.placeId, '2027-02-30', '2027-03-01', { extendTrip: true }), /Choose arrival/);
+  assert.throws(() => setStopDates(dated, lisbon.placeId, '2028-01-01', '2028-01-02', { extendTrip: true }), /one year/);
+});

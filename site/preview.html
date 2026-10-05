@@ -2,8 +2,16 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>TripPilot</title>
+  <script>
+    // Actual phones open the application directly: their browser owns the safe
+    // areas, keyboard and scrolling, without a nested preview viewport.
+    if (matchMedia('(pointer:coarse)').matches && matchMedia('(max-width:580px), (max-width:980px) and (max-height:500px)').matches) {
+      const nativeQuery = new URLSearchParams(location.search); nativeQuery.delete('device');
+      location.replace('/app' + (nativeQuery.size ? '?' + nativeQuery : ''));
+    }
+  </script>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='0' fill='%23ff5b24'/%3E%3Cpath d='m12 42 40-28-14 36-6-17-20 9Z' fill='%23ffffff'/%3E%3C/svg%3E">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/app.css">
@@ -14,12 +22,12 @@
     iframe{display:block;width:100%;height:100%;border:0;background:#fff}
     .phone-status,.home-indicator,.hardware-controls{display:none}
     .stage.phone{padding:32px 24px}
-    .stage.phone .device-wrap{width:calc(432.554px * var(--phone-scale,1));height:calc(891.557px * var(--phone-scale,1));position:relative;flex:none;filter:drop-shadow(0 3px 7px #16131924) drop-shadow(0 12px 18px #16131938)}
-    .stage.phone .device{width:432.554px;height:891.557px;background:#383837;clip-path:url(#phone-body-outline);transform:scale(var(--phone-scale,1));transform-origin:top left}
+    .stage.phone .device-wrap{width:calc(var(--phone-body-width,432.554px) * var(--phone-scale,1));height:calc(var(--phone-body-height,891.557px) * var(--phone-scale,1));position:relative;flex:none;filter:drop-shadow(0 5px 10px #16131940) drop-shadow(0 18px 28px #16131960)}
+    .stage.phone .device{width:var(--phone-body-width,432.554px);height:var(--phone-body-height,891.557px);background:#383837;clip-path:url(#phone-body-outline);transform:scale(var(--phone-scale,1));transform-origin:top left}
     .hardware-outline{display:none;position:absolute;inset:0;pointer-events:none}
     .stage.phone .hardware-outline{display:block;width:100%;height:100%}
-    .stage.phone iframe{position:absolute;left:19.777px;top:19.7785px;width:393px;height:852px;clip-path:url(#phone-screen-outline)}
-    .stage.phone .phone-status{display:grid;grid-template-columns:1fr 124.941px 1fr;position:absolute;top:19.7785px;left:19.777px;width:393px;height:62px;align-items:center;padding:0;pointer-events:none;color:#000;font:600 17px/22px -apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif;letter-spacing:-.4px;font-variant-numeric:tabular-nums}
+    .stage.phone iframe{position:absolute;left:19.777px;top:19.7785px;width:var(--phone-width,393px);height:var(--phone-height,852px);clip-path:url(#phone-screen-outline)}
+    .stage.phone .phone-status{display:grid;grid-template-columns:1fr var(--cutout-width,124.941px) 1fr;position:absolute;top:19.7785px;left:19.777px;width:var(--phone-width,393px);height:var(--phone-safe-top,62px);align-items:center;padding:0;pointer-events:none;color:#000;font:600 17px/22px -apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif;letter-spacing:-.4px;font-variant-numeric:tabular-nums}
     #phone-time{grid-column:1;text-align:center;width:100%}
     .phone-status .island{position:absolute;top:11.291px;left:50%;transform:translateX(-50%);width:124.941px;height:36.655px;border-radius:24px;background:#000}
     .status-symbols{grid-column:3;justify-self:center;display:flex;align-items:center;gap:7px;height:22px}
@@ -29,11 +37,11 @@
     .status-symbol.cellular img{width:21.296px;height:14.571px;left:-1.521px;top:-1.429px}
     .status-symbol.wifi{width:17px}.status-symbol.wifi img{width:20.036px;height:14.233px;left:-1.214px;top:-1.116px}
     .status-symbol.battery{width:27px;height:13px}.status-symbol.battery img{width:31.974px;height:16.545px;left:-2.132px;top:-1.970px}
-    .stage.phone .home-indicator{display:block;position:absolute;top:858.7785px;left:50%;transform:translateX(-50%);width:134px;height:5px;border-radius:3px;background:#000;pointer-events:none;opacity:1;transition:opacity .35s ease}
+    .stage.phone .home-indicator{display:block;position:absolute;top:calc(var(--phone-height,852px) + 6.7785px);left:50%;transform:translateX(-50%);width:134px;height:5px;border-radius:3px;background:#000;pointer-events:none;opacity:1;transition:opacity .35s ease}
     .stage.phone .home-indicator.is-idle{opacity:0}
     /* Front projection of Apple's dimensions, scaled at 852 / 141.09 px/mm.
        Camera Control is flush with the housing rather than protruding. */
-    .stage.phone .hardware-controls{display:block;position:absolute;inset:0;width:432.554px;height:891.557px;transform:scale(var(--phone-scale,1));transform-origin:top left;pointer-events:none;z-index:2}
+    .stage.phone .hardware-controls{display:block;position:absolute;inset:0;width:var(--phone-body-width,432.554px);height:var(--phone-body-height,891.557px);transform:scale(var(--phone-scale,1));transform-origin:top left;pointer-events:none;z-index:2}
     .hardware-button{position:absolute;width:2.717px;background:#636362;border:solid #383837;border-width:1px 0;box-shadow:inset 1px 0 #999995;border-radius:1px}
     .hardware-button.action{left:-2.717px;top:184.965px;height:41.667px}
     .hardware-button.volume-up{left:-2.717px;top:257.430px;height:67.633px}
@@ -48,6 +56,18 @@
     #switch:hover{background:var(--accent-hover);box-shadow:0 5px 16px #16131930}#switch:active{box-shadow:0 1px 4px #16131920}#switch:focus-visible{outline:3px solid var(--ink);outline-offset:3px}
     #switch svg{width:22px;height:22px;fill:none;stroke:var(--ink);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}#switch .desktop-icon{display:none}#switch[data-phone=true] .desktop-icon{display:block}#switch[data-phone=true] .phone-icon{display:none}
     @media(prefers-reduced-motion:reduce){#switch,.phone-finger,.stage.phone .home-indicator{transition:none}}
+    .stage.phone[data-cutout=notch] .island{top:-2px;width:155px;height:34px;border-radius:0 0 20px 20px;background:#050505}
+    .stage.phone[data-cutout=notch] .phone-status{font-size:16px}
+    .stage.phone[data-cutout=notch] .status-symbols{gap:5px}
+    #phone-model-button{position:fixed;left:16px;bottom:12px;z-index:100;display:none;place-items:center;width:44px;height:44px;border:1px solid var(--line);background:white;color:var(--ink);box-shadow:0 3px 12px #16131918}
+    #phone-model-button svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8}
+    body:has(.stage.phone) #phone-model-button{display:grid}
+    #phone-model-menu{position:fixed;inset:auto auto 64px 16px;margin:0;width:230px;max-height:min(480px,calc(100dvh - 100px));overflow:auto;padding:6px;border:1px solid var(--line);background:white;box-shadow:var(--popover-shadow);overscroll-behavior:contain}
+    #phone-model-menu button{display:block;width:100%;min-height:44px;padding:10px 12px;text-align:left;font:500 14px 'DM Sans',sans-serif;color:var(--ink)}
+    #phone-model-menu button:hover,#phone-model-menu button[aria-pressed=true]{background:var(--tint);color:var(--action)}
+    #phone-model-menu:popover-open{animation:models-in .18s ease both}
+    @keyframes models-in{from{opacity:0;translate:0 6px}to{opacity:1;translate:0 0}}
+    @media(prefers-reduced-motion:reduce){#phone-model-menu:popover-open{animation:none}}
   </style>
 </head>
 <body>
@@ -61,7 +81,7 @@
     <div class="device-wrap">
       <div class="device" id="device">
         <svg class="hardware-outline" viewBox="0 0 432.554 891.557" aria-hidden="true"><path d="M6.039,105.103 L6.041,102.949 L6.029,100.808 L6.010,98.680 L5.987,96.566 L5.966,94.466 L5.952,92.381 L5.949,90.310 L5.962,88.255 L5.996,86.216 L6.055,84.193 L6.143,82.187 L6.265,80.198 L6.413,78.087 L6.560,75.988 L6.714,73.904 L6.880,71.839 L7.066,69.795 L7.277,67.775 L7.518,65.783 L7.796,63.823 L8.116,61.896 L8.482,60.007 L8.900,58.158 L9.374,56.351 L9.929,54.456 L10.525,52.563 L11.163,50.677 L11.843,48.806 L12.565,46.954 L13.329,45.128 L14.136,43.335 L14.986,41.580 L15.879,39.870 L16.813,38.209 L17.789,36.605 L18.806,35.062 L19.897,33.528 L21.050,32.011 L22.262,30.516 L23.528,29.046 L24.844,27.608 L26.206,26.206 L27.608,24.844 L29.046,23.528 L30.516,22.262 L32.011,21.050 L33.528,19.897 L35.062,18.806 L36.605,17.789 L38.209,16.813 L39.870,15.879 L41.580,14.986 L43.335,14.136 L45.128,13.329 L46.954,12.565 L48.806,11.843 L50.677,11.163 L52.563,10.525 L54.456,9.929 L56.351,9.374 L58.158,8.900 L60.007,8.482 L61.896,8.116 L63.823,7.796 L65.783,7.518 L67.775,7.277 L69.795,7.066 L71.839,6.880 L73.904,6.714 L75.988,6.560 L78.087,6.413 L80.198,6.265 L82.187,6.143 L84.193,6.055 L86.216,5.996 L88.255,5.962 L90.310,5.949 L92.381,5.952 L94.466,5.966 L96.566,5.987 L98.680,6.010 L100.808,6.029 L102.949,6.041 L105.074,6.039 L327.480,6.039 L329.605,6.041 L331.746,6.029 L333.874,6.010 L335.988,5.987 L338.088,5.966 L340.173,5.952 L342.244,5.949 L344.299,5.962 L346.338,5.996 L348.361,6.055 L350.367,6.143 L352.356,6.265 L354.467,6.413 L356.566,6.560 L358.649,6.714 L360.715,6.880 L362.759,7.066 L364.778,7.277 L366.770,7.518 L368.731,7.796 L370.658,8.116 L372.547,8.482 L374.396,8.900 L376.202,9.374 L378.097,9.929 L379.991,10.525 L381.876,11.163 L383.748,11.843 L385.600,12.565 L387.425,13.329 L389.218,14.136 L390.973,14.986 L392.684,15.879 L394.344,16.813 L395.949,17.789 L397.492,18.806 L399.025,19.897 L400.542,21.050 L402.038,22.262 L403.508,23.528 L404.946,24.844 L406.348,26.206 L407.709,27.608 L409.025,29.046 L410.292,30.516 L411.504,32.011 L412.657,33.528 L413.747,35.062 L414.764,36.605 L415.741,38.209 L416.675,39.870 L417.567,41.580 L418.417,43.335 L419.224,45.128 L419.989,46.954 L420.711,48.806 L421.390,50.677 L422.028,52.563 L422.624,54.456 L423.179,56.351 L423.653,58.158 L424.071,60.007 L424.438,61.896 L424.757,63.823 L425.035,65.783 L425.277,67.775 L425.488,69.795 L425.673,71.839 L425.840,73.904 L425.994,75.988 L426.141,78.087 L426.288,80.198 L426.410,82.187 L426.499,84.193 L426.557,86.216 L426.591,88.255 L426.605,90.310 L426.602,92.381 L426.588,94.466 L426.567,96.566 L426.544,98.680 L426.524,100.808 L426.513,102.949 L426.515,105.103 L426.515,786.454 L426.513,788.608 L426.524,790.749 L426.544,792.877 L426.567,794.991 L426.588,797.091 L426.602,799.176 L426.605,801.247 L426.591,803.302 L426.557,805.341 L426.499,807.364 L426.410,809.370 L426.288,811.359 L426.141,813.470 L425.994,815.569 L425.840,817.652 L425.673,819.718 L425.488,821.762 L425.277,823.782 L425.035,825.773 L424.757,827.734 L424.438,829.661 L424.071,831.550 L423.653,833.399 L423.179,835.205 L422.624,837.100 L422.028,838.994 L421.390,840.880 L420.711,842.751 L419.989,844.603 L419.224,846.428 L418.417,848.222 L417.567,849.977 L416.675,851.687 L415.741,853.348 L414.764,854.952 L413.747,856.495 L412.657,858.028 L411.504,859.546 L410.292,861.041 L409.025,862.511 L407.709,863.949 L406.348,865.351 L404.946,866.713 L403.508,868.029 L402.038,869.295 L400.542,870.507 L399.025,871.660 L397.492,872.751 L395.949,873.768 L394.344,874.744 L392.684,875.678 L390.973,876.571 L389.218,877.420 L387.425,878.228 L385.600,878.992 L383.748,879.714 L381.876,880.394 L379.991,881.031 L378.097,881.627 L376.202,882.182 L374.396,882.657 L372.547,883.074 L370.658,883.441 L368.731,883.761 L366.770,884.039 L364.778,884.280 L362.759,884.491 L360.715,884.677 L358.649,884.843 L356.566,884.997 L354.467,885.144 L352.356,885.292 L350.367,885.414 L348.361,885.502 L346.338,885.561 L344.299,885.595 L342.244,885.608 L340.173,885.605 L338.088,885.591 L335.988,885.570 L333.874,885.547 L331.746,885.528 L329.605,885.516 L327.480,885.518 L105.074,885.518 L102.949,885.516 L100.808,885.528 L98.680,885.547 L96.566,885.570 L94.466,885.591 L92.381,885.605 L90.310,885.608 L88.255,885.595 L86.216,885.561 L84.193,885.502 L82.187,885.414 L80.198,885.292 L78.087,885.144 L75.988,884.997 L73.904,884.843 L71.839,884.677 L69.795,884.491 L67.775,884.280 L65.783,884.039 L63.823,883.761 L61.896,883.441 L60.007,883.074 L58.158,882.657 L56.351,882.182 L54.456,881.627 L52.563,881.031 L50.677,880.394 L48.806,879.714 L46.954,878.992 L45.128,878.228 L43.335,877.420 L41.580,876.571 L39.870,875.678 L38.209,874.744 L36.605,873.768 L35.062,872.751 L33.528,871.660 L32.011,870.507 L30.516,869.295 L29.046,868.029 L27.608,866.713 L26.206,865.351 L24.844,863.949 L23.528,862.511 L22.262,861.041 L21.050,859.546 L19.897,858.028 L18.806,856.495 L17.789,854.952 L16.813,853.348 L15.879,851.687 L14.986,849.977 L14.136,848.222 L13.329,846.428 L12.565,844.603 L11.843,842.751 L11.163,840.880 L10.525,838.994 L9.929,837.100 L9.374,835.205 L8.900,833.399 L8.482,831.550 L8.116,829.661 L7.796,827.734 L7.518,825.773 L7.277,823.782 L7.066,821.762 L6.880,819.718 L6.714,817.652 L6.560,815.569 L6.413,813.470 L6.265,811.359 L6.143,809.370 L6.055,807.364 L5.996,805.341 L5.962,803.302 L5.949,801.247 L5.952,799.176 L5.966,797.091 L5.987,794.991 L6.010,792.877 L6.029,790.749 L6.041,788.608 L6.039,786.454 Z" fill="#050505"/></svg>
-        <iframe src="/app" title="TripPilot website"></iframe>
+        <iframe title="TripPilot website"></iframe>
         <div class="phone-status" aria-hidden="true"><time id="phone-time"></time><span class="island"></span><span class="status-symbols"><span class="status-symbol cellular"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFQAAAAzCAYAAAAJmi8jAAAAAXNSR0IArs4c6QAAAGxlWElmTU0AKgAAAAgABAEaAAUAAAABAAAAPgEbAAUAAAABAAAARgEoAAMAAAABAAIAAIdpAAQAAAABAAAATgAAAAAAAADYAAAAAQAAANgAAAABAAKgAgAEAAAAAQAAAFSgAwAEAAAAAQAAADMAAAAASHdmcwAAAAlwSFlzAAAhOAAAITgBRZYxYAAAArpJREFUeAHtmj1rFFEUhhNNFDFC0AiCjSSxsEhExMYQwUJQu6TwJxghhYKFgTT5AbGy0sLeUlOJlYJEKwsFJU0QtIhBBEFJ/H5OIBKWc8/OvcxO7mTOgXd353ztuc/MLrMz29Xl5gScgBNwAk4gEwLdmcyxnWP08uY30AQ6jFqZ/MX3GT1Ct9E6cjMIPCAm0IroodHHQxA4XhDkVtgjFrldVrABsaGENQ5aNU0HmrJ+s8YMWnvCYzoBB6pzSfY60GR0eqED1bkke3uSK7e/8AgjnEUHlFH+4HuPnqPfStxdLQRusv0DbT0/1F6/Jcc6NbpcoEdrX/lFtaPsDKtpXaS1/cxYfelA6/gdetEApIXGce7XAp3w1RFoXwIIB5oALYuSOh6hWYALDeFAQ2QS/Q40EVyorMoT+wGGmEKn0F5loJ/43qC76KMSr4WrKqBHofESybNlctI8jcbQOysx11hVH/kZALSDucnoIC/mNjfq9lwV0NFIMCcj87NJrwpo7FdLbH7jgGaz4E4PUtUR2ul1ZNO/3UdrD5NeQINotzL1d3yL6LUSa6TLAioQH6PhAmTukXMNyWW0Rpv1kb8DmSIwBeBVtOMuvMrCYs0Cej6yWWx+ZPt6pFtA90UuITY/sn090i2g9VhBZlM60JJ3iAN1oCUTKLmdH6EOtGQCJbfzI9SBlkyg5HbWERr7u9zKt2Lakqx8K6b1El+oJuQP9bF6bdRYQGNvlH0wprBiWpmVb8W0XnJF7IsWwBe7RmmTUrPx9rd4lD1YRF/JO4ZCdo7AL1Skl+RMhhrhl7unn1DRXvNGLwk9jej1gtxuKUoxKbyOllAIxjdiT9Bp1M4ukSADrSENhvw98RW6gtrZCRIWkOxIrZf8J3QZzSLtOi7u/9bPK7l1vYK0XuJbRffRIeTmBJyAE3ACHSLwD3BoxEqSOdMMAAAAAElFTkSuQmCC" alt=""></span><span class="status-symbol wifi"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEIAAAAzCAYAAAAjKt6MAAAAAXNSR0IArs4c6QAAAGxlWElmTU0AKgAAAAgABAEaAAUAAAABAAAAPgEbAAUAAAABAAAARgEoAAMAAAABAAIAAIdpAAQAAAABAAAATgAAAAAAAADYAAAAAQAAANgAAAABAAKgAgAEAAAAAQAAAEKgAwAEAAAAAQAAADMAAAAA+BJIBgAAAAlwSFlzAAAhOAAAITgBRZYxYAAABE5JREFUaAXtmVuITWEUx4dxz21Ik1tMCLkkFAnDEGmkXKIkNG55oPDCi/DiQeJB4ZER4YGMKOFNrg8uuYWacRmXcR/3++9fs+t02mfvb++z93e26az6dc7svb71rW99l7W+MwUFeclHIB+BfAQyR6BJ5leRv2mOxRLoDsXQDlrBH/gO7+EVPG5Az61JnIEYwCgmwWgYCf2gEExEgbkL1+ACnIMn8N+IBrwDquFvxNzC3hboC4mUNnhVAVch6sG72dOWOQMzoRnkXFrjwXp4C24O23im82QJmG45VKMTdboUnoKNwZr0cRtfZoA10QFoawuYBCBdpwr/lJFiE2WXVfAF0jtP2t91+KjzI5CYpM/2WDwI5YEsZ1Z+yavXUN9AUz5VUwjNZieIQnZjZDX8isJYT4xo/4WddRVIh0BnyijoAH7SBYWxoBV4HFRohe3/LG0V4KykL61rIKgTH2izBzRwkxWHmqfocC6DAxBma16hXRGEEq2EaggSBGWRlaC6Ii7piGGl7DcQxLdL6LeFQKIGN8G0Iy3dNaB7gy3RubUZvoKpn8ooOo+MZR+apsZPoqtLVK6kPx3rLmLqr1aTsVxG08/wN3RU0SVBNMsb4Df4+V2ZyWG3w2wEyudBy89NXvBQeVr7Loi0QFkzOAhKQBlEfejuoANWW+whKEs9Ag0siExHWWk+U5ao4d04eALGUoqm2wl9j+c9jK0UFPRCdy3okqRV5DdjznsF5hisgM5gKgryc3DsOJ+1PFMWDCUqoH6AY+w+37saWlLbU2CyXB37mT4VQM30aDCRgSipaHPs1fFdAcpK5tFaP5LcgW4GlsajcxEcJ6L+PIFtk0FJR6tABd1wiESKsKKf2bxEKXcvRD1wN3tapRuhGXhJC14Ka6KlqMPNzek4n2nlFVsbpU9HE3j/DuIcsJftavrWRORUdJf4BF6O2nj3DB96Q1biVkeYGFQKvQ5BUpvs/gJdgm6AttNHUEGkO0R/UA0zFIKKMtowUIaxKipegsy2iq9FoAH7iUr2dfAAgvTRx89wHO81i0cNHNXMTwnpgPpYDLrV+gVkKzo5E6UvVX9uTqqQ2gR+aRcVX1Epvh/c+tGz7b4WLCgoT1dBqpP1/F0eQ9+rsKkzJrWvnTH0E9pkS1qebnDwM5+loS35N1yAilO27/JXt6+hlbEMBgfsWudA0Mw1kTYq/f9raY33FaDtpOu8ruBa7jVwGGZDITRqWczoXkLqHnf7/hCdadDoRJmjEtwG7fUspykx6lnQ/j8SIghOgLZF7VCu7OlQcwYV9nOIDed1ascpuk/8zKID3UXqsmifqKaz8EbBCLoiVJiNSdRIInBmLjbSq0KvwOh6Py6CfhNpYj5eOVWhVxDirk4TEZyFPsHQvxDKEuGpBSdUWaqiTF8VX3k22UL/iepiOd6kBkNBmJooDy06M4e+akG/RDXag9FiPPNd5SOQj0CMEfgHdeQm+UJoIosAAAAASUVORK5CYII=" alt=""></span><span class="status-symbol battery"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFoAAAAqCAYAAAAzikzDAAAAAXNSR0IArs4c6QAAAGxlWElmTU0AKgAAAAgABAEaAAUAAAABAAAAPgEbAAUAAAABAAAARgEoAAMAAAABAAIAAIdpAAQAAAABAAAATgAAAAAAAADYAAAAAQAAANgAAAABAAKgAgAEAAAAAQAAAFqgAwAEAAAAAQAAACoAAAAAZKNrFgAAAAlwSFlzAAAhOAAAITgBRZYxYAAAA9FJREFUaAXtmjloVEEcxuMtxltQiUYlRbywUPFAFAQbGxFFRFuvRrTQQgyosRcEtREsLGw8QE0nXgQkImK0UKzEYCwEj4D3rb8v2Uf+TmbfW9a3m92X+eBjZv5z/r+dN8d7W1MTEBQICgQFggJBgQGuwKAi/Z9KvaVwHqyHE+BoOBQOhpWK3wzsB/wI38JO+ATey6UJ+h8ScRvUoDTgPxniL3xphZthsZOPqv+PBTTxGGZJ3Hy+3MXPWbDsWEmPetTyDSyL9tf4O7+cSk+js3cDTORo4nTg9ziYCrTuxuEYmdrofNA63QYfwQ74CX6FlQytvyPgGNgAl8DF0IeZGA/D/b7MNG3TaUybRPQL2/AC9ro0O+vHthrp+xa0/kVxLZm1pR7bnjydXyl1x/3Q/jD61CYYCWzDDWmMJ27pWJGngwPGrkdxHVwGx8JKPkMzvG5oyeuCrfBmt6XnbN1EXDPbhXS47BrTTLfTmP1lFdfh3uIECbdMNaUPGmc0aXwbf4spU5LoK1p1RTtvehpJ/LunjFunktPy0eIOCXe8920B4svhaai7RcGIe9R9R5s3pmVdw7W2VTOmMHjrg/Uv8mt8FMmFkwh3QT3xu3O2xCBO6OGe2p+NLW59N8UqPmr9+OIZrU8HFVO9U1DX9kTECe3L02OVZWijdOHTwZY5SWKUNfjiSY346gTbvwpMJrnxX1PfVBC6rybFWFYlVQpCJylUWL421VgEoWPlKTjzfVLJIHSSQoXlP0wqFoROUig5X5e2i0nF4oTO+lHOp42u4S6SdDhOhZduJTcdJ/RPtzBpvcuN4DtzRnnVFFo/rH+RD/qYmw9XyTiUL9Pa44T+YAvm4npDF0EvYKod+ljxzThh/YvMPh1ekLkP6vwc90NEbcSGT8l1X7C0OTX0qtEtU03pc44/EtAd/3WnTNzkdIr2Ju09v9faE3tGMMcxLiStT1tdOfsmwqNQ72z1EqqoQVCvnNBSoafxNmyGERqJ1EcJE0oHC7vUWHvR8WZqur+u0keKbrGyK57J4+/2Ug9bHy59QmuT3FHqzsvY/hD6aoI+X39hr0tjLL7jjG33AYlF1mDi+vqt82M7fA71IbNavoJr02uAmkxb4GzoQwvG9b6MtG2raVBrku/XzrpN76b138JUoMcmDh1k6uazJq5QBvM0iXbCG+X2bS8dSvCsz2L5pyVwK+w3zKXnS1CbYRYF1/5yFs6AqSNpM/R1qHeva+FyKPGnw4mwFupDZzFtUq0s0H6jiaLbns7SnVB/odBF7BqM7gdEA4ICQYGgQFBgoCjwFwi62hD0wfkxAAAAAElFTkSuQmCC" alt=""></span></span></div>
         <div class="home-indicator" aria-hidden="true"></div>
       </div>
@@ -75,12 +95,31 @@
     </div>
   </div>
   <button class="switch" id="switch" type="button" aria-label="Switch to iPhone layout" title="iPhone view · Option + Shift + M"><svg class="phone-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/></svg><svg class="desktop-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="1"/><path d="M8 21h8m-4-4v4"/></svg></button>
+  <button id="phone-model-button" type="button" aria-label="Choose iPhone model" popovertarget="phone-model-menu"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M10 5h4M11 18h2"/></svg></button>
+  <div id="phone-model-menu" popover aria-label="iPhone models"></div>
   <div class="phone-finger" id="phone-finger" aria-hidden="true" hidden></div>
-  <script>
+  <script type="module">
+    import { phoneDevices, phoneDevice } from "/phone-devices.js";
     const stage=document.getElementById('stage'),button=document.getElementById('switch'),frame=stage.querySelector('iframe');
-    const query=new URLSearchParams(location.search),initialPhone=query.get('device')==='iphone16';query.delete('device');
+    const query=new URLSearchParams(location.search),initialPhone=Boolean(query.get('device'));let selectedDevice=phoneDevice(query.get('device'));query.delete('device');
     frame.src='/app' + (query.size?'?'+query:'');
-    function fitPhone(){const scale=Math.min(1,(innerWidth-48)/432.554,(innerHeight-64)/891.557);document.documentElement.style.setProperty('--phone-scale',Math.max(.2,scale));}
+    function fitPhone(){const scale=Math.min(1,(innerWidth-48)/(selectedDevice.width+39.554),(innerHeight-64)/(selectedDevice.height+39.557));document.documentElement.style.setProperty('--phone-scale',Math.max(.2,scale));}
+    const modelMenu=document.getElementById('phone-model-menu');
+    const bodyPath=document.querySelector('#phone-body-outline path'),screenPath=document.querySelector('#phone-screen-outline path');
+    const originalBodyPath=bodyPath.getAttribute('d'),originalScreenPath=screenPath.getAttribute('d');
+    function configurePhone(){
+      const root=document.documentElement, d=selectedDevice;
+      for(const [name,value] of Object.entries({'phone-width':d.width,'phone-height':d.height,'phone-body-width':d.width+39.554,'phone-body-height':d.height+39.557,'phone-safe-top':d.safeTop,'cutout-width':d.cutout==='notch'?155:124.941}))root.style.setProperty('--'+name,value+'px');
+      stage.dataset.cutout=d.cutout;
+      bodyPath.setAttribute('d',originalBodyPath);bodyPath.setAttribute('transform',`scale(${(d.width+39.554)/432.554} ${(d.height+39.557)/891.557})`);
+      screenPath.setAttribute('d',originalScreenPath);screenPath.setAttribute('transform',`scale(${d.width/393} ${d.height/852})`);
+      stage.querySelector('.hardware-button.camera').hidden=!/^iphone1[678](?!e)|iphoneair/.test(d.id);
+      stage.querySelector('.hardware-button.action').style.height=/^iphone1[34]|iphone15(?!pro)/.test(d.id)?'26px':'41.667px';
+      for(const row of modelMenu.querySelectorAll('button'))row.setAttribute('aria-pressed',String(row.dataset.device===d.id));
+      fitPhone();syncDevice();
+    }
+    for(const d of phoneDevices){const row=document.createElement('button');row.type='button';row.textContent=d.name;row.dataset.device=d.id;row.setAttribute('aria-pressed',String(d.id===selectedDevice.id));row.addEventListener('click',()=>{selectedDevice=d;modelMenu.hidePopover();configurePhone();toggle(true);});modelMenu.append(row);}
+    modelMenu.addEventListener('toggle',()=>{if(modelMenu.matches(':popover-open'))modelMenu.querySelector('[aria-pressed=true]')?.scrollIntoView({block:'nearest'});});
     const finger=document.getElementById('phone-finger'),boundDocuments=new WeakSet();
     const homeIndicator=stage.querySelector('.home-indicator');let indicatorTimer;
     function wakeHomeIndicator(){
@@ -101,7 +140,8 @@
     }
     function syncDevice(){
       const doc=frame.contentDocument;if(!doc)return;
-      const phone=stage.classList.contains('phone');doc.documentElement.dataset.devicePreview=phone?'iphone16':'';
+      const phone=stage.classList.contains('phone');doc.documentElement.dataset.devicePreview=phone?selectedDevice.id:'';
+      doc.documentElement.style.setProperty('--preview-safe-top',selectedDevice.safeTop+'px');doc.documentElement.style.setProperty('--preview-safe-bottom',selectedDevice.safeBottom+'px');
       if(!phone)hideFinger();
       if(boundDocuments.has(doc))return;boundDocuments.add(doc);
       for(const type of ['pointermove','pointerdown','pointerup'])doc.defaultView.addEventListener(type,event=>trackFinger(event,true),true);
@@ -110,7 +150,7 @@
     }
     for(const type of ['pointermove','pointerdown','pointerup'])document.addEventListener(type,event=>trackFinger(event),true);
     document.documentElement.addEventListener('pointerleave',hideFinger);window.addEventListener('blur',hideFinger);
-    function toggle(force){const phone=typeof force==='boolean'?force:!stage.classList.contains('phone');stage.classList.toggle('phone',phone);button.dataset.phone=String(phone);button.setAttribute('aria-label',phone?'Switch to desktop layout':'Switch to iPhone layout');button.title=(phone?'Desktop view':'iPhone view')+' · Option + Shift + M';frame.title=phone?'TripPilot — iPhone 16 full screen':'TripPilot website';const url=new URL(location.href);if(phone)url.searchParams.set('device','iphone16');else url.searchParams.delete('device');history.replaceState(null,'',url);fitPhone();syncDevice();wakeHomeIndicator();}
+    function toggle(force){const phone=typeof force==='boolean'?force:!stage.classList.contains('phone');stage.classList.toggle('phone',phone);button.dataset.phone=String(phone);button.setAttribute('aria-label',phone?'Switch to desktop layout':'Switch to iPhone layout');button.title=(phone?'Desktop view':'iPhone view')+' · Option + Shift + M';frame.title=phone?'TripPilot — '+selectedDevice.name+' full screen':'TripPilot website';const url=new URL(location.href);if(phone)url.searchParams.set('device',selectedDevice.id);else url.searchParams.delete('device');history.replaceState(null,'',url);fitPhone();syncDevice();if(!phone&&modelMenu.matches(':popover-open'))modelMenu.hidePopover();wakeHomeIndicator();}
     function updateTime(){document.getElementById('phone-time').textContent=new Intl.DateTimeFormat('en-US',{hour:'numeric',minute:'2-digit',hour12:true}).formatToParts(new Date()).filter(part=>part.type!=='dayPeriod').map(part=>part.value).join('').trim();}
     frame.addEventListener('load',()=>{syncDevice();wakeHomeIndicator();});button.addEventListener('click',()=>toggle());window.addEventListener('resize',fitPhone);
     document.addEventListener('keydown',event=>{if(event.altKey&&event.shiftKey&&event.code==='KeyM'){event.preventDefault();toggle();}});
@@ -123,7 +163,7 @@
         history.replaceState(null,'',url);
       }
     });
-    updateTime();setInterval(updateTime,60000);toggle(initialPhone);
+    configurePhone();updateTime();setInterval(updateTime,60000);toggle(initialPhone);
   </script>
 </body>
 </html>

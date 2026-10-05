@@ -1,3 +1,4 @@
+import { phoneMediaQuery } from './phone-devices.js';
 export function bannerSnapDestination(offset, previous, limit) {
   if (limit <= 0 || offset <= 1 || offset >= limit - 1) return null;
   return offset > previous ? limit : offset < previous ? 0 : null;
@@ -59,9 +60,10 @@ export function createHeaderScrollIntent({ now = () => performance.now(), direct
 // its controls counter that movement to become a small, stable header.
 export function createTripBanner({ workspace, header, hero, onResize }) {
   const desktop = matchMedia('(min-width:901px)');
-  const phone = matchMedia('(max-width:580px)');
+  const phone = matchMedia(phoneMediaQuery);
   const gallery = hero.querySelector('.hero-gallery');
   const date = hero.querySelector('.hero-date');
+  const headerActions = hero.querySelector('.hero-top');
   const thumbnail = document.createElement('div'); thumbnail.className = 'banner-thumbnail'; thumbnail.setAttribute('aria-hidden', 'true'); thumbnail.inert = true; hero.prepend(thumbnail);
   function syncThumbnail() {
     const images = [...gallery.querySelectorAll('img[src]')];
@@ -101,7 +103,7 @@ export function createTripBanner({ workspace, header, hero, onResize }) {
   }
   function scroll() {
     const offset = scrollOffset();
-    if (snapTarget === null && performance.now() < intentUntil && !workspace.hidden && header.querySelector('#edit-date-picker')?.hidden !== false) {
+    if (snapTarget === null && performance.now() < intentUntil && !workspace.hidden && !document.getElementById('edit-date-picker')?.open) {
       const target = bannerSnapDestination(offset, previousOffset, scrollLimit());
       if (target !== null) snapTo(target);
     }
@@ -116,7 +118,7 @@ export function createTripBanner({ workspace, header, hero, onResize }) {
     const panel = targetElement.closest('.day-content, .nearby-results, #transport-content');
     if (Math.abs(event.deltaY) < 1 || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
     if (gesture.consume(snapTarget !== null, event.deltaY)) { event.preventDefault(); event.stopImmediatePropagation(); return; }
-    if (targetElement.closest('#map, input, textarea, [role=listbox], .dropdown-menu') || header.querySelector('#edit-date-picker')?.hidden === false) { resetIntent(); return; }
+    if (targetElement.closest('#map, input, textarea, [role=listbox], .dropdown-menu') || document.getElementById('edit-date-picker')?.open) { resetIntent(); return; }
     if (desktop.matches) {
       // Keep both scroll containers alive. One owner handles each wheel event,
       // so native scroll chaining and compositor latching cannot bypass a snap.
@@ -165,7 +167,7 @@ export function createTripBanner({ workspace, header, hero, onResize }) {
     workspace.style.setProperty('--banner-morph', String(1 - Math.pow(1 - progress, 2)));
     workspace.style.setProperty('--banner-shift', `${shift}px`);
     workspace.style.setProperty('--banner-date-shift', `${dateShift * progress}px`);
-    workspace.style.setProperty('--banner-date-room', `${(date.offsetWidth + 12) * progress}px`);
+    workspace.style.setProperty('--banner-date-room', `${Math.max(0, date.offsetWidth - 8) * progress}px`);
     const compact = progress >= .995 && (!desktop.matches || workspace.scrollTop >= scrollLimit() - 1);
     workspace.classList.toggle('banner-compact', compact);
     gallery.inert = progress >= .995;
@@ -177,7 +179,9 @@ export function createTripBanner({ workspace, header, hero, onResize }) {
     travel = phone.matches ? 0 : Math.max(0, hero.offsetHeight - compactHeight);
     workspace.style.setProperty('--banner-travel', `${travel}px`);
     origin = workspace.getBoundingClientRect().top + window.scrollY;
-    dateShift = Math.max(0, hero.clientWidth - date.offsetWidth - 62 - 26);
+    const actionWidth = headerActions.offsetWidth;
+    workspace.style.setProperty('--banner-action-room', `${actionWidth + 32}px`);
+    dateShift = Math.max(0, hero.clientWidth - date.offsetWidth - actionWidth - 12 - 26);
     if (desktop.matches) {
       const styles = getComputedStyle(workspace);
       const height = Math.max(240, workspace.clientHeight - parseFloat(styles.paddingTop) - parseFloat(styles.paddingBottom) - header.offsetHeight + travel);
@@ -190,7 +194,7 @@ export function createTripBanner({ workspace, header, hero, onResize }) {
     schedule();
   }
   const observer = new ResizeObserver(measure);
-  for (const element of [workspace, header, date]) observer.observe(element);
+  for (const element of [workspace, header, date, headerActions]) observer.observe(element, { box: 'border-box' });
   new MutationObserver(measure).observe(workspace, { attributes: true, attributeFilter: ['hidden'] });
   workspace.addEventListener('keydown', event => { if (['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', 'Home', 'End', ' '].includes(event.key) && !event.target.closest('input, textarea, [role=listbox]')) intentUntil = performance.now() + 1000; });
   workspace.addEventListener('touchstart', event => { if (!event.target.closest('#map')) intentUntil = performance.now() + 1500; }, { passive: true });
