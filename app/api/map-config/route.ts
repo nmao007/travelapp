@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import mapPackage from 'maplibre-gl/package.json';
 export const dynamic = 'force-dynamic';
 export function GET() {
-  const googleKey = process.env.GOOGLE_MAPS_BROWSER_KEY;
+  const googleKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY;
   const googleMapId = process.env.GOOGLE_MAP_ID;
   // OpenFreeMap permits commercial use without a key. Custom styles must be reviewed.
   const style = process.env.MAP_STYLE_URL || 'https://tiles.openfreemap.org/styles/liberty';

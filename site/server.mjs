@@ -99,7 +99,7 @@ async function localSettings() {
 }
 async function localConfig() {
   const values = await localSettings();
-  return { mapsKey: values.GOOGLE_MAPS_BROWSER_KEY || null, mapId: values.GOOGLE_MAP_ID || 'DEMO_MAP_ID', flightLookup: Boolean(values.AERODATABOX_API_KEY || process.env.AERODATABOX_API_KEY), supabaseUrl: values.NEXT_PUBLIC_SUPABASE_URL || null, supabaseAnonKey: values.NEXT_PUBLIC_SUPABASE_ANON_KEY || null };
+  return { mapsKey: values.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY || null, mapId: values.GOOGLE_MAP_ID || process.env.GOOGLE_MAP_ID || 'DEMO_MAP_ID', flightLookup: Boolean(values.AERODATABOX_API_KEY || process.env.AERODATABOX_API_KEY), supabaseUrl: values.NEXT_PUBLIC_SUPABASE_URL || null, supabaseAnonKey: values.NEXT_PUBLIC_SUPABASE_ANON_KEY || null };
 }
 
 createServer(async (request, response) => {
@@ -111,7 +111,7 @@ createServer(async (request, response) => {
       for await (const chunk of request) { bytes += chunk.length; if (bytes > 16384) throw Object.assign(new Error('Route request is too large.'), { status: 413 }); chunks.push(chunk); }
       let input; try { input = JSON.parse(Buffer.concat(chunks).toString()); } catch { throw Object.assign(new Error('Invalid route request.'), { status: 400 }); }
       const values = await localSettings();
-      const route = await lookupRoute(input, values.GOOGLE_MAPS_ROUTES_KEY || process.env.GOOGLE_MAPS_ROUTES_KEY || values.GOOGLE_MAPS_BROWSER_KEY);
+      const route = await lookupRoute(input, values.GOOGLE_MAPS_ROUTES_KEY || process.env.GOOGLE_MAPS_ROUTES_KEY || values.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY);
       response.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' }); response.end(JSON.stringify(route));
     } catch (error) {
       response.writeHead(error.status || 502, { 'content-type': 'application/json', 'cache-control': 'no-store' });
