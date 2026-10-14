@@ -75,7 +75,7 @@ export function createPlanningDrag({ root, tabs, getTrip, commit, onDrop }) {
     clearTargets();
     if (!target || (!root.contains(target) && !tabs.contains(target))) { drag.target = null; return; }
     if (target.classList.contains('itinerary-day')) {
-      const candidates = [...target.querySelectorAll('[data-flexible="true"]')].filter(row => row !== drag.row);
+      const candidates = [...target.querySelectorAll('[data-event-key]')].filter(row => row !== drag.row);
       const before = candidates.find(row => { const rect = row.getBoundingClientRect(); return y < rect.top + rect.height / 2; });
       const after = before || target.querySelector('.open-day') || null;
       if (drag.gap.parentElement !== target || drag.gap.nextElementSibling !== after) {
@@ -84,7 +84,7 @@ export function createPlanningDrag({ root, tabs, getTrip, commit, onDrop }) {
         const gapAfter = drag.gap.getBoundingClientRect();
         playMotion(drag.gap, [{ opacity: .6, transform: gapBefore ? `translate(${gapBefore.left - gapAfter.left}px,${gapBefore.top - gapAfter.top}px)` : 'none' }, { opacity: 1, transform: 'none' }], { duration: 220 });
       }
-      drag.beforeId = before?.dataset.itemId || null;
+      drag.beforeId = before?.dataset.eventKey || null;
     } else {
       if (drag.gap.isConnected) { const previous = capturePlanningLayout(root); drag.gap.remove(); animatePlanningLayout(root, previous); }
       target.classList.add('drop-target'); drag.beforeId = null;

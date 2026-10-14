@@ -781,9 +781,8 @@ to{opacity:1;transform:scale(1)}
 
 .workspace .hero-credit{opacity:calc(1 - var(--banner-progress))}
 
-/* Keep navigation spacing inside the sticky header's measured box. */
+/* Keep the workspace navigation below the trip header on desktop. */
 .trip-masthead{padding-bottom:12px}
-.trip-masthead .workspace-nav{margin-bottom:0}
 .workspace .hero-top .more-button{height:38px;width:38px}
 .hero-top .route-add{height:38px;min-height:38px;padding:0 12px;background:#fff;font-size:14px;white-space:nowrap}
 .hero-top .route-add:hover{background:var(--tint)}
@@ -881,6 +880,64 @@ to{opacity:1;transform:scale(1)}
 #remove-stop{margin-left:auto;color:var(--danger)}
 #save-stop{display:flex;justify-content:space-between;align-items:center;min-height:48px;padding:12px 16px;flex:none}
 .destination-picker:has(.stop-date-panel:not([hidden])){max-height:min(620px,84dvh)}
+
+/* The list view follows a simple trip timeline, with a distinct booking card between stops. */
+#day-content[data-mode=list]{position:relative;padding:14px 0 24px 34px}
+#day-content[data-mode=list]>.itinerary-day{margin:0 0 15px}
+#day-content[data-mode=list]>.itinerary-day:before{position:absolute;top:30px;bottom:-16px;left:-23px;width:2px;background:#ffd1c1;content:''}
+#day-content[data-mode=list]>.itinerary-day:last-of-type:before{display:none}
+#day-content[data-mode=list] .itinerary-day-heading{position:relative;min-height:38px;margin:0 0 8px;border-bottom:1px solid #ff5b24}
+#day-content[data-mode=list] .itinerary-day-marker{position:absolute;left:-34px;top:9px;width:20px;height:20px;border:5px solid #ff5b24;border-radius:50%;background:#fff;box-shadow:0 0 0 3px #fff;z-index:1}
+.itinerary-day-heading-main{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-width:0}
+#day-content[data-mode=list] .day-heading-button,#day-content[data-mode=list] .day-heading-title{padding:4px 0;margin:0;font-size:16px}
+#day-content[data-mode=list] .day-destination{margin:0;text-align:right;max-width:48%;font-size:13px;color:var(--muted)}
+#day-content[data-mode=list] .timeline-item{margin:0 0 8px;border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden}
+#day-content[data-mode=list] .timeline-item:before{display:none}
+#day-content[data-mode=list] .timeline-row,#day-content[data-mode=list] .compact-service{min-height:64px;padding:10px 12px;gap:10px}
+#day-content[data-mode=list] .place-marker{width:34px;height:34px;border-radius:50%;background:#fff0e9;color:#d94b28}
+#day-content[data-mode=list] .place-copy strong{font-size:14px;font-weight:650}
+#day-content[data-mode=list] .place-copy small{font-size:12px}
+#day-content[data-mode=list] .timeline-time{width:68px;color:var(--muted);font-weight:500;font-size:12px}
+#day-content[data-mode=list] .open-day{margin:6px 0 0;border:1px dashed #e5cfc5;border-radius:10px;justify-content:flex-start;padding:11px 12px}
+.transport-draft-card{display:flex;align-items:center;gap:14px;width:100%;min-height:116px;margin:12px 0 18px;padding:20px;border:1px solid #efb39f;border-radius:24px;background:#f7c0af;color:#34241f;text-align:left;transition:background .2s,transform .2s}
+.transport-draft-card:hover{background:#f2b39f;transform:translateY(-1px)}
+.transport-draft-icon{display:grid;place-items:center;flex:none;width:44px;height:44px;border-radius:50%;background:#fff4ef;color:#bd4829}
+.transport-draft-icon .icon{width:22px;height:22px}
+.transport-draft-copy{display:grid;gap:4px;min-width:0;flex:1}
+.transport-draft-copy small{color:#9a432b;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.transport-draft-copy strong{overflow-wrap:anywhere;font-size:16px;line-height:1.3}
+.transport-draft-copy>span{color:#704b40;font-size:13px}
+.transport-draft-action{padding:8px 12px;border:1px solid #d8917a;border-radius:999px;color:#75361f;font-size:12px;font-weight:700;white-space:nowrap}
+.add-home-flight{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:52px;margin:8px 0 18px;padding:12px;border:1px dashed #d8917a;border-radius:16px;color:#9a432b;font-size:14px;font-weight:700;background:#fff8f5}
+.add-home-flight:hover{background:#fff0e9;border-color:#bd4829}
+@media(max-width:600px){#day-content[data-mode=list]{padding:14px 0 20px 30px}#day-content[data-mode=list] .itinerary-day-marker{left:-30px;width:18px;height:18px;border-width:5px}#day-content[data-mode=list]>.itinerary-day:before{left:-22px;top:28px}#day-content[data-mode=list] .timeline-time{width:58px;font-size:11px}.flight-journey{padding-left:22px}.flight-journey:before{left:6px}.flight-endpoint:before{left:-22px}}
+
+.route-all,.route-stop{min-height:38px;padding:5px 8px;gap:6px;font-size:12px;border-radius:8px}
+.route-index{width:20px;height:20px;font-size:11px}
+.route-copy{gap:2px;max-width:140px}
+.route-copy strong{font-size:12px}
+.route-range{font-size:11px}
+.calendar-shortcut{display:grid;place-items:center;width:32px;min-width:32px;height:32px;min-height:32px;margin-left:4px;padding:0!important;border:1px solid var(--line)!important;border-radius:7px!important;color:var(--action)!important;background:#fff!important}
+.calendar-shortcut[hidden]{display:none}
+.calendar-shortcut:hover{background:var(--tint)!important}
+.calendar-shortcut .icon{width:17px;height:17px}
+.flight-journey{position:relative;display:grid;gap:7px;margin:8px 0 16px;padding-left:26px}
+.flight-journey:before{position:absolute;top:18px;bottom:18px;left:8px;width:2px;background:#ffcdbb;content:''}
+.flight-endpoint,.flight-main-card{position:relative;display:flex;align-items:center;gap:12px;width:100%;min-width:0;text-align:left}
+.flight-endpoint{min-height:54px;padding:9px 11px;border:1px solid #f0d8cf;border-radius:11px;background:#fff1e9;color:var(--ink)}
+.flight-endpoint:before{position:absolute;left:-27px;top:calc(50% - 7px);width:12px;height:12px;border:3px solid #ff6d3a;border-radius:50%;background:#fff;content:'';z-index:1}
+.flight-endpoint small{flex:none;width:68px;color:#c85430;font-size:10px;font-weight:750;letter-spacing:.08em;text-transform:uppercase}
+.flight-endpoint strong{min-width:0;flex:1;font-size:14px;overflow-wrap:anywhere}
+.flight-endpoint span{flex:none;color:var(--muted);font-size:12px;text-align:right}
+.flight-main-card{min-height:84px;padding:12px;border:1px solid var(--line);border-radius:11px;background:#fff;color:var(--ink);box-shadow:0 3px 14px #20201f08}
+.flight-main-icon{display:grid;place-items:center;flex:none;width:42px;height:42px;border-radius:50%;background:#fff0e9;color:#df5528}
+.flight-main-icon .icon{width:22px;height:22px}
+.flight-main-copy{display:grid;min-width:0;flex:1;gap:4px}
+.flight-main-copy small{color:var(--muted);font-size:11px;font-weight:750;letter-spacing:.07em;text-transform:uppercase}
+.flight-main-copy strong{font-size:17px;line-height:1.2}
+.flight-main-copy span{overflow-wrap:anywhere;color:var(--muted);font-size:13px}
+.flight-main-chevron{color:var(--muted);font-size:26px;line-height:1}
+@media(max-width:600px){.route-all,.route-stop{min-height:34px;padding:4px 7px;font-size:11px}.route-index{width:18px;height:18px}.route-copy strong{font-size:11px}.route-range{font-size:10px}.flight-endpoint{gap:7px;padding:9px}.flight-endpoint small{width:58px;font-size:9px}.flight-endpoint strong{font-size:13px}.flight-endpoint span{font-size:11px}.flight-main-card{min-height:76px;padding:10px}.flight-main-copy strong{font-size:15px}}
 
 .day-destination{display:flex;align-items:center;gap:5px;flex-wrap:wrap;justify-content:flex-end}.day-destination .icon{width:13px;height:13px;flex:none}
 

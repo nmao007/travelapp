@@ -11,7 +11,11 @@ export function eventsForDay(trip, day) {
   const items = (trip.items || []).filter(item => item.day === day);
   const activities = items.map(item => ({ id: item.id, title: item.name, date: item.day, time: item.time || null, time_zone: item.timeZone || trip.timeZone || 'UTC' }));
   const byId = new Map(items.map(item => [item.id, item]));
-  return eventsForTripDay(day, activities, trip.transport || []).map(event => event.kind === 'activity' ? { ...event, item: byId.get(event.id) } : event);
+  const ordered = eventsForTripDay(day, activities, trip.transport || []).map(event => event.kind === 'activity' ? { ...event, item: byId.get(event.id) } : event);
+  const savedOrder = trip.dayOrder?.[day];
+  if (!savedOrder?.length) return ordered;
+  const rank = new Map(savedOrder.map((key, index) => [key, index]));
+  return ordered.sort((a, b) => (rank.get(a.kind === 'activity' ? `plan:${a.id}` : `transport:${a.id}:${a.leg}`) ?? Number.MAX_SAFE_INTEGER) - (rank.get(b.kind === 'activity' ? `plan:${b.id}` : `transport:${b.id}:${b.leg}`) ?? Number.MAX_SAFE_INTEGER));
 }
 
 export function makePlan(trip, input, existing = null) {
@@ -69,7 +73,14 @@ export function reorderPlan(trip, sourceId, targetId) {
   const moved = { ...source, day: target.day };
   items.splice(items.indexOf(source), 1);
   items.splice(items.findIndex(item => item.id === target.id), 0, moved);
-  return { ...trip, items };
+  const dayOrder = { ...(trip.dayOrder || {}) };
+  if (dayOrder[source.day]) {
+    const keys = dayOrder[source.day].filter(key => key !== `plan:${sourceId}`);
+    const targetIndex = keys.indexOf(`plan:${targetId}`);
+    if (targetIndex >= 0) keys.splice(targetIndex, 0, `plan:${sourceId}`);
+    dayOrder[source.day] = keys;
+  }
+  return { ...trip, items, dayOrder };
 }
 
 // Swap neighboring flexible plans without moving bookings or other days.
@@ -82,7 +93,13 @@ export function stepPlan(trip, id, direction) {
   if (!neighbor) return trip;
   const reordered = [...items], from = items.indexOf(source), to = items.indexOf(neighbor);
   [reordered[from], reordered[to]] = [reordered[to], reordered[from]];
-  return { ...trip, items: reordered };
+  const dayOrder = { ...(trip.dayOrder || {}) };
+  if (dayOrder[source.day]) {
+    const keys = [...dayOrder[source.day]], sourceIndex = keys.indexOf(`plan:${source.id}`), neighborIndex = keys.indexOf(`plan:${neighbor.id}`);
+    if (sourceIndex >= 0 && neighborIndex >= 0) [keys[sourceIndex], keys[neighborIndex]] = [keys[neighborIndex], keys[sourceIndex]];
+    dayOrder[source.day] = keys;
+  }
+  return { ...trip, items: reordered, dayOrder };
 }
 
 export function removeItineraryEvent(trip, collection, id) {
@@ -110,17 +127,29 @@ export function restoreItineraryEvent(trip, removal) {
   return { ...trip, [collection]: records };
 }
 
-export function insertPlan(trip, sourceId, day, beforeId = null) {
+export function insertPlan(trip, sourceId, day, beforeKey = null) {
   const source = (trip.items || []).find(item => item.id === sourceId);
-  if (!source || fixedItem(source) || !datesForTrip(trip).includes(day) || sourceId === beforeId) return trip;
-  const remaining = trip.items.filter(item => item.id !== sourceId);
-  const before = beforeId ? remaining.findIndex(item => item.id === beforeId && item.day === day) : -1;
-  if (beforeId && before < 0) return trip;
-  let position = before;
-  if (!beforeId) { position = remaining.findLastIndex(item => item.day === day) + 1; if (!position) position = remaining.length; }
-  remaining.splice(position, 0, { ...source, day });
-  if (source.day === day && remaining.every((item, index) => item.id === trip.items[index].id)) return trip;
-  return { ...trip, items: remaining };
+  if (!source || fixedItem(source) || !datesForTrip(trip).includes(day) || beforeKey === `plan:${sourceId}`) return trip;
+  const eventKey = event => event.kind === 'activity' ? `plan:${event.id}` : `transport:${event.id}:${event.leg}`;
+  const keysForDay = date => eventsForTripDay(date,
+    (trip.items || []).filter(item => item.day === date).map(item => ({ id: item.id, date, time: item.time || null, time_zone: item.timeZone || trip.timeZone || 'UTC' })),
+    trip.transport || []).map(eventKey);
+  const dayOrder = { ...(trip.dayOrder || {}) };
+  const sourceKey = `plan:${sourceId}`;
+  if (source.day !== day) {
+    const prior = [...(dayOrder[source.day] || keysForDay(source.day))].filter(key => key !== sourceKey);
+    if (prior.length) dayOrder[source.day] = prior; else delete dayOrder[source.day];
+  }
+  const target = [...(dayOrder[day] || keysForDay(day))].filter(key => key !== sourceKey);
+  if (!target.includes(sourceKey)) target.push(sourceKey);
+  const before = beforeKey ? target.indexOf(beforeKey) : -1;
+  if (beforeKey && before < 0) return trip;
+  target.splice(target.indexOf(sourceKey), 1);
+  target.splice(beforeKey ? target.indexOf(beforeKey) : target.length, 0, sourceKey);
+  dayOrder[day] = target;
+  const items = (trip.items || []).filter(item => item.id !== sourceId);
+  items.push({ ...source, day });
+  return { ...trip, items, dayOrder };
 }
 
 // Show complete weeks containing the trip, without weeks that cannot hold its plans.

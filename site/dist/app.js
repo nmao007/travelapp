@@ -38,6 +38,16 @@ let quotaStorage; try { quotaStorage = sessionStorage; } catch { /* Storage is o
 const quotaMemory = createQuotaMemory(quotaStorage);
 const state = { maps: null, places: null, markerClass: null, map: null, mapUnavailable: false, marker: null, stopMarkers: [], placeMarkers: [], suggestionMarkers: [], suggestions: [], selected: null, trip: null, day: 'ideas', animation: 0, config: null, pendingNearby: null, nearbyRequest: 0, photoRequest: 0, calendarRange: { start: null, end: null }, calendarYear: 0, calendarMonth: 0, routeEditing: false, stopFilter: null, planMode: 'list', workspaceView: 'itinerary', nearbyCategory: 'see', detailCooldownUntil: quotaMemory.read('selection-details'), photoCooldownUntil: quotaMemory.read('photo-details'), detailCache: new Map(), imageCache: new Map(), infoWindow: null, activePlaceId: null, discoveryPlace: null, mapSuggestions: [], mapAreaKey: null, mapSearchVersion: 0, mapSearchTimer: null, placeClickVersion: 0, nearbyAreaKey: null, nearbyTimer: null, cameraMoving: false };
 const tripBanner = createTripBanner({ workspace: $('workspace'), header: $('trip-masthead'), hero: $('destination-hero'), onResize: () => { if (state.map) requestAnimationFrame(() => google.maps.event.trigger(state.map, 'resize')); } });
+const itineraryWorkspace = $('workspace');
+itineraryWorkspace.addEventListener('scroll', () => {
+  const masthead = $('trip-masthead');
+  if (!matchMedia(phoneMediaQuery).matches || $('plan-controls').dataset.view !== 'itinerary') {
+    masthead.classList.remove('header-scrolled-away');
+    return;
+  }
+  if (itineraryWorkspace.scrollTop > 115) masthead.classList.add('header-scrolled-away');
+  else if (itineraryWorkspace.scrollTop < 80) masthead.classList.remove('header-scrolled-away');
+}, { passive: true });
 const dateLabel = value => new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T12:00:00Z`));
 const dateLong = value => new Intl.DateTimeFormat('en', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T12:00:00Z`));
 const tripDateLabel = trip => trip.startDate && trip.endDate ? `${dateLabel(trip.startDate)} – ${dateLabel(trip.endDate)}` : 'Add dates';
@@ -254,6 +264,7 @@ function showWorkspace(place, trip = null) {
   status('trip-status');
   $('hero-gallery').replaceChildren();
   if (trip) {
+    state.planMode = 'list';
     renderRoute();
     const days = daysForTrip(trip);
     if (state.day !== 'ideas' && !days.includes(state.day)) state.day = days[0] || 'ideas';
@@ -272,7 +283,9 @@ function openTrip(trip) { showWorkspace(trip, trip); }
 function createOrOpenTrip(place) {
   const existing = readTrips().find(trip => trip.placeId === place.placeId);
   if (existing) { openTrip(existing); return; }
-  const trip = { id: crypto.randomUUID(), ...place, stops: [place], startDate: null, endDate: null, items: [], createdAt: new Date().toISOString() };
+  const tripId = crypto.randomUUID();
+  const arrivalDraft = { id: crypto.randomUUID(), trip_id: tripId, mode: 'Flight', service_id: '', departure_location: 'Starting point', arrival_location: place.name, departure_date: '', departure_time: '', departure_time_zone: 'UTC', arrival_date: '', arrival_time: '', arrival_time_zone: place.timeZone || 'UTC', notes: '', draft: true, leg: 'arrival', toPlaceId: place.placeId };
+  const trip = { id: tripId, ...place, stops: [place], startDate: null, endDate: null, items: [], transport: [arrivalDraft], createdAt: new Date().toISOString() };
   try { saveTrip(trip); state.day = 'ideas'; openTrip(trip); updateRecent(); }
   catch { status('home-status', 'Could not save this trip on this device.'); }
 }
@@ -1034,13 +1047,15 @@ function commitTrip(next) {
 }
 function setWorkspaceView(view, { keepMobileMap = false } = {}) {
   state.workspaceView = view;
+  if (view !== 'itinerary') $('trip-masthead').classList.remove('header-scrolled-away');
   setMobileMap(keepMobileMap);
   $('plan-controls').dataset.view = view;
   $('plan-panel').hidden = view !== 'itinerary';
   $('discover-panel').hidden = view !== 'explore';
   $('transport-panel').hidden = view !== 'transportation';
   $('map-column').hidden = view === 'transportation';
-  for (const button of document.querySelectorAll('[data-workspace-view]')) button.setAttribute('aria-pressed', String(button.dataset.workspaceView === view));
+  const selectedNavigation = state.workspaceView === 'itinerary' && state.planMode === 'calendar' ? 'calendar' : view;
+  for (const button of document.querySelectorAll('[data-workspace-view]')) button.setAttribute('aria-pressed', String(button.dataset.workspaceView === selectedNavigation));
   if (view !== 'transportation' && state.map) requestAnimationFrame(() => google.maps.event.trigger(state.map, 'resize'));
   renderPlan();
   if (view === 'itinerary') scheduleMapSuggestions();
@@ -1117,14 +1132,30 @@ const itinerary = createItineraryUI({ state, commit: commitTrip,
   onDayChange: updateDayContext,
   editStopDates: stop => openStopEditor(stop?.placeId ? stop : tripStops(state.trip).find(stop => stop.placeId === state.stopFilter) || state.selected),
   onRendered: () => { pruneDayDetails(); dayRoutes.render(); drawMarkers(); },
-  onModeChange: mode => { if ($('plan-controls').dataset.mode === mode) return; $('plan-controls').dataset.mode = mode; if (state.map) requestAnimationFrame(() => google.maps.event.trigger(state.map, 'resize')); },
+  onModeChange: mode => {
+    const selectedNavigation = state.workspaceView === 'itinerary' && mode === 'calendar' ? 'calendar' : state.workspaceView;
+    for (const button of document.querySelectorAll('[data-workspace-view]')) button.setAttribute('aria-pressed', String(button.dataset.workspaceView === selectedNavigation));
+    if ($('plan-controls').dataset.mode === mode) return;
+    $('plan-controls').dataset.mode = mode;
+    if (state.map) requestAnimationFrame(() => google.maps.event.trigger(state.map, 'resize'));
+  },
   chooseDates: () => { $('edit-date-picker').close(); openCalendar(); $('save-dates').focus({ preventScroll: true }); },
   focusPlace: place => { animateMap(place, 15); document.querySelectorAll('[data-place-id]').forEach(element => element.classList.toggle('selected', element.dataset.placeId === place.placeId)); }, hydratePlace, decoratePlaceIcon, icon });
 enhanceTimePickers(); enhanceDropdowns(); enhanceDisclosures();
 new MutationObserver(records => {
   for (const record of records) for (const added of record.addedNodes) if (added.nodeType === 1 && !added.closest('.gm-style, .day-transition-snapshot')) enhanceDisclosures(added);
 }).observe(document.body, { childList: true, subtree: true });
-for (const button of document.querySelectorAll('[data-workspace-view]')) button.addEventListener('click', () => setWorkspaceView(button.dataset.workspaceView));
+for (const button of document.querySelectorAll('[data-workspace-view]')) button.addEventListener('click', () => {
+  const view = button.dataset.workspaceView;
+  if (view === 'calendar') {
+    state.planMode = 'calendar';
+    if (state.day === 'ideas') state.day = datesForTrip(state.trip)[0] || 'ideas';
+    setWorkspaceView('itinerary');
+  } else {
+    if (view === 'itinerary') state.planMode = 'list';
+    setWorkspaceView(view);
+  }
+});
 for (const leg of ['departure', 'arrival']) {
   $(`${leg}-search`).addEventListener('input', event => { delete event.target.dataset.placeId; });
   setupAutocomplete(`${leg}-search`, `${leg}-suggestions`, async place => {
@@ -1174,6 +1205,10 @@ $('save-stop').addEventListener('click', () => {
   if (!pendingStop || !state.trip) return;
   try {
     let next = editingStopId ? state.trip : addStop(state.trip, pendingStop);
+    if (!editingStopId && next !== state.trip) {
+      const stops = tripStops(next), destination = stops.at(-1), origin = stops.at(-2);
+      if (origin) next = { ...next, transport: [...(next.transport || []), { id: crypto.randomUUID(), trip_id: next.id, mode: 'Flight', service_id: '', departure_location: origin.name, arrival_location: destination.name, departure_date: '', departure_time: '', departure_time_zone: origin.timeZone || next.timeZone || 'UTC', arrival_date: '', arrival_time: '', arrival_time_zone: destination.timeZone || next.timeZone || 'UTC', notes: '', draft: true, leg: 'transfer', fromPlaceId: origin.placeId, toPlaceId: destination.placeId }] };
+    }
     if ($('stop-arrival').value || $('stop-departure').value) next = setStopDates(next, pendingStop.placeId, $('stop-arrival').value, $('stop-departure').value, { extendTrip: true });
     const stop = tripStops(next).find(stop => stop.placeId === pendingStop.placeId);
     saveTrip(next); state.trip = next; state.stopFilter = stop.placeId; updateRecent(); $('route-search').close(); selectStop(stop);
@@ -1351,7 +1386,7 @@ function saveDates(startDate, endDate, moveOutside = false) {
   if (excludedStop) { $('calendar-message').textContent = `These dates exclude ${excludedStop.name}. Edit its stop dates first.`; return; }
 
   const outside = (state.trip.items || []).filter(item => item.day !== 'ideas' && !validDays.includes(item.day));
-  if ((state.trip.transport || []).some(segment => !validDays.includes(segment.departure_date) || !validDays.includes(segment.arrival_date)) || outside.some(fixedItem)) {
+  if ((state.trip.transport || []).some(segment => !segment.draft && (!validDays.includes(segment.departure_date) || !validDays.includes(segment.arrival_date))) || outside.some(fixedItem)) {
     $('calendar-message').textContent = 'These dates exclude fixed plans. Edit their dates first.'; return;
   }
   if (outside.length && !moveOutside) {
