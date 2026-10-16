@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { playMotion, stopMotion, morphFrames, morphFrom, revealSequence } from '../dist/motion.js';
+import { playMotion, stopMotion, morphFrames, morphFrom, revealSequence, celebratePlacement, installButtonMotion } from '../dist/motion.js';
 
 test('reduced motion skips both shared-element movement and staggered entrances', () => {
   const previous = globalThis.matchMedia;
@@ -11,7 +11,27 @@ test('reduced motion skips both shared-element movement and staggered entrances'
     assert.equal(playMotion(element, [{ opacity: 0 }, { opacity: 1 }]), null);
     assert.equal(morphFrom(element, { left: 2, top: 4, width: 50, height: 80 }), null);
     revealSequence([element, element]);
+    celebratePlacement(element);
     assert.equal(calls, 0);
+  } finally { if (previous) globalThis.matchMedia = previous; else delete globalThis.matchMedia; }
+});
+
+test('tap feedback never runs for a swipe, a drag grip, or a cancelled pointer', () => {
+  const previous = globalThis.matchMedia; globalThis.matchMedia = () => ({ matches: false });
+  try {
+    const listeners = new Map(); let animations = 0, grip = false;
+    const glyph = { animate: () => { animations++; return { finished: Promise.resolve(), cancel() {} }; } };
+    const button = { disabled: false, closest: () => grip, querySelector: () => glyph };
+    const event = (x, y) => ({ target: { closest: () => button }, pointerId: 1, clientX: x, clientY: y });
+    installButtonMotion({ addEventListener: (name, handler) => listeners.set(name, handler) });
+    listeners.get('pointerdown')(event(10, 10)); listeners.get('pointerup')(event(10, 40));
+    assert.equal(animations, 0);
+    grip = true; listeners.get('pointerdown')(event(10, 10)); listeners.get('pointerup')(event(10, 10));
+    assert.equal(animations, 0);
+    grip = false; listeners.get('pointerdown')(event(10, 10)); listeners.get('pointercancel')(); listeners.get('pointerup')(event(10, 10));
+    assert.equal(animations, 0);
+    listeners.get('pointerdown')(event(10, 10)); listeners.get('pointerup')(event(12, 12));
+    assert.equal(animations, 1);
   } finally { if (previous) globalThis.matchMedia = previous; else delete globalThis.matchMedia; }
 });
 

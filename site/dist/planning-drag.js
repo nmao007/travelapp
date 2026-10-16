@@ -1,4 +1,4 @@
-import { fixedItem, insertPlan } from './itinerary-model.js';
+import { fixedItem, insertPlan, planDropPosition } from './itinerary-model.js';
 import { playMotion, stopMotion } from './motion.js';
 
 const motionKey = element => element.dataset.itemId ? `plan:${element.dataset.itemId}` : element.dataset.motionKey;
@@ -51,7 +51,7 @@ export function createPlanningDrag({ root, tabs, getTrip, commit, onDrop }) {
     const next = drop && current.target ? insertPlan(trip, current.id, current.day, current.beforeId) : trip;
     current.row.classList.remove('dragging'); current.gap.remove(); clearTargets();
     drag = null; pending = null;
-    if (current.row.hasPointerCapture(pointer)) current.row.releasePointerCapture(pointer);
+    if (root.hasPointerCapture(pointer)) root.releasePointerCapture(pointer);
     try { if (next !== trip) { commit(next); onDrop(current.day); } }
     finally {
       const row = motionElements(root).find(element => element.dataset.itemId === current.id);
@@ -71,13 +71,17 @@ export function createPlanningDrag({ root, tabs, getTrip, commit, onDrop }) {
   root.addEventListener('dragstart', event => event.preventDefault());
   function updateTarget(x, y) {
     if (!drag) return;
-    const target = document.elementFromPoint(x, y)?.closest('.itinerary-day, .itinerary-cell[data-day], .day-tab');
+    const target = document.elementFromPoint(x, y)?.closest('.itinerary-day, .calendar-agenda, .itinerary-cell[data-day], .day-tab');
     clearTargets();
     if (!target || (!root.contains(target) && !tabs.contains(target))) { drag.target = null; return; }
-    if (target.classList.contains('itinerary-day')) {
+    if (target.matches('.itinerary-day,.calendar-agenda')) {
       const candidates = [...target.querySelectorAll('[data-event-key]')].filter(row => row !== drag.row);
-      const before = candidates.find(row => { const rect = row.getBoundingClientRect(); return y < rect.top + rect.height / 2; });
-      const after = before || target.querySelector('.open-day') || null;
+      let before = candidates.find(row => { const rect = row.getBoundingClientRect(); return y < rect.top + rect.height / 2; });
+      const placement = planDropPosition(getTrip(), drag.id, target.dataset.day, before?.dataset.eventKey || null);
+      if (!placement.allowed) { drag.target = null; return; }
+      before = candidates.find(row => row.dataset.eventKey === placement.beforeKey);
+      const empty = target.querySelector('.open-day');
+      const after = before || (empty?.parentElement === target ? empty : null);
       if (drag.gap.parentElement !== target || drag.gap.nextElementSibling !== after) {
         const previous = capturePlanningLayout(root), gapBefore = drag.gap.isConnected ? drag.gap.getBoundingClientRect() : null;
         target.insertBefore(drag.gap, after); animatePlanningLayout(root, previous); stopMotion(drag.gap);
@@ -87,7 +91,9 @@ export function createPlanningDrag({ root, tabs, getTrip, commit, onDrop }) {
       drag.beforeId = before?.dataset.eventKey || null;
     } else {
       if (drag.gap.isConnected) { const previous = capturePlanningLayout(root); drag.gap.remove(); animatePlanningLayout(root, previous); }
-      target.classList.add('drop-target'); drag.beforeId = null;
+      const placement = planDropPosition(getTrip(), drag.id, target.dataset.day);
+      if (!placement.allowed) { drag.target = null; return; }
+      target.classList.add('drop-target'); drag.beforeId = placement.beforeKey;
     }
     drag.day = target.dataset.day; drag.target = target;
   }
@@ -102,7 +108,9 @@ export function createPlanningDrag({ root, tabs, getTrip, commit, onDrop }) {
       const ghost = document.createElement('div'); ghost.className = 'drag-ghost'; ghost.setAttribute('aria-hidden', 'true');
       ghost.style.width = `${Math.min(400, rect.width)}px`; ghost.append(row.firstElementChild.cloneNode(true)); document.body.append(ghost);
       drag = { id, row, gap, ghost, day: row.closest('[data-day]').dataset.day, beforeId: null, target: null, offsetX: Math.min(Math.min(400, rect.width) - 12, pending.x - rect.left), offsetY: Math.min(ghost.getBoundingClientRect().height - 12, pending.y - rect.top) };
-      row.before(gap); row.setPointerCapture(event.pointerId); row.classList.add('dragging');
+      // The source row is hidden while its placeholder moves. Capture on the
+      // persistent scroll surface so hiding the row cannot cancel the gesture.
+      row.before(gap); root.setPointerCapture(event.pointerId); row.classList.add('dragging');
       previous.delete(`plan:${id}`); animatePlanningLayout(root, previous);
       playMotion(ghost, [{ opacity: .4 }, { opacity: 1 }], { duration: 160 });
     }

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "buildCommand": "node --disable-warning=ExperimentalWarning scripts/build-vercel.mjs",
+  "outputDirectory": "vercel-static",
+  "functions": {
+    "api/site.mjs": {
+      "maxDuration": 60,
+      "includeFiles": "node_modules/geo-tz/data/**/*"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/:endpoint",
+      "destination": "/api/site?endpoint=:endpoint"
+    },
+    {
+      "source": "/app",
+      "destination": "/app.html"
+    },
+    {
+      "source": "/preview",
+      "destination": "/preview.html"
+    }
+  ]
+}

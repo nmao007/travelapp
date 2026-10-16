@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bannerSnapDestination } from '../dist/trip-banner.js';
+import { bannerSnapDestination, phoneHeaderCompact } from '../dist/trip-banner.js';
 
 test('a small scroll selects the complete banner position in either direction', () => {
   assert.equal(bannerSnapDestination(3, 0, 184), 184);
@@ -138,4 +138,17 @@ test('the boundary barrier handles gradual arrival, direction changes and lists 
   scrollPanelWithinGesture(panel, 100, gate); assert.equal(panel.scrollTop, 100);
   const short = { scrollTop: 0, scrollHeight: 200, clientHeight: 500 };
   scrollPanelWithinGesture(short, 100, gate); assert.equal(short.scrollTop, 0);
+});
+
+
+test('phone header collapses after scroll begins and expands only at the actual top', () => {
+  assert.equal(phoneHeaderCompact(0), false);
+  assert.equal(phoneHeaderCompact(8), false);
+  assert.equal(phoneHeaderCompact(13), true);
+  assert.equal(phoneHeaderCompact(2, true), true);
+  assert.equal(phoneHeaderCompact(0, true), false);
+  assert.equal(phoneHeaderCompact(-12, true), false);
+  assert.equal(phoneHeaderCompact(14, false, 20), false);
+  assert.equal(phoneHeaderCompact(14, false, 40), true);
+  assert.equal(phoneHeaderCompact(8, true, 12), true);
 });

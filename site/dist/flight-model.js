@@ -9,7 +9,7 @@ export function normalizeFlightNumber(value) {
 export function normalizeFlight(flight, departureDate) {
   const number = normalizeFlightNumber(flight?.number);
   if (!number || !flight.departure?.airport?.name || !flight.arrival?.airport?.name) return null;
-  const result = { mode: 'Flight', service_id: number, provider: 'AeroDataBox', status: flight.status || '', airline: flight.airline?.name || '', fetchedAt: new Date().toISOString(), updatedAt: flight.lastUpdatedUtc || null };
+  const result = { mode: 'Flight', service_id: number, provider: 'AeroDataBox', status: flight.status || '', airline: flight.airline?.name || '', fetchedAt: new Date().toISOString(), updatedAt: flight.lastUpdatedUtc || null, aircraft: flight.aircraft?.model || '', registration: flight.aircraft?.reg || '' };
   for (const leg of ['departure', 'arrival']) {
     const movement = flight[leg], local = movement.scheduledTime?.local;
     const match = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})/.exec(local || '');
@@ -21,6 +21,8 @@ export function normalizeFlight(flight, departureDate) {
     result[`${leg}_code`] = movement.airport.iata || movement.airport.icao || '';
     result[`${leg}_terminal`] = movement.terminal || ''; result[`${leg}_gate`] = movement.gate || '';
     result[`${leg}_revised`] = movement.revisedTime?.local || null;
+    result[`${leg}_check_in`] = movement.checkInDesk || '';
+    result[`${leg}_baggage`] = movement.baggageBelt || '';
   }
   const departure = activityInstant({ date: result.departure_date, time: result.departure_time, time_zone: result.departure_time_zone });
   const arrival = activityInstant({ date: result.arrival_date, time: result.arrival_time, time_zone: result.arrival_time_zone });

@@ -35,12 +35,16 @@ export function createDayMotion(content, host) {
       return () => {
         if (snapshot) {
           outgoing = snapshot; host.append(snapshot);
-          const animation = playMotion(snapshot, [{ translate: '0 0', opacity: snapshot.style.opacity }, { translate: `${-direction * 26}px 0`, opacity: 0 }], { duration: 240 });
+          const animation = playMotion(snapshot, [{ translate: '0 0', opacity: snapshot.style.opacity }, { translate: `${-direction * 24}px 0`, opacity: 0 }], { duration: 160 });
           const remove = () => { snapshot.remove(); if (outgoing === snapshot) outgoing = null; };
           if (animation) animation.finished.then(remove).catch(remove); else remove();
         }
         incoming = content.querySelector('.selected-day');
-        playMotion(incoming, [{ translate: `${direction * 32}px 0`, opacity: 0 }, { translate: '0 0', opacity: 1 }], { duration: 340 });
+        playMotion(incoming, [
+          { translate: `${direction * 28}px 0`, opacity: .35 },
+          { translate: `${-direction * 2}px 0`, opacity: 1, offset: .78 },
+          { translate: '0 0', opacity: 1 },
+        ], { duration: 280 });
       };
     },
   };

@@ -1,12 +1,14 @@
 import { phoneMediaQuery, phoneViewport } from './phone-devices.js';
+import { phonePlaceSymbol } from './phone-motion.js';
+import { createTravelEssentials } from './travel-essentials.js';
 import { placeMapsURL, mapViewURL, directionsMapsURL } from './maps-links.js';
 import { createPlaceSearch, createPlaceDetails, placeSearchGroups, mixedMapPlaces, createQuotaMemory, placeIcon, createSearchSelection, quotaFailure, boundedPlaceRequest } from './place-search.js';
 import { isTourOperator } from './tour-model.js';
-import { playMotion, revealSequence, reducedMotion } from './motion.js';
+import { playMotion, revealSequence, reducedMotion, installButtonMotion } from './motion.js';
 import { createTripBanner } from './trip-banner.js';
 import { readTrips, saveTrip, deleteTrip, addPlace, removePlace, movePlace, addStop, moveStop, removeStop, tripStops, stopSchedule, datesForStop, setStopDates, tripTitle, renameTrip, currentAccount, createAccount, signIn, signOut, restoreSession, loadCloudTrips } from './trip-store.js';
-import { calendarMonth, presetRange, rangeLength } from './date-range.js';
-import { datesForTrip, eventsForDay, mappedPlace, fixedItem } from './itinerary-model.js';
+import { calendarMonth, presetRange } from './date-range.js';
+import { datesForTrip, eventsForDay, mappedPlace } from './itinerary-model.js';
 import { createDayRoutes } from './day-routes.js';
 import { createItineraryUI } from './itinerary-ui.js';
 import { mapEntries, scheduleUnassigned, googlePlaceRecord, destinationForDay, googlePlaceSummary, googleRatingLabel, mergeGoogleContent, mapLabelPosition } from './place-model.js';
@@ -19,6 +21,7 @@ import { enhanceTimePickers } from './time-picker.js';
 import { enhanceDisclosures } from './expansion.js';
 import { enablePhoneTouch } from './phone-touch.js';
 import { calendarStops, calendarStopOnDay, renderCalendarStops } from './calendar-stops.js';
+import { changeTripDates, shiftTripDays, dateOffset, offsetDate } from './trip-dates.js';
 
 
 const $ = id => document.getElementById(id);
@@ -37,17 +40,8 @@ const mapsReady = new Promise(resolve => { resolveMapsReady = resolve; });
 let quotaStorage; try { quotaStorage = sessionStorage; } catch { /* Storage is optional. */ }
 const quotaMemory = createQuotaMemory(quotaStorage);
 const state = { maps: null, places: null, markerClass: null, map: null, mapUnavailable: false, marker: null, stopMarkers: [], placeMarkers: [], suggestionMarkers: [], suggestions: [], selected: null, trip: null, day: 'ideas', animation: 0, config: null, pendingNearby: null, nearbyRequest: 0, photoRequest: 0, calendarRange: { start: null, end: null }, calendarYear: 0, calendarMonth: 0, routeEditing: false, stopFilter: null, planMode: 'list', workspaceView: 'itinerary', nearbyCategory: 'see', detailCooldownUntil: quotaMemory.read('selection-details'), photoCooldownUntil: quotaMemory.read('photo-details'), detailCache: new Map(), imageCache: new Map(), infoWindow: null, activePlaceId: null, discoveryPlace: null, mapSuggestions: [], mapAreaKey: null, mapSearchVersion: 0, mapSearchTimer: null, placeClickVersion: 0, nearbyAreaKey: null, nearbyTimer: null, cameraMoving: false };
+let workspaceTrail = [];
 const tripBanner = createTripBanner({ workspace: $('workspace'), header: $('trip-masthead'), hero: $('destination-hero'), onResize: () => { if (state.map) requestAnimationFrame(() => google.maps.event.trigger(state.map, 'resize')); } });
-const itineraryWorkspace = $('workspace');
-itineraryWorkspace.addEventListener('scroll', () => {
-  const masthead = $('trip-masthead');
-  if (!matchMedia(phoneMediaQuery).matches || $('plan-controls').dataset.view !== 'itinerary') {
-    masthead.classList.remove('header-scrolled-away');
-    return;
-  }
-  if (itineraryWorkspace.scrollTop > 115) masthead.classList.add('header-scrolled-away');
-  else if (itineraryWorkspace.scrollTop < 80) masthead.classList.remove('header-scrolled-away');
-}, { passive: true });
 const dateLabel = value => new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T12:00:00Z`));
 const dateLong = value => new Intl.DateTimeFormat('en', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T12:00:00Z`));
 const tripDateLabel = trip => trip.startDate && trip.endDate ? `${dateLabel(trip.startDate)} – ${dateLabel(trip.endDate)}` : 'Add dates';
@@ -78,10 +72,9 @@ function updateTripTitle() {
   } else title.textContent = value;
   $('destination-hero').classList.toggle('long-title', value.length > 24);
   playMotion(title, [
-    { opacity: 0, clipPath: 'inset(0 0 100% 0)', transform: 'translateY(14px) rotate(-2deg)' },
-    { opacity: 1, clipPath: 'inset(0)', transform: 'translateY(-2px) rotate(.3deg)', offset: .8 },
-    { opacity: 1, clipPath: 'inset(0)', transform: 'none' },
-  ], { duration: 700 });
+    { opacity: .4 },
+    { opacity: 1 },
+  ], { duration: 220 });
 }
 
 function updateRecent() {
@@ -107,6 +100,7 @@ function updateAccountBar() {
   $('account-email-label').hidden = !account;
   $('account-email-label').textContent = account?.email || '';
   $('account-signout').hidden = !account;
+  $('phone-account').textContent = account ? 'Sign out' : 'Sign in';
   updateRecent();
 }
 
@@ -147,12 +141,13 @@ $('account-signout').addEventListener('click', async event => {
 });
 
 function showHome({ focus = false } = {}) {
+  workspaceTrail = [];
   clearMapSearch(); selection.invalidate();
   itinerary.clearRemoval(); dayRoutes.clear();
   $('trip-title-input').hidden = true; $('edit-trip-title').hidden = false;
   cancelAnimationFrame(state.animation);
   state.photoRequest++; state.nearbyRequest++; clearTimeout(state.nearbyTimer); state.cameraMoving = false;
-  state.selected = null; state.trip = null; state.infoWindow?.close(); $('place-dialog').close(); $('plan-dialog').close(); $('day-preview').close(); $('route-search').close();
+  state.selected = null; state.trip = null; state.infoWindow?.close(); $('place-dialog').close(); $('plan-dialog').close(); $('route-search').close();
   $('home-view').hidden = false;
   $('workspace').hidden = true;
   $('destination').value = '';
@@ -169,7 +164,7 @@ function stopRangeLabel(entry) {
   return entry.start === entry.end ? dateLabel(entry.start) : entry.start.slice(0, 7) === entry.end.slice(0, 7) ? `${dateLabel(entry.start)} – ${Number(entry.end.slice(-2))}` : `${dateLabel(entry.start)} – ${dateLabel(entry.end)}`;
 }
 function navigateStop(stop) {
-  state.stopFilter = stop.placeId; selectStop(stop);
+  selectStop(stop);
   $('day-content').scrollTop = 0; $('day-tabs').scrollLeft = 0;
 }
 function renderRoute() {
@@ -178,10 +173,6 @@ function renderRoute() {
   $('route-bar').dataset.stopCount = String(entries.length);
   $('destination-hero').dataset.stopCount = String(entries.length);
   list.replaceChildren(); list.hidden = entries.length < 2;
-  const all = document.createElement('button'); all.type = 'button'; all.className = 'route-all';
-  all.dataset.stopId = 'all'; all.innerHTML = `${icon('list')}<span>All stops</span>`; all.setAttribute('aria-pressed', String(!state.stopFilter));
-  all.addEventListener('click', () => { state.stopFilter = null; renderRoute(); renderPlan(); $('day-content').scrollTop = 0; });
-  list.append(all);
   for (const entry of entries) {
     const { stop, index } = entry;
     const select = document.createElement('button'); select.type = 'button'; select.className = 'route-stop';
@@ -200,20 +191,20 @@ function renderRoute() {
   if (activeCard && activeCard.offsetLeft < list.scrollLeft) list.scrollLeft = activeCard.offsetLeft;
   if (focusedStop && !list.hidden) Array.from(list.querySelectorAll('button')).find(button => button.dataset.stopId === focusedStop)?.focus({ preventScroll:true });
   const destinationPicker = $('mobile-stop-selector');
-  const options = [new Option('All stops', 'all')];
-  options[0].label = `All stops\n${entries.length} destinations`;
+  const options = [];
   for (const entry of entries) {
     const option = new Option(entry.stop.name, entry.stop.placeId);
-    option.label = `${entry.stop.name}\n${stopRangeLabel(entry)}`;
+    option.label = `${entry.index + 1}. ${entry.stop.name}\n${stopRangeLabel(entry)}`;
     options.push(option);
   }
   destinationPicker.replaceChildren(...options);
-  destinationPicker.value = state.stopFilter || 'all';
+  destinationPicker.value = state.stopFilter || entries[0]?.stop.placeId || '';
   refreshDropdowns(destinationPicker);
 }
 
 function selectStop(stop, syncDay = true) {
   if (!stop || !state.trip) return;
+  state.stopFilter = stop.placeId;
   state.infoWindow?.close(); state.activePlaceId = null; state.nearbyAreaKey = null; clearTimeout(state.nearbyTimer); $('search-map-area').hidden = true;
   const firstDay = datesForStop(state.trip, stop.placeId)[0];
   if (syncDay && firstDay) state.day = firstDay;
@@ -225,7 +216,7 @@ function selectStop(stop, syncDay = true) {
   $('map-caption').textContent = stop.name;
 
   renderRoute(); renderPlan(); showMap(stop, true); drawMarkers();
-  if (state.places?.Place) loadDestinationPhoto(stop);
+  if (state.places?.Place || matchMedia(phoneMediaQuery).matches) loadDestinationPhoto(stop);
   if (state.workspaceView === 'explore') { state.pendingNearby = state.nearbyCategory; scheduleAreaSearch(); }
 }
 
@@ -238,9 +229,11 @@ function commitRoute(next, selectedId) {
 }
 
 function showWorkspace(place, trip = null) {
+  workspaceTrail = [];
   clearMapSearch(); selection.invalidate();
+  if (trip) place = tripStops(trip)[0] || place;
   $('trip-title-input').hidden = true; $('edit-trip-title').hidden = false;
-  $('place-dialog').close(); $('plan-dialog').close(); $('transport-dialog').close(); $('day-preview').close();
+  $('place-dialog').close(); $('plan-dialog').close(); $('transport-dialog').close();
   state.selected = place; state.trip = trip ? scheduleUnassigned(trip) : trip;
   state.infoWindow?.close(); state.activePlaceId = null; state.nearbyAreaKey = null; clearTimeout(state.nearbyTimer); $('search-map-area').hidden = true;
   if (trip && state.trip !== trip) { saveTrip(state.trip); trip = state.trip; }
@@ -260,22 +253,21 @@ function showWorkspace(place, trip = null) {
   $('trip-menu').hidden = true;
   $('edit-date-picker').close();
   $('route-search').close();
-  state.routeEditing = false; state.stopFilter = null;
+  state.routeEditing = false; state.stopFilter = place.placeId;
   status('trip-status');
   $('hero-gallery').replaceChildren();
   if (trip) {
     state.planMode = 'list';
+    itinerary.resetNavigation();
     renderRoute();
-    const days = daysForTrip(trip);
-    if (state.day !== 'ideas' && !days.includes(state.day)) state.day = days[0] || 'ideas';
-    if (state.day === 'ideas' && days.length && !trip.items?.length) state.day = days[0];
-    renderPlan(); setWorkspaceView('itinerary');
+    state.day = datesForStop(trip, place.placeId)[0] || 'ideas';
+    renderPlan(); setWorkspaceView('itinerary', { remember: false });
     ensureTripZone(trip);
     updateTripURL(trip.id);
   }
   tripBanner.reset();
   showMap(place, true, true);
-  if (state.places?.Place) loadDestinationPhoto(place);
+  if (state.places?.Place || matchMedia(phoneMediaQuery).matches) loadDestinationPhoto(place);
 }
 
 function openTrip(trip) { showWorkspace(trip, trip); }
@@ -330,7 +322,7 @@ async function wikimediaImage(place, width, destination = false) {
 const destinationPhoto = destination => displayedPhotos(destination, 1200, true);
 
 async function loadDestinationPhoto() {
-  if (!state.trip) return;
+  if (!state.trip || phoneHeaderLayout.matches) return;
   // The first destination supplies one continuous cover, independent of the active stop.
   const gallery = $('hero-gallery'), stops = tripStops(state.trip).slice(0, 1), route = `${state.trip.id}:${stops[0].placeId}`;
   if (gallery.dataset.route === route && gallery.childNodes.length) return;
@@ -413,7 +405,11 @@ function openMapCard(entry, title, content, { native = false, recenter = true, v
       state.infoWindow.addListener('closeclick', () => { state.placeClickVersion++; scheduleAreaSearch(); scheduleMapSuggestions(); });
       state.infoWindow.addListener('domready', () => {
         const surface = state.infoWindow.getContent()?.closest?.('.gm-style-iw-c');
-        playMotion(surface, [{ opacity: 0, translate: '0 6px', scale: '.98' }, { opacity: 1, translate: '0 0', scale: '1' }], { duration: 200 });
+        playMotion(surface, [
+          { opacity: .2, translate: '0 12px', scale: '.94' },
+          { opacity: 1, translate: '0 -2px', scale: '1.015', offset: .72 },
+          { opacity: 1, translate: '0 0', scale: '1' },
+        ], { duration: 360 });
       });
     }
     clearTimeout(state.nearbyTimer); clearTimeout(state.mapSearchTimer);
@@ -514,7 +510,7 @@ function drawMarkers() {
   for (const entry of mapEntries(items, recommendations, { timeZone: state.trip?.timeZone || 'UTC' })) {
     const pin = pinContent(entry), priority = entry.planned ? 1000 : Math.round((entry.rating || 0) * 100) + Math.min(99, Math.round(Math.log10((entry.ratingCount || 0) + 1) * 20));
     const marker = new state.markerClass({ map: state.map, position: coordinates(entry), title: entry.name, content: pin, gmpClickable: true, collisionBehavior: entry.planned ? google.maps.CollisionBehavior.REQUIRED_AND_HIDES_OPTIONAL : optional, zIndex: priority });
-    const showLabel = () => showMapLabel(marker, pin, entry, priority);
+    const showLabel = () => { if (!phoneHeaderLayout.matches) showMapLabel(marker, pin, entry, priority); };
     pin.addEventListener('pointerenter', showLabel); marker.addEventListener('focusin', showLabel);
     pin.addEventListener('pointerleave', () => { if (hoveredMapPin?.marker === marker) hideMapLabel(); });
     marker.addEventListener('focusout', () => { if (hoveredMapPin?.marker === marker) hideMapLabel(); });
@@ -548,6 +544,7 @@ function clearMapSearch() {
 }
 function scheduleMapSuggestions() {
   clearTimeout(state.mapSearchTimer);
+  if (state.planMode === 'calendar' && !matchMedia(phoneMediaQuery).matches) return;
   if (!state.trip || !state.places || !state.map || state.cameraMoving || state.workspaceView !== 'itinerary' || state.infoWindow?.isOpen || $('place-dialog').open || $('plan-dialog').open) return;
   const area = currentSearchArea();
   if (!area || state.mapAreaKey === `${state.trip.id}:${area.key}`) return;
@@ -684,8 +681,10 @@ function renderRecommendations() {
     const copy = document.createElement('span'); copy.className = 'recommendation-copy';
     const title = document.createElement('strong'); title.textContent = place.name;
     const meta = document.createElement('span'); meta.className = 'recommendation-meta';
-    meta.textContent = [Number.isFinite(place.rating) ? `${place.rating.toFixed(1)}${place.ratingCount ? ` (${place.ratingCount.toLocaleString()})` : ''}` : '', place.category].filter(Boolean).join(' · ');
-    if (Number.isFinite(place.rating)) meta.insertAdjacentHTML('afterbegin', icon('star')); copy.append(title, meta); open.append(photo, copy);
+    const rating = googleRatingLabel(place);
+    meta.textContent = [rating ? place.rating.toFixed(1) : '', place.category].filter(Boolean).join(' · ');
+    meta.setAttribute('aria-label', [rating, place.category].filter(Boolean).join(' · '));
+    if (rating) meta.insertAdjacentHTML('afterbegin', icon('star')); copy.append(title, meta); open.append(photo, copy);
     open.addEventListener('click', () => { animateMap(place, 15); openDiscovery(place); });
     const add = document.createElement('button'); add.type = 'button'; add.className = 'recommendation-add'; add.innerHTML = icon('plus'); add.setAttribute('aria-label', `Add ${place.name} to day`); add.addEventListener('click', () => planDiscoveredPlace(place));
     row.append(open, add); container.append(row); recommendationMotion.observe(row);
@@ -720,17 +719,46 @@ async function tourOperatorContacts(record) {
 function knownGoogleContent(record) {
   return mergeGoogleContent(mergeGoogleContent(record, placeSearch.find(record.placeId) || state.suggestions.find(place => place.placeId === record.placeId) || state.mapSuggestions.find(place => place.placeId === record.placeId)), placeDetails.peek(record.placeId));
 }
-function renderPlaceContent(container, record, { contactOnly = false, compact = false } = {}) {
+function renderPlaceContent(container, record, { contactOnly = false, compact = false, daySummary = false } = {}) {
   refreshItineraryPlaceIcons(record);
   const photo = container.querySelector('.detail-photo'); container.replaceChildren();
+  if (daySummary) {
+    const line = (className, text) => { if (!text) return; const element = document.createElement('p'); element.className = className; element.textContent = text; container.append(element); };
+    line('day-place-category', record.category || (record.kind !== 'Activity' ? record.kind : ''));
+    line('place-address', record.address);
+    const descriptions = record.regularOpeningHours?.weekdayDescriptions || record.currentOpeningHours?.weekdayDescriptions;
+    if (record.day && descriptions?.length) {
+      const weekday = new Intl.DateTimeFormat('en', { weekday: 'long', timeZone: 'UTC' }).format(new Date(`${record.day}T12:00:00Z`));
+      const hours = descriptions.find(text => text.startsWith(`${weekday}:`));
+      if (hours) line('day-place-hours', hours.slice(weekday.length + 1).trim());
+    }
+    const summary = googlePlaceSummary(record);
+    // Keep provider summaries with their disclosure in the full place editor.
+    if (summary.text && !summary.disclosureText) line('day-place-description', summary.text);
+    const links = document.createElement('div'); links.className = 'day-place-actions';
+    const destinations = [[record.address || mappedPlace(record) ? 'Directions' : null, directionsMapsURL(record, null, 'DRIVE'), 'directions'], ['Website', record.websiteURI, 'external']];
+    for (const [label, url, symbol] of destinations) {
+      if (!label || !/^https?:/i.test(url || '')) continue;
+      const link = document.createElement('a'); link.className = 'day-place-link'; link.href = url; link.target = '_blank'; link.rel = 'noopener noreferrer';
+      link.innerHTML = icon(symbol); link.append(document.createTextNode(label)); link.setAttribute('aria-label', `${label} for ${record.name}`); links.append(link);
+    }
+    const actions = container.closest('.day-place-card')?.querySelector('.day-card-links');
+    if (actions) actions.replaceChildren(links);
+    else if (links.childElementCount) container.append(links);
+    return;
+  }
   if (photo && !compact && !contactOnly) container.append(photo);
   const rating = googleRatingLabel(record);
   if (rating) {
-    const meta = document.createElement(compact ? 'span' : 'a'); meta.className = 'detail-rating'; meta.innerHTML = icon('star'); meta.append(document.createTextNode(rating));
+    const meta = document.createElement(compact ? 'span' : 'a'); meta.className = 'detail-rating'; meta.innerHTML = icon('star'); meta.append(document.createTextNode(compact ? String(record.rating) : rating));
     if (!compact) { meta.href = placeMapsURL(record); meta.target = '_blank'; meta.rel = 'noopener noreferrer'; }
     meta.setAttribute('aria-label', `${rating} on Google Maps`); container.append(meta);
   }
-  if (compact) return;
+  if (compact) {
+    if (record.category) { const category = document.createElement('span'); category.className = 'glance-category'; category.textContent = record.category; container.append(category); }
+    if (record.businessStatus && record.businessStatus !== 'OPERATIONAL') { const closed = document.createElement('span'); closed.className = 'closed-status'; closed.textContent = 'Closed'; container.append(closed); }
+    return;
+  }
   if (record.category) { const category = document.createElement('span'); category.className = 'place-category'; category.textContent = record.category; container.append(category); }
   const summary = googlePlaceSummary(record);
   if (!contactOnly && summary.text) {
@@ -766,7 +794,9 @@ function refreshItineraryPlaceIcons(record) {
   if (!record.placeId) return;
   for (const svg of document.querySelectorAll('svg[data-icon-place-id]')) {
     if (svg.dataset.iconPlaceId !== record.placeId) continue;
-    svg.querySelector('use')?.setAttribute('href', `#i-${placeIcon({ ...record, kind: svg.dataset.planKind })}`);
+    const available = { ...record, kind: svg.dataset.planKind };
+    const symbol = placeIcon(available);
+    svg.querySelector('use')?.setAttribute('href', `#i-${matchMedia(phoneMediaQuery).matches ? phonePlaceSymbol(available, symbol) : symbol}`);
   }
   for (const pin of document.querySelectorAll('.map-place-pin')) {
     if (pin.dataset.placeId !== record.placeId) continue;
@@ -776,7 +806,8 @@ function refreshItineraryPlaceIcons(record) {
 }
 function decoratePlaceIcon(svg, record) {
   const available = knownGoogleContent(record);
-  svg.querySelector('use').setAttribute('href', `#i-${placeIcon(available)}`);
+  const symbol = placeIcon(available);
+  svg.querySelector('use').setAttribute('href', `#i-${matchMedia(phoneMediaQuery).matches ? phonePlaceSymbol(available, symbol) : symbol}`);
   if (!record.placeId) return;
   svg.dataset.iconPlaceId = record.placeId; svg.dataset.planKind = record.kind || '';
   if (available.primaryType || available.category || available.types?.length || ['Flight', 'Train', 'Food', 'Stay', 'Tour', 'Transport'].includes(record.kind)) return;
@@ -801,10 +832,13 @@ const dayDetailObserver = new IntersectionObserver(entries => {
 function pruneDayDetails() {
   for (const element of pendingDayDetails.keys()) if (!element.isConnected) { pendingDayDetails.delete(element); dayDetailObserver.unobserve(element); }
 }
-async function hydratePlace(container, record, { contactOnly = false, compact = false, visible = false } = {}) {
+async function hydratePlace(container, record, { contactOnly = false, compact = false, visible = false, daySummary = false } = {}) {
   const request = crypto.randomUUID(); container.dataset.request = request; container.dataset.photoPlace = record.placeId;
   let available = knownGoogleContent(record);
-  renderPlaceContent(container, available, { contactOnly, compact });
+  renderPlaceContent(container, available, { contactOnly, compact, daySummary });
+  // Day cards reuse saved/cached details and the existing lightweight rating
+  // request; revealing a day never starts full place-detail or photo requests.
+  if (daySummary) return;
   if (compact && googleRatingLabel(available)) { container.setAttribute('aria-busy', 'false'); return; }
   if (compact) container.setAttribute('aria-busy', 'true');
   if (!visible && (compact || container.classList.contains('day-card-details'))) {
@@ -819,6 +853,9 @@ async function hydratePlace(container, record, { contactOnly = false, compact = 
     // Publish to every mounted timeline occurrence, including other days.
     for (const rating of document.querySelectorAll('.timeline-rating')) if (rating.dataset.photoPlace === record.placeId) {
       renderPlaceContent(rating, mergeGoogleContent(record, fresh), { compact: true }); rating.setAttribute('aria-busy', 'false');
+    }
+    for (const detail of document.querySelectorAll('.day-card-details')) if (detail.dataset.photoPlace === record.placeId) {
+      renderPlaceContent(detail, mergeGoogleContent({ ...record, day: detail.closest('[data-day]')?.dataset.day }, fresh), { daySummary: true });
     }
     if (!container.isConnected || container.dataset.request !== request) return;
     available = mergeGoogleContent(available, fresh);
@@ -839,6 +876,9 @@ async function hydratePlace(container, record, { contactOnly = false, compact = 
 function syncDiscovery() {
   const place = state.discoveryPlace;
   if (!place || !$('place-dialog').open) return;
+  const days = daysForTrip(state.trip), daySelect = $('phone-discovery-day');
+  daySelect.replaceChildren(...days.map(day => { const option = document.createElement('option'); option.value = day; option.textContent = dateLong(day); return option; }));
+  daySelect.value = state.day; refreshDropdowns(daySelect); $('phone-discovery-day-label').hidden = !days.length;
   const chips = $('discovery-day-chips'); chips.replaceChildren();
   for (const day of daysForTrip(state.trip)) {
     const button = document.createElement('button'); button.type = 'button'; button.className = 'detail-chip'; button.textContent = dateLong(day); button.setAttribute('aria-pressed', String(state.day === day));
@@ -858,6 +898,7 @@ function planDiscoveredPlace(place) {
     $('place-dialog').close(); itinerary.openTour(place);
   } else { addToDay(place); syncDiscovery(); }
 }
+$('phone-discovery-day').addEventListener('change', event => { state.day = event.target.value; renderPlan(); syncDiscovery(); });
 $('add-discovery-place').addEventListener('click', () => planDiscoveredPlace(state.discoveryPlace));
 $('search-map-area').addEventListener('click', () => { setWorkspaceView('explore'); exploreNearby(state.nearbyCategory, { force: true }); });
 for (const id of ['place-dialog', 'plan-dialog']) $(id).addEventListener('close', () => { scheduleAreaSearch(); scheduleMapSuggestions(); });
@@ -1045,16 +1086,24 @@ function commitTrip(next) {
   state.infoWindow?.close();
   next = scheduleUnassigned(next); saveTrip(next); state.trip = next; renderPlan(); drawMarkers(); updateRecent();
 }
-function setWorkspaceView(view, { keepMobileMap = false } = {}) {
+installButtonMotion(document);
+function setWorkspaceView(view, { keepMobileMap = false, showPlaces = false, remember = true } = {}) {
+  const previousView = state.workspaceView;
+  if (remember && previousView !== view) {
+    workspaceTrail.push({ view: previousView, scroll: $(previousView === 'itinerary' ? 'day-content' : previousView === 'explore' ? 'nearby-results' : 'transport-panel').scrollTop });
+    if (workspaceTrail.length > 16) workspaceTrail.shift();
+  }
+  $('trip-menu').hidden = true;
   state.workspaceView = view;
+  positionPlanToolbar();
   if (view !== 'itinerary') $('trip-masthead').classList.remove('header-scrolled-away');
-  setMobileMap(keepMobileMap);
+  setMobileMap(keepMobileMap || (phoneHeaderLayout.matches && view === 'explore' && !showPlaces));
   $('plan-controls').dataset.view = view;
   $('plan-panel').hidden = view !== 'itinerary';
   $('discover-panel').hidden = view !== 'explore';
   $('transport-panel').hidden = view !== 'transportation';
   $('map-column').hidden = view === 'transportation';
-  const selectedNavigation = state.workspaceView === 'itinerary' && state.planMode === 'calendar' ? 'calendar' : view;
+  const selectedNavigation = view;
   for (const button of document.querySelectorAll('[data-workspace-view]')) button.setAttribute('aria-pressed', String(button.dataset.workspaceView === selectedNavigation));
   if (view !== 'transportation' && state.map) requestAnimationFrame(() => google.maps.event.trigger(state.map, 'resize'));
   renderPlan();
@@ -1063,25 +1112,32 @@ function setWorkspaceView(view, { keepMobileMap = false } = {}) {
   if (view === 'explore') scheduleAreaSearch();
   else { clearTimeout(state.nearbyTimer); selection.invalidate(); state.nearbyRequest++; state.nearbyAreaKey = null; $('search-map-area').hidden = true; $('nearby-results').setAttribute('aria-busy', 'false'); }
   const panel = view === 'explore' ? $('discover-panel') : view === 'transportation' ? $('transport-panel') : $('plan-panel');
-  if (matchMedia(phoneMediaQuery).matches) playMotion(panel, [{ opacity: .4, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 220 });
-  else revealSequence([...panel.children].filter(child => !child.hidden), { step: 35 });
+  if (previousView && previousView !== view) {
+    const order = ['itinerary', 'explore', 'transportation'];
+    const direction = order.indexOf(view) > order.indexOf(previousView) ? 1 : -1;
+    playMotion(panel, [
+      { opacity: .55, translate: `${direction * 22}px 0` },
+      { opacity: 1, translate: `${-direction * 2}px 0`, offset: .78 },
+      { opacity: 1, translate: '0 0' },
+    ], { duration: 260 });
+  }
 }
 function setMobileMap(show) {
   const button = $('mobile-map-toggle'), controls = $('plan-controls');
   const changed = controls.dataset.mobileSurface !== (show ? 'map' : 'content');
   controls.dataset.mobileSurface = show ? 'map' : 'content';
   button.setAttribute('aria-pressed', String(show));
-  button.setAttribute('aria-label', show ? (state.workspaceView === 'explore' ? 'Show results' : 'Show itinerary') : 'Show map');
-  button.querySelector('use').setAttribute('href', show ? '#i-list' : '#i-map');
-  button.querySelector('span').textContent = show ? (state.workspaceView === 'explore' ? 'Results' : 'Itinerary') : 'Map';
-  button.hidden = state.workspaceView === 'transportation';
+  button.setAttribute('aria-label', show ? (state.workspaceView === 'explore' ? 'Search places' : 'Back to day') : 'Show map');
+  button.querySelector('use').setAttribute('href', show ? (state.workspaceView === 'explore' ? '#i-search' : '#i-back') : '#i-map');
+  button.querySelector('span').textContent = show ? (state.workspaceView === 'explore' ? 'Search places' : 'Back to day') : 'Map';
+  button.hidden = state.workspaceView === 'transportation' || (phoneHeaderLayout.matches && state.workspaceView === 'itinerary' && !show);
   if (state.map) requestAnimationFrame(() => google.maps.event.trigger(state.map, 'resize'));
   if (changed && matchMedia(phoneMediaQuery).matches) {
     const surface = show ? $('map-column') : $(state.workspaceView === 'explore' ? 'discover-panel' : state.workspaceView === 'transportation' ? 'transport-panel' : 'plan-panel');
     playMotion(surface, [{ opacity: .55, translate: '0 8px' }, { opacity: 1, translate: '0 0' }], { duration: 230 });
   }
 }
-$('mobile-map-toggle').addEventListener('click', () => setMobileMap($('plan-controls').dataset.mobileSurface !== 'map'));
+$('mobile-map-toggle').addEventListener('click', () => { const show = $('plan-controls').dataset.mobileSurface !== 'map'; setMobileMap(show); if (phoneHeaderLayout.matches && state.workspaceView === 'explore' && !show) $('place-search').focus({ preventScroll: true }); });
 // Safari's keyboard changes the visual viewport rather than the layout height.
 // Keep sheets and their primary actions above it without disabling page zoom.
 let phoneViewportFrame = 0;
@@ -1126,17 +1182,73 @@ function updateDayContext(day) {
   if (stop && stop.placeId !== state.selected?.placeId) selectStop(stop, false);
   else renderRoute();
 }
-const dayRoutes = createDayRoutes({ state, commit: commitTrip, icon, cancelCamera: () => { cancelAnimationFrame(state.animation); state.animation = 0; state.cameraMoving = false; } });
+const dayRoutes = createDayRoutes({ state, commit: commitTrip, icon, showMap: () => setMobileMap(true), cancelCamera: () => { cancelAnimationFrame(state.animation); state.animation = 0; state.cameraMoving = false; } });
+const essentials = createTravelEssentials({ state, getDestination: () => state.selected || state.trip, icon });
+const planToolbar = document.querySelector('.plan-toolbar');
+const toolbarAnchor = document.createComment('Phone plan controls');
+planToolbar.before(toolbarAnchor);
+const mapToggle = $('mobile-map-toggle');
+const mapToggleAnchor = document.createComment('Discover map control');
+mapToggle.before(mapToggleAnchor);
+const desktopToolbarLayout = matchMedia('(min-width:901px)');
+const backPlan = $('back-to-plan'), viewToggle = document.querySelector('.itinerary-toggle'), addPlan = $('add-plan'), editDates = $('edit-dates');
+const dateAnchor = document.createComment('Desktop trip dates'); editDates.before(dateAnchor);
+const backAnchor = document.createComment('Desktop back'); backPlan.before(backAnchor);
+const toggleAnchor = document.createComment('Desktop view switch'); viewToggle.before(toggleAnchor);
+const addAnchor = document.createComment('Desktop add'); addPlan.before(addAnchor);
+const exploreDayLabel = $('explore-day').closest('label'), exploreDayAnchor = document.createComment('Desktop explore day'); exploreDayLabel.before(exploreDayAnchor);
+$('back-button').innerHTML = icon('back');
+function positionPlanToolbar() {
+  const phone = phoneHeaderLayout.matches, dock = desktopToolbarLayout.matches && !phone;
+  const host = $('workspace-tools'), phoneHost = $('phone-plan-tools');
+  const day = phone && state.workspaceView === 'itinerary' && state.planMode === 'day';
+  const calendar = phone && state.workspaceView === 'itinerary' && state.planMode === 'calendar';
+  if (phone) {
+    $('phone-discover-options').prepend(exploreDayLabel);
+    $('phone-place-category').value = state.nearbyCategory; refreshDropdowns($('phone-place-category'));
+    $('phone-leading').append($('back-button'), backPlan);
+    phoneHost.append(addPlan);
+    $('trip-menu').prepend(viewToggle);
+    mapToggleAnchor.before(mapToggle);
+    planToolbar.hidden = true;
+    $('back-button').hidden = day || calendar;
+    const previousView = workspaceTrail.at(-1)?.view || 'itinerary';
+    $('back-button').setAttribute('aria-label', state.workspaceView === 'itinerary' ? 'Back to trips' : `Back to ${previousView === 'explore' ? 'map' : previousView === 'transportation' ? 'travel' : state.planMode === 'day' ? 'day' : state.planMode === 'calendar' ? 'calendar' : 'plan'}`);
+    backPlan.hidden = !day && !calendar;
+    $('phone-day-picker').hidden = !day;
+    phoneHost.hidden = state.workspaceView !== 'itinerary';
+    viewToggle.hidden = day || calendar || state.workspaceView !== 'itinerary';
+  } else {
+    exploreDayAnchor.before(exploreDayLabel);
+    backAnchor.before(backPlan); toggleAnchor.before(viewToggle); addAnchor.before(addPlan); dateAnchor.before(editDates);
+    $('destination-hero').append($('back-button'));
+    $('back-button').hidden = true; $('phone-day-picker').hidden = true;
+    mapToggleAnchor.before(mapToggle);
+    if (dock) host.append(planToolbar); else toolbarAnchor.before(planToolbar);
+    planToolbar.hidden = state.workspaceView !== 'itinerary'; phoneHost.hidden = true;
+  }
+  host.hidden = !dock || state.workspaceView !== 'itinerary';
+  mapToggle.hidden = state.workspaceView === 'transportation' || (phone && state.workspaceView === 'itinerary' && $('plan-controls').dataset.mobileSurface !== 'map');
+  for (const button of viewToggle.querySelectorAll('button')) button.title = phone ? '' : button.getAttribute('aria-label');
+}
+
+desktopToolbarLayout.addEventListener('change', positionPlanToolbar);
+phoneHeaderLayout.addEventListener('change', positionPlanToolbar);
+positionPlanToolbar();
 const itinerary = createItineraryUI({ state, commit: commitTrip,
-  explore: () => { updateDayContext(state.day); setWorkspaceView('explore'); },
+  closeMobileMap: () => { if (phoneHeaderLayout.matches && $('plan-controls').dataset.mobileSurface === 'map') { setMobileMap(false); return true; } return false; },
+  explore: () => { updateDayContext(state.day); setWorkspaceView('explore', { showPlaces: true }); },
   onDayChange: updateDayContext,
+  editTripDates: trigger => openCalendar('trip', 'start', trigger),
   editStopDates: stop => openStopEditor(stop?.placeId ? stop : tripStops(state.trip).find(stop => stop.placeId === state.stopFilter) || state.selected),
-  onRendered: () => { pruneDayDetails(); dayRoutes.render(); drawMarkers(); },
+  onRendered: () => { pruneDayDetails(); dayRoutes.render(); drawMarkers(); essentials.render(); },
   onModeChange: mode => {
-    const selectedNavigation = state.workspaceView === 'itinerary' && mode === 'calendar' ? 'calendar' : state.workspaceView;
+    positionPlanToolbar();
+    const selectedNavigation = state.workspaceView;
     for (const button of document.querySelectorAll('[data-workspace-view]')) button.setAttribute('aria-pressed', String(button.dataset.workspaceView === selectedNavigation));
     if ($('plan-controls').dataset.mode === mode) return;
     $('plan-controls').dataset.mode = mode;
+    scheduleMapSuggestions();
     if (state.map) requestAnimationFrame(() => google.maps.event.trigger(state.map, 'resize'));
   },
   chooseDates: () => { $('edit-date-picker').close(); openCalendar(); $('save-dates').focus({ preventScroll: true }); },
@@ -1147,14 +1259,8 @@ new MutationObserver(records => {
 }).observe(document.body, { childList: true, subtree: true });
 for (const button of document.querySelectorAll('[data-workspace-view]')) button.addEventListener('click', () => {
   const view = button.dataset.workspaceView;
-  if (view === 'calendar') {
-    state.planMode = 'calendar';
-    if (state.day === 'ideas') state.day = datesForTrip(state.trip)[0] || 'ideas';
-    setWorkspaceView('itinerary');
-  } else {
-    if (view === 'itinerary') state.planMode = 'list';
-    setWorkspaceView(view);
-  }
+  if (view === 'itinerary' && state.workspaceView === view && state.planMode !== 'list') { setMobileMap(false); itinerary.showOverview(); return; }
+  setWorkspaceView(view);
 });
 for (const leg of ['departure', 'arrival']) {
   $(`${leg}-search`).addEventListener('input', event => { delete event.target.dataset.placeId; });
@@ -1232,7 +1338,8 @@ function updateStopDateFields() {
   $('stop-date-effect').textContent = extendsTrip ? `Trip dates will extend to ${dateLabel(state.trip.startDate && state.trip.startDate < start ? state.trip.startDate : start)} – ${dateLabel(state.trip.endDate && state.trip.endDate > end ? state.trip.endDate : end)}.` : '';
   const saved = stopSchedule(state.trip).find(entry => entry.stop.placeId === editingStopId);
   const changed = saved && (start !== (saved.start || '') || end !== (saved.end || ''));
-  $('back-to-trip-calendar').querySelector('span').textContent = changed ? 'Cancel & back to trip calendar' : 'Back to trip calendar';
+  const returnLabel = stopCalendarReturn ? 'trip dates' : 'calendar';
+  $('back-to-trip-calendar').querySelector('span').textContent = `${changed ? 'Cancel & back' : 'Back'} to ${returnLabel}`;
 }
 $('stop-arrival').addEventListener('click', () => openCalendar('stop', 'start', $('stop-arrival')));
 $('stop-departure').addEventListener('click', () => openCalendar('stop', 'end', $('stop-departure')));
@@ -1249,7 +1356,9 @@ function openStopEditor(stop, calendarReturn = null) {
 }
 function returnToTripCalendar(saved = false) {
   const previous = stopCalendarReturn; stopCalendarReturn = null;
-  $('route-search').close(); openCalendar();
+  $('route-search').close();
+  if (!previous) { state.planMode = 'calendar'; setWorkspaceView('itinerary'); return; }
+  openCalendar();
   if (previous) {
     state.calendarRange = { ...previous.range };
     if (saved) {
@@ -1271,7 +1380,6 @@ for (const [id, direction] of [['stop-earlier', -1], ['stop-later', 1]]) $(id).a
 });
 $('remove-stop').addEventListener('click', () => {
   const removedId = editingStopId, stop = tripStops(state.trip).find(stop => stop.placeId === removedId);
-  if (state.stopFilter === removedId) state.stopFilter = null;
   if (commitRoute(removeStop(state.trip, removedId))) { $('route-search').close(); status('trip-status', `Removed ${stop.name}`); }
 });
 
@@ -1290,7 +1398,15 @@ $('hero-credits-toggle').addEventListener('click', toggleHeroCredits);
 $('menu-photo-credits').addEventListener('click', () => { $('trip-menu').hidden = true; toggleHeroCredits(); });
 document.addEventListener('pointerdown', event => { if (!$('hero-photo-credits').hidden && !event.target.closest('#hero-photo-credits,#hero-credits-toggle,#menu-photo-credits')) { $('hero-photo-credits').hidden = true; $('hero-credits-toggle').setAttribute('aria-expanded','false'); } });
 document.addEventListener('keydown', event => { if (event.key === 'Escape' && !$('hero-photo-credits').hidden) { $('hero-photo-credits').hidden = true; $('hero-credits-toggle').setAttribute('aria-expanded','false'); (phoneHeaderLayout.matches ? $('trip-menu-button') : $('hero-credits-toggle')).focus({preventScroll:true}); } });
-$('back-button').addEventListener('click', () => showHome());
+$('back-button').addEventListener('click', () => {
+  if (state.workspaceView !== 'itinerary') {
+    const previous = workspaceTrail.pop() || { view: 'itinerary', scroll: 0 };
+    setWorkspaceView(previous.view, { remember: false });
+    $(previous.view === 'itinerary' ? 'day-content' : previous.view === 'explore' ? 'nearby-results' : 'transport-panel').scrollTop = previous.scroll;
+  } else if (phoneHeaderLayout.matches && $('plan-controls').dataset.mobileSurface === 'map') setMobileMap(false);
+  else if (state.planMode !== 'list') itinerary.back();
+  else showHome();
+});
 $('mobile-back').addEventListener('click', () => showHome());
 $('my-trips').addEventListener('click', () => showHome());
 document.querySelector('.brand').addEventListener('click', event => {
@@ -1312,7 +1428,6 @@ $('route-search').addEventListener('close', () => stopAutocomplete.reset());
 $('mobile-stop-selector').addEventListener('change', event => {
   const stop = tripStops(state.trip).find(stop => stop.placeId === event.target.value);
   if (stop) navigateStop(stop);
-  else { state.stopFilter = null; renderRoute(); renderPlan(); $('day-content').scrollTop = 0; }
 });
 phoneHeaderLayout.addEventListener('change', () => { if (state.trip) renderRoute(); });
 function renderCalendar() {
@@ -1324,12 +1439,19 @@ function renderCalendar() {
     if (value) { const date = new Date(`${value}T12:00:00Z`); state.calendarYear = date.getUTCFullYear(); state.calendarMonth = date.getUTCMonth(); }
     renderCalendar(); $('date-summary').querySelector(`[data-calendar-endpoint="${calendarEndpoint}"]`).focus({ preventScroll: true });
   });
-  const calendarTrip = calendarContext === 'trip' ? { ...state.trip, startDate: start, endDate: end } : state.trip;
+  const shift = calendarContext === 'trip' && $('shift-trip-plans').checked ? dateOffset(state.trip.startDate, start) : 0;
+  $('trip-date-shift').hidden = calendarContext !== 'trip' || !state.trip.startDate || start === state.trip.startDate;
+  $('trip-date-effect').textContent = shift ? `Plans, stops & flight dates move ${Math.abs(shift)} ${Math.abs(shift) === 1 ? 'day' : 'days'} ${shift > 0 ? 'later' : 'earlier'}.` : 'Existing plans keep their dates.';
+  const calendarTrip = calendarContext === 'trip' ? { ...shiftTripDays(state.trip, shift), startDate: start, endDate: end } : state.trip;
   const stopEntries = calendarStops(calendarTrip);
   renderCalendarStops($('calendar-stops'), calendarContext === 'trip' ? stopEntries : [], { rangeLabel: stopRangeLabel, icon, onEdit: stop => {
     const previous = { range: { ...state.calendarRange }, endpoint: calendarEndpoint, year: state.calendarYear, month: state.calendarMonth, scrollTop: $('edit-date-picker').querySelector('.calendar-scroll-body').scrollTop };
     $('edit-date-picker').close(); openStopEditor(stop, previous);
   } });
+  for (const button of $('calendar-stops').querySelectorAll('button')) {
+    button.disabled = Boolean(shift);
+    if (shift) button.title = 'Save the trip dates before editing an individual stop.';
+  }
   const month = new Date(Date.UTC(state.calendarYear, state.calendarMonth, 1));
   $('calendar-month').textContent = new Intl.DateTimeFormat('en', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(month);
   const grid = $('calendar-grid'); grid.replaceChildren();
@@ -1347,7 +1469,9 @@ function renderCalendar() {
     if (start && end && date > start && date < end) button.classList.add('in-range');
     button.addEventListener('click', () => {
       if (calendarEndpoint === 'start' || !state.calendarRange.start) {
-        state.calendarRange = { start: date, end: state.calendarRange.end >= date ? state.calendarRange.end : null };
+        const previous = state.calendarRange;
+        const shiftedEnd = calendarContext === 'trip' && $('shift-trip-plans').checked && previous.start && previous.end ? offsetDate(previous.end, dateOffset(previous.start, date)) : null;
+        state.calendarRange = { start: date, end: shiftedEnd || (previous.end >= date ? previous.end : null) };
         calendarEndpoint = 'end';
       } else if (date < state.calendarRange.start) {
         $('calendar-message').textContent = 'Choose an end date on or after the start.'; return;
@@ -1360,10 +1484,11 @@ function renderCalendar() {
   $('save-dates').disabled = !start || !end;
 }
 let calendarContext = 'trip', calendarEndpoint = 'start', calendarTrigger = null;
-function openCalendar(context = 'trip', endpoint = 'start', trigger = $('edit-dates')) {
+function openCalendar(context = 'trip', endpoint = 'start', trigger = $('trip-menu-button')) {
   const picker = $('edit-date-picker');
   if (picker.open) { picker.close(); return; }
   calendarContext = context; calendarEndpoint = endpoint; calendarTrigger = trigger;
+  $('shift-trip-plans').checked = true;
   state.calendarRange = context === 'stop' ? { start: $('stop-arrival').value || null, end: $('stop-departure').value || null } : { start: state.trip?.startDate || null, end: state.trip?.endDate || null };
   const value = state.calendarRange[endpoint] || state.calendarRange.start;
   const focusDate = value ? new Date(`${value}T12:00:00Z`) : new Date();
@@ -1375,31 +1500,22 @@ function openCalendar(context = 'trip', endpoint = 'start', trigger = $('edit-da
   $('date-summary').querySelector(`[data-calendar-endpoint="${endpoint}"]`).focus({ preventScroll: true });
 }
 $('edit-dates').addEventListener('click', () => openCalendar());
+$('shift-trip-plans').addEventListener('change', renderCalendar);
 $('edit-date-picker').addEventListener('close', () => calendarTrigger?.focus({ preventScroll: true }));
-function saveDates(startDate, endDate, moveOutside = false) {
+function saveDates(startDate, endDate) {
   if (!state.trip) return;
-  if (Boolean(startDate) !== Boolean(endDate) || (startDate && endDate < startDate) || (startDate && rangeLength(startDate, endDate) > 366)) {
-    $('calendar-message').textContent = 'Choose a range of up to one year.'; return;
-  }
-  const validDays = daysForTrip({ startDate, endDate });
-  const excludedStop = tripStops(state.trip).find(stop => (stop.date && !validDays.includes(stop.date)) || (stop.endDate && !validDays.includes(stop.endDate)));
-  if (excludedStop) { $('calendar-message').textContent = `These dates exclude ${excludedStop.name}. Edit its stop dates first.`; return; }
-
-  const outside = (state.trip.items || []).filter(item => item.day !== 'ideas' && !validDays.includes(item.day));
-  if ((state.trip.transport || []).some(segment => !segment.draft && (!validDays.includes(segment.departure_date) || !validDays.includes(segment.arrival_date))) || outside.some(fixedItem)) {
-    $('calendar-message').textContent = 'These dates exclude fixed plans. Edit their dates first.'; return;
-  }
-  if (outside.length && !moveOutside) {
-    const message = $('calendar-message'); message.replaceChildren();
-    const label = document.createElement('span'); label.textContent = `${outside.length} planned ${outside.length === 1 ? 'place falls' : 'places fall'} outside these dates.`;
-    const button = document.createElement('button'); button.type = 'button'; button.textContent = validDays.length ? `Move to ${dateLabel(validDays[0])}` : 'Keep plans until dates are chosen';
-    button.addEventListener('click', () => saveDates(startDate, endDate, true));
-    message.append(label, button); return;
-  }
-  const items = (state.trip.items || []).map(item => item.day === 'ideas' || validDays.includes(item.day) ? item : { ...item, day: validDays[0] || 'ideas' });
-  const next = { ...state.trip, startDate, endDate, items, stops: tripStops(state.trip).map(stop => ({ ...stop, date: validDays.includes(stop.date) ? stop.date : null, endDate: validDays.includes(stop.endDate) ? stop.endDate : null })) };
-  try { const scheduled = scheduleUnassigned(next); saveTrip(scheduled); state.trip = scheduled; state.day = validDays[0] || 'ideas'; $('edit-date-picker').close(); $('trip-dates').textContent = tripDateLabel(next); renderPlan(); status('trip-status'); }
-  catch { $('calendar-message').textContent = 'Could not save dates on this device.'; }
+  let next;
+  try { next = changeTripDates(state.trip, startDate, endDate, { movePlans: $('shift-trip-plans').checked }); }
+  catch (error) { $('calendar-message').textContent = error.message; return; }
+  try {
+    const delta = dateOffset(state.trip.startDate, next.startDate);
+    const scheduled = scheduleUnassigned(next); saveTrip(scheduled);
+    state.day = $('shift-trip-plans').checked ? offsetDate(state.day, delta) : state.day;
+    state.trip = scheduled; itinerary.resetNavigation();
+    if (!datesForStop(scheduled, state.stopFilter).includes(state.day)) state.day = datesForStop(scheduled, state.stopFilter)[0] || 'ideas';
+    $('edit-date-picker').close(); $('trip-dates').textContent = tripDateLabel(next);
+    renderRoute(); renderPlan(); status('trip-status', 'Trip dates updated');
+  } catch { $('calendar-message').textContent = 'Could not save dates on this device.'; }
 }
 $('save-dates').addEventListener('click', () => {
   const { start, end } = state.calendarRange;
@@ -1455,7 +1571,8 @@ async function initializeAccountWorkspace() {
   } catch { status('home-status', 'Could not load your Supabase trips. Your saved browser copy is still available.'); }
   updateAccountBar();
   const current = readTrips().find(trip => trip.id === tripId);
-  if (current) openTrip(current);
+  if (current && state.trip?.id !== current.id) openTrip(current);
+  else if (current) { state.trip = current; renderPlan(); drawMarkers(); }
 }
 initializeAccountWorkspace();
 fetch('/api/config', { cache: 'no-store' })
@@ -1512,3 +1629,10 @@ hero.addEventListener('pointermove', event => {
   });
 });
 hero.addEventListener('pointerleave', () => { cancelAnimationFrame(heroPointerFrame); hero.style.setProperty('--photo-x', '0px'); hero.style.setProperty('--photo-y', '0px'); });
+
+// Phone actions are explicit taps, grouped in one menu rather than exposed on every row.
+$('phone-account').addEventListener('click', () => { $('trip-menu').hidden = true; $(currentAccount() ? 'account-signout' : 'account-button').click(); });
+$('phone-place-category').addEventListener('change', event => document.querySelector(`[data-nearby="${event.target.value}"]`)?.click());
+$('phone-rename').addEventListener('click', () => { $('trip-menu').hidden = true; if (state.planMode === 'day' && state.workspaceView === 'itinerary') itinerary.showOverview(); $('edit-trip-title').click(); });
+editDates.addEventListener('click', () => { if (phoneHeaderLayout.matches) $('trip-menu').hidden = true; });
+phoneHeaderLayout.addEventListener('change', () => { if (!phoneHeaderLayout.matches && state.trip && state.places) loadDestinationPhoto(); });

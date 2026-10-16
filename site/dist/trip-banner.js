@@ -56,6 +56,14 @@ export function createHeaderScrollIntent({ now = () => performance.now(), direct
   };
 }
 
+// A little hysteresis prevents a resizing scrollport or elastic overscroll from
+// repeatedly opening and closing the phone header near the top.
+export function phoneHeaderCompact(scrollTop, compact = false, scrollRange = Infinity) {
+  // A nearly fitting list must not collapse, become non-scrollable, expand,
+  // then collapse again as the viewport gains/loses the secondary line.
+  return compact ? scrollTop > 0 : scrollTop > 12 && scrollRange > 32;
+}
+
 // The banner keeps its full layout height. Scrolling moves that space away;
 // its controls counter that movement to become a small, stable header.
 export function createTripBanner({ workspace, header, hero, onResize }) {
@@ -156,8 +164,18 @@ export function createTripBanner({ workspace, header, hero, onResize }) {
     (delta > 0 ? returnIntent : minimizeIntent).reset();
     if (intent.consume(delta, delta > 0 ? workspace : panel || workspace)) snapTo(target);
   }
+  function syncPhoneHeader() {
+    const controls = workspace.querySelector('#plan-controls');
+    const view = controls?.dataset.view;
+    const selector = view === 'explore' ? '.nearby-results' : view === 'transportation' ? '#transport-panel' : '.day-content';
+    const panel = workspace.querySelector(selector);
+    const eligible = phone.matches && !workspace.hidden && controls?.dataset.mobileSurface !== 'map';
+    const compact = eligible && phoneHeaderCompact(panel?.scrollTop || 0, workspace.classList.contains('phone-header-compact'), panel ? panel.scrollHeight - panel.clientHeight : 0);
+    workspace.classList.toggle('phone-header-compact', Boolean(compact));
+  }
   function update() {
     frame = 0;
+    syncPhoneHeader();
     if (workspace.hidden) return;
     const offset = desktop.matches ? workspace.scrollTop : Math.max(0, window.scrollY - origin);
     const shift = Math.min(travel, Math.max(0, offset));
@@ -200,10 +218,17 @@ export function createTripBanner({ workspace, header, hero, onResize }) {
   workspace.addEventListener('touchstart', event => { if (!event.target.closest('#map')) intentUntil = performance.now() + 1500; }, { passive: true });
   workspace.addEventListener('pointerdown', event => { if (event.clientX >= workspace.getBoundingClientRect().right - 12) intentUntil = performance.now() + 1500; });
   workspace.addEventListener('scroll', scroll, { passive: true });
+  // Observe native panel scrolling without consuming wheel/touch input or
+  // changing scrollTop. The header lives outside those scrolling surfaces.
+  workspace.addEventListener('scroll', event => {
+    if (phone.matches && event.target.matches?.('.day-content,.nearby-results,#transport-panel')) schedule();
+  }, { passive: true, capture: true });
   // Listen above both surfaces, including wheel events latched to the page.
   document.addEventListener('wheel', wheel, { passive: false, capture: true });
   window.addEventListener('scroll', () => desktop.matches ? schedule() : scroll(), { passive: true });
   window.addEventListener('resize', measure, { passive: true });
   desktop.addEventListener('change', measure);
+  phone.addEventListener('change', measure);
+  new MutationObserver(schedule).observe(workspace.querySelector('#plan-controls'), { attributes: true, attributeFilter: ['data-view', 'data-mobile-surface', 'data-mode'] });
   return { reset() { cancelAnimationFrame(motion); motion = 0; snapTarget = null; gesture.reset(); resetIntent(); workspace.classList.remove('banner-snapping'); previousOffset = 0; workspace.scrollTop = 0; window.scrollTo({ top: 0, behavior: 'instant' }); measure(); } };
 }

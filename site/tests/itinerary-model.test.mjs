@@ -202,3 +202,98 @@ test('insertion gaps commit the visible order across days and preserve fixed res
   const appended = insertPlan(moved, a.id, c.day);
   assert.deepEqual(eventsForDay(appended, c.day).map(event => event.item.id), [b.id, c.id, fixed.id, a.id]);
 });
+
+test('up/down and cross-day moves follow the displayed saved order', () => {
+  const a = makePlan(trip, { name: 'First', day: trip.startDate });
+  const b = makePlan(trip, { name: 'Second', day: trip.startDate });
+  const c = makePlan(trip, { name: 'Third', day: trip.startDate });
+  const ordered = { ...trip, items: [a,b,c], dayOrder: { [trip.startDate]: [`plan:${c.id}`,`plan:${a.id}`,`plan:${b.id}`] } };
+  const up = stepPlan(ordered, a.id, 'up');
+  assert.deepEqual(eventsForDay(up, trip.startDate).map(event => event.item.name), ['First','Third','Second']);
+  assert.equal(stepPlan(ordered, c.id, 'up'), ordered);
+  const other = makePlan(trip, { name: 'Other day', day: '2026-10-31' });
+  const crossed = reorderPlan({ ...ordered, items: [...ordered.items,other], dayOrder: { ...ordered.dayOrder, [other.day]: [`plan:${other.id}`] } }, c.id, other.id);
+  assert.deepEqual(eventsForDay(crossed, other.day).map(event => event.item.name), ['Third','Other day']);
+  assert.deepEqual(eventsForDay(crossed, trip.startDate).map(event => event.item.name), ['First','Second']);
+});
+
+test('new overnight arrivals are inserted by time despite an older saved day order', () => {
+  const day = '2026-10-31';
+  const booking = makePlan(trip, { name: 'Stadium', day, time: '10:00', timeZone: 'America/Los_Angeles', booked: true });
+  const lunch = makePlan(trip, { name: 'Lunch', day });
+  const flight = makeTransport(trip, { ...service, mode: 'Flight', departure_date: '2026-10-30', departure_time: '22:00', departure_time_zone: 'America/Los_Angeles', arrival_date: day, arrival_time: '03:00', arrival_time_zone: 'America/Los_Angeles' }, 'overnight');
+  const saved = { ...trip, items: [booking, lunch], transport: [flight], dayOrder: { [day]: [`plan:${booking.id}`, `plan:${lunch.id}`] } };
+  const ordered = eventsForDay(saved, day);
+  assert.deepEqual(ordered.map(event => event.id), [flight.id, booking.id, lunch.id]);
+  assert.equal(ordered[0].leg, 'arrival');
+  assert.ok(ordered[0].at < ordered[1].at);
+  assert.deepEqual(saved.dayOrder[day], [`plan:${booking.id}`, `plan:${lunch.id}`]);
+});
+
+test('changed times repair stale fixed-event order while retaining flexible plan order', () => {
+  const day = '2026-10-31';
+  const morning = makePlan(trip, { name: 'Morning', day, time: '09:00' });
+  const evening = makePlan(trip, { name: 'Evening', day, time: '18:00' });
+  const walk = makePlan(trip, { name: 'Walk', day });
+  const coffee = makePlan(trip, { name: 'Coffee', day });
+  const saved = { ...trip, items: [morning, evening, walk, coffee], dayOrder: { [day]: [`plan:${evening.id}`, `plan:${coffee.id}`, `plan:${morning.id}`, `plan:${walk.id}`] } };
+  assert.deepEqual(eventsForDay(saved, day).map(event => event.item.name), ['Morning', 'Coffee', 'Evening', 'Walk']);
+});
+
+test('new timed bookings join the schedule by instant across time zones', () => {
+  const day = '2026-10-31';
+  const breakfast = makePlan(trip, { name: 'Breakfast', day, time: '08:00', timeZone: 'America/Los_Angeles' });
+  const remote = makePlan(trip, { name: 'Call', day, time: '18:00', timeZone: 'Europe/Lisbon' });
+  const flexible = makePlan(trip, { name: 'Walk', day });
+  const saved = { ...trip, items: [breakfast, remote, flexible], dayOrder: { [day]: [`plan:${breakfast.id}`, `plan:${flexible.id}`] } };
+  assert.deepEqual(eventsForDay(saved, day).map(event => event.item.name), ['Breakfast', 'Call', 'Walk']);
+});
+
+
+test('phone calendar shows the complete month while distinguishing trip days', () => {
+  const [month] = monthsForTrip({ ...trip, startDate: '2026-10-30', endDate: '2026-10-31' });
+  const cells = calendarDisplayCells(month, { fullMonth: true });
+  assert.equal(cells.length, 35);
+  assert.equal(cells.filter(Boolean).length, 31);
+  assert.equal(cells[4].date, '2026-10-01');
+  assert.equal(cells[4].inTrip, false);
+  assert.deepEqual(cells.filter(cell => cell?.inTrip).map(cell => cell.date), ['2026-10-30', '2026-10-31']);
+  assert.equal(calendarDisplayCells(month).length, 7);
+  const [leap] = monthsForTrip({ ...trip, startDate: '2028-02-28', endDate: '2028-02-29' });
+  assert.equal(calendarDisplayCells(leap, { fullMonth: true }).filter(Boolean).length, 29);
+});
+
+test('flights anchor flexible plans between arrival and departure, including stale drag orders', () => {
+  const day=trip.startDate;
+  const inbound={...service,id:'in',mode:'Flight',departure_location:'SFO',arrival_location:'Lisbon',departure_time:'06:00',arrival_time:'09:00',leg:'arrival'};
+  const outbound={...service,id:'out',mode:'Flight',departure_location:'Lisbon',arrival_location:'SFO',departure_time:'18:00',arrival_time:'23:00',leg:'home'};
+  const a=makePlan(trip,{name:'Walk',day}), b=makePlan(trip,{name:'Coffee',day});
+  const original={...trip,items:[a,b],transport:[inbound,outbound],dayOrder:{[day]:[`plan:${a.id}`,'transport:in:departure','transport:out:departure',`plan:${b.id}`]}};
+  assert.deepEqual(eventsForDay(original,day).map(event=>event.id),['in',a.id,b.id,'out']);
+  const beforeArrival=insertPlan(original,b.id,day,'transport:in:departure');
+  assert.deepEqual(eventsForDay(beforeArrival,day).map(event=>event.id),['in',b.id,a.id,'out']);
+  const afterDeparture=insertPlan(beforeArrival,b.id,day);
+  assert.deepEqual(eventsForDay(afterDeparture,day).map(event=>event.id),['in',a.id,b.id,'out']);
+  assert.deepEqual(afterDeparture.transport,original.transport);
+  assert.equal(insertPlan(original,'in',day),original);
+});
+
+test('overnight arrivals stay above cross-day drops and their local times never change', () => {
+  const day='2026-10-31';
+  const flight=makeTransport(trip,{...service,mode:'Flight',departure_time:'22:00',arrival_date:day,arrival_time:'03:00'},'overnight');
+  const a=makePlan(trip,{name:'Walk',day:trip.startDate});
+  const original={...trip,items:[a],transport:[flight]};
+  const moved=insertPlan(original,a.id,day,'transport:overnight:arrival');
+  assert.deepEqual(eventsForDay(moved,day).map(event=>event.id),['overnight',a.id]);
+  assert.deepEqual(moved.transport,original.transport);
+});
+
+test('day arrows do not swap activities across a transport anchor', () => {
+  const day=trip.startDate, a=makePlan(trip,{name:'Before travel',day}), b=makePlan(trip,{name:'After travel',day});
+  const train=makeTransport(trip,service,'train');
+  const original={...trip,items:[a,b],transport:[train],dayOrder:{[day]:[`plan:${a.id}`,'transport:train:departure',`plan:${b.id}`]}};
+  assert.equal(stepPlan(original,a.id,'down'),original);
+  assert.equal(stepPlan(original,b.id,'up'),original);
+  const dropped=insertPlan(original,a.id,day);
+  assert.deepEqual(eventsForDay(dropped,day).map(event=>event.id),[a.id,'train',b.id]);
+});

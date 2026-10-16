@@ -9,3 +9,8 @@ out/
 
 # Rebuilt from the locked MapLibre dependency by predev/prebuild.
 /public/maps/maplibre-*/
+
+# Vercel deployment output and local project linkage
+vercel-static/
+.vercel
+.env*
