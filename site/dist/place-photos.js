@@ -56,7 +56,7 @@ export async function resolvePlacePhoto(record, { width, lookup, load, fallback 
 // names or references. Each caller clones the loaded image before mounting it.
 export function createPhotoDisplayCache(resolve, { now = Date.now, ttl = 5 * 60000, limit = 64 } = {}) {
   const cache = new Map();
-  return (record, width, destination = false) => {
+  const display = (record, width, destination = false) => {
     const key = `${record.placeId}:${width}:${destination}`, existing = cache.get(key);
     if (existing && (existing.pending || existing.expires > now())) return existing.promise;
     const entry = { pending: true, expires: Infinity };
@@ -65,10 +65,17 @@ export function createPhotoDisplayCache(resolve, { now = Date.now, ttl = 5 * 600
       if (!source) return null;
       const { googlePhoto, ...display } = source;
       // Only retain the attribution needed by the displayed asset, not the Photo object.
-      return googlePhoto ? { ...display, googlePhoto: { authorAttributions: googlePhoto.authorAttributions, googleMapsURI: googlePhoto.googleMapsURI } } : display;
+      entry.value = googlePhoto ? { ...display, googlePhoto: { authorAttributions: googlePhoto.authorAttributions, googleMapsURI: googlePhoto.googleMapsURI } } : display;
+      return entry.value;
     }, error => { entry.pending = false; entry.expires = now() + 60000; throw error; });
     cache.set(key, entry);
     if (cache.size > limit) for (const [id, value] of cache) if (!value.pending && id !== key) { cache.delete(id); break; }
     return entry.promise;
   };
+  // Read an already loaded image. This never starts a lookup or refresh.
+  display.peek = record => {
+    for (const [key, entry] of cache) if (key.startsWith(`${record.placeId}:`) && key.endsWith(':false') && entry.expires > now() && entry.value) return entry.value;
+    return null;
+  };
+  return display;
 }

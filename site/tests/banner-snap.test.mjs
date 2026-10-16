@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bannerSnapDestination, phoneHeaderCompact } from '../dist/trip-banner.js';
+import { bannerSnapDestination, phoneHeaderCompact, createTripBanner } from '../dist/trip-banner.js';
 
 test('a small scroll selects the complete banner position in either direction', () => {
   assert.equal(bannerSnapDestination(3, 0, 184), 184);
@@ -151,4 +151,24 @@ test('phone header collapses after scroll begins and expands only at the actual 
   assert.equal(phoneHeaderCompact(14, false, 20), false);
   assert.equal(phoneHeaderCompact(14, false, 40), true);
   assert.equal(phoneHeaderCompact(8, true, 12), true);
+});
+
+test('a fixed desktop header leaves wheel input with the native scrolling panel', () => {
+  const keys = ['matchMedia','document','window','ResizeObserver','MutationObserver'];
+  const originals = Object.fromEntries(keys.map(key => [key, globalThis[key]]));
+  const events = new Map();
+  const element = () => ({ dataset: {}, style: {setProperty() {}, removeProperty() {}}, classList: {add() {},remove() {},toggle() {},contains: () => false}, setAttribute() {}, replaceChildren() {}, addEventListener() {}, querySelectorAll: () => [] });
+  const workspace = { ...element(), hidden: false, scrollHeight: 800, clientHeight: 800, scrollTop: 0, querySelector: () => element() };
+  const hero = { ...element(), querySelector: () => element(), prepend() {} };
+  globalThis.matchMedia = query => ({ matches: query === '(min-width:901px)', addEventListener() {} });
+  globalThis.document = { createElement: element, documentElement: {scrollHeight: 800}, addEventListener: (name, callback) => events.set(name,callback) };
+  globalThis.window = {innerHeight:800, addEventListener() {}};
+  globalThis.ResizeObserver = class { observe() {} };
+  globalThis.MutationObserver = class { observe() {} };
+  try {
+    createTripBanner({workspace, hero, header: element()});
+    let prevented = false, stopped = false;
+    events.get('wheel')({deltaY:120, preventDefault() {prevented = true;}, stopImmediatePropagation() {stopped = true;}});
+    assert.equal(prevented, false); assert.equal(stopped, false);
+  } finally { for (const [key,value] of Object.entries(originals)) { if (value === undefined) delete globalThis[key]; else globalThis[key] = value; } }
 });

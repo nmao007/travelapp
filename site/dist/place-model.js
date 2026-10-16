@@ -1,3 +1,5 @@
+import { flightConflict } from './flight-window.js';
+import { datesForTrip } from './itinerary-model.js';
 import { stopForDay } from './trip-store.js';
 import { activityInstant, isDate } from './domain.js';
 
@@ -29,8 +31,10 @@ export function scheduleUnassigned(trip) {
   const seen = new Set();
   const items = (trip.items || []).map(item => {
     if (item.day && item.day !== 'ideas') return item;
+    const day = (datesForTrip(trip).length ? datesForTrip(trip) : [trip.startDate]).find(day => !flightConflict(trip, { ...item, day }));
+    if (!day) return item;
     changed = true;
-    return { ...item, day: trip.startDate };
+    return { ...item, day };
   }).filter(item => {
     if (!item.placeId) return true;
     // Only collapse identical sourced entries; different times, notes or bookings stay separate.

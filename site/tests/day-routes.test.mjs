@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { dayRouteLegs, decodePolyline, routeKey, travelConflict, travelLabel } from '../dist/day-route-model.js';
+import { dayRouteLegs, decodePolyline, routeKey, travelConflict, travelTiming, travelLabel } from '../dist/day-route-model.js';
 import { createRouteService } from '../route-service.mjs';
 const day='2026-10-30', item=(id,latitude=38.7)=>({id,name:id,day,latitude,longitude:-9.1,kind:'Activity'}),trip=items=>({id:'test',timeZone:'UTC',items,transport:[]});
 const input={mode:'WALK',origin:{latitude:38.7,longitude:-9.1},destination:{latitude:38.71,longitude:-9.11}};
@@ -47,4 +47,43 @@ test('scheduled transportation separates routes and edits invalidate route ident
   const reversed=dayRouteLegs(trip([item('b',38.71),item('a')]),day);
   assert.notEqual(routeKey(legs[0],'WALK'),routeKey(reversed[0],'WALK'));
   assert.notEqual(routeKey(legs[0],'WALK'),routeKey(legs[0],'DRIVE'));
+});
+
+
+test('leave-by guidance uses origin local time, rounds travel up, and includes tour duration', () => {
+  const leg = { from: { ...item('a'), time: '10:00', timeZone: 'UTC', kind: 'Tour', tour: { durationMinutes: 60 } }, to: { ...item('b', 38.71), time: '11:15', timeZone: 'UTC' } };
+  const timing = travelTiming(leg, 1201, trip([]));
+  assert.equal(timing.leaveLabel, '10:54 AM');
+  assert.equal(timing.shortageMinutes, 6);
+  assert.equal(timing.conflict, true);
+  assert.equal(travelTiming(leg, 900, trip([])).conflict, false);
+  assert.equal(travelTiming({ ...leg, from: { ...leg.from, time: '' } }, 1200, trip([])).shortageMinutes, null);
+  assert.equal(travelTiming({ ...leg, to: { ...leg.to, time: '' } }, 1200, trip([])), null);
+  assert.equal(travelTiming(leg, NaN, trip([])), null);
+});
+
+test('same-time or reversed plans are conflicts, including different local time zones', () => {
+  const from = { ...item('a'), time: '10:00', timeZone: 'Europe/London' };
+  const to = { ...item('b', 38.71), time: '05:00', timeZone: 'America/New_York' };
+  assert.equal(travelTiming({ from, to }, 600, trip([])).conflict, true);
+  assert.equal(travelTiming({ from, to }, 600, trip([])).leaveLabel, '8:50 AM');
+});
+
+test('midnight and clock changes resolve actual instants without mutating plans', () => {
+  const leg = { from: { ...item('a'), time: '', timeZone: 'UTC' }, to: { ...item('b', 38.71), time: '00:05', timeZone: 'UTC' } };
+  const before = structuredClone(leg), timing = travelTiming(leg, 1200, trip([]));
+  assert.equal(timing.leaveDay, '2026-10-29');
+  assert.match(timing.leaveLabel, /Oct 29.*11:45 PM/);
+  assert.deepEqual(leg, before);
+  const gap = { from: { ...item('a'), day: '2026-03-08', time: '01:45', timeZone: 'America/New_York' }, to: { ...item('b'), day: '2026-03-08', time: '03:15', timeZone: 'America/New_York' } };
+  assert.equal(travelTiming(gap, 1200, trip([])).leaveLabel, '1:55 AM');
+  assert.equal(travelTiming(gap, 1200, trip([])).conflict, false);
+  assert.equal(travelTiming({ ...gap, to: { ...gap.to, time: '02:30' } }, 1200, trip([])), null);
+});
+
+test('incomplete or corrupt saved times never produce invented timing guidance', () => {
+  const leg = { from: { ...item('a'), time: '10:00', timeZone: 'UTC' }, to: { ...item('b'), time: '25:00', timeZone: 'UTC' } };
+  assert.equal(travelTiming(leg, 1200, trip([])), null);
+  assert.equal(travelTiming({ ...leg, to: { ...leg.to, time: '12:00', timeZone: 'Bad/Zone' } }, 1200, trip([])), null);
+  assert.equal(travelTiming({ from: { ...leg.from, timeZone: 'Bad/Zone' }, to: { ...leg.to, time: '12:00' } }, 1200, trip([])), null);
 });

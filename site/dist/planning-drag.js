@@ -1,21 +1,31 @@
 import { fixedItem, insertPlan, planDropPosition } from './itinerary-model.js';
-import { playMotion, stopMotion } from './motion.js';
+import { playMotion, stopMotion, createFrameScheduler } from './motion.js';
 
 const motionKey = element => element.dataset.itemId ? `plan:${element.dataset.itemId}` : element.dataset.motionKey;
 const motionElements = root => [...root.querySelectorAll('[data-item-id], [data-motion-key]')];
+const withinViewport = (rect, bounds) => !bounds || rect.top + rect.height >= bounds.top - 120 && rect.top <= bounds.top + bounds.height + 120;
 export function capturePlanningLayout(root) {
-  return new Map(motionElements(root).filter(element => element.getClientRects().length).map(element => [motionKey(element), element.getBoundingClientRect()]));
+  const bounds = root.getBoundingClientRect?.(), positions = new Map();
+  for (const element of motionElements(root)) {
+    if (!element.getClientRects().length) continue;
+    const rect = element.getBoundingClientRect();
+    if (withinViewport(rect, bounds)) positions.set(motionKey(element), rect);
+  }
+  return positions;
 }
 export function animatePlanningLayout(root, previous) {
-  for (const element of motionElements(root)) {
+  const bounds = root.getBoundingClientRect?.();
+  const candidates = motionElements(root).filter(element => element.getClientRects().length);
+  // Release old transforms together, measure together, then write animations.
+  // Alternating layout writes/reads for every row made long days expensive.
+  for (const element of candidates) stopMotion(element);
+  const measured = candidates.map(element => ({ element, after: element.getBoundingClientRect() })).filter(({after}) => withinViewport(after, bounds));
+  for (const {element, after} of measured) {
     const before = previous.get(motionKey(element));
-    if (!element.getClientRects().length) continue;
-    if (!before) { element.classList.add('planning-settled'); playMotion(element, [{ opacity: 0, translate: '0 8px' }, { opacity: 1, translate: '0 0' }], { duration: 240 }); continue; }
-    // Cancel old movement before measuring layout, preserving the captured
-    // visual position when another gap move interrupts an animation.
-    stopMotion(element); element.classList.add('planning-settled');
-    const after = element.getBoundingClientRect(), x = before.left - after.left, y = before.top - after.top;
-    if (Math.abs(x) + Math.abs(y) > 1) playMotion(element, [{ transform: `translate(${x}px,${y}px)` }, { transform: 'none' }], { duration: 240, easing: 'cubic-bezier(.2,.85,.25,1)' });
+    element.classList.add('planning-settled');
+    if (!before) { playMotion(element, [{ opacity: 0, translate: '0 8px' }, { opacity: 1, translate: '0 0' }], { duration: 200 }); continue; }
+    const x = before.left - after.left, y = before.top - after.top;
+    if (Math.abs(x) + Math.abs(y) > 1) playMotion(element, [{ transform: `translate(${x}px,${y}px)` }, { transform: 'none' }], { duration: 220, easing: 'cubic-bezier(.16,1,.3,1)' });
   }
 }
 
@@ -44,7 +54,7 @@ export function createPlanningDrag({ root, tabs, getTrip, commit, onDrop }) {
     if (motion) motion.finished.then(landed).catch(() => ghost.remove()); else landed();
   }
   function finish(drop = false) {
-    cancelAnimationFrame(scrollFrame);
+    pointerFrame.cancel(); cancelAnimationFrame(scrollFrame);
     if (!drag) { pending = null; return; }
     suppressClickUntil = performance.now() + 400;
     const current = drag, pointer = pending.pointer, previous = capturePlanningLayout(root), trip = getTrip(), scrollTop = root.scrollTop;
@@ -97,10 +107,8 @@ export function createPlanningDrag({ root, tabs, getTrip, commit, onDrop }) {
     }
     drag.day = target.dataset.day; drag.target = target;
   }
-  document.addEventListener('pointermove', event => {
+  function updatePointer(event) {
     if (!pending || event.pointerId !== pending.pointer) return;
-    if (!drag && Math.hypot(event.clientX - pending.x, event.clientY - pending.y) < 7) return;
-    event.preventDefault();
     if (!drag) {
       const { row, id } = pending, rect = row.getBoundingClientRect(), style = getComputedStyle(row), previous = capturePlanningLayout(root);
       const gap = document.createElement('div'); gap.className = 'planning-gap'; gap.setAttribute('aria-hidden', 'true');
@@ -119,9 +127,16 @@ export function createPlanningDrag({ root, tabs, getTrip, commit, onDrop }) {
     const rect = root.getBoundingClientRect(), direction = root.contains(document.elementFromPoint(event.clientX, event.clientY)) ? event.clientY < rect.top + 36 ? -1 : event.clientY > rect.bottom - 36 ? 1 : 0 : 0;
     cancelAnimationFrame(scrollFrame);
     if (direction) { const scroll = () => { if (!drag) return; root.scrollTop += direction * 7; updateTarget(event.clientX, event.clientY); scrollFrame = requestAnimationFrame(scroll); }; scrollFrame = requestAnimationFrame(scroll); }
+  }
+  const pointerFrame = createFrameScheduler(updatePointer);
+  document.addEventListener('pointermove', event => {
+    if (!pending || event.pointerId !== pending.pointer || !drag && Math.hypot(event.clientX - pending.x, event.clientY - pending.y) < 7) return;
+    event.preventDefault();
+    pointerFrame.schedule({ pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY });
   }, { passive: false });
   document.addEventListener('pointerup', event => {
     if (!pending || event.pointerId !== pending.pointer) return;
+    pointerFrame.flush();
     if (!drag) { pending = null; return; }
     event.preventDefault(); updateTarget(event.clientX, event.clientY); finish(true);
   });

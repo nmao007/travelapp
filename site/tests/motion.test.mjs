@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { playMotion, stopMotion, morphFrames, morphFrom, revealSequence, celebratePlacement, installButtonMotion } from '../dist/motion.js';
+import { playMotion, stopMotion, closeDialogSmooth, morphFrames, morphFrom, revealSequence, celebratePlacement, installButtonMotion, installSurfaceMotion, createFrameScheduler } from '../dist/motion.js';
 
 test('reduced motion skips both shared-element movement and staggered entrances', () => {
   const previous = globalThis.matchMedia;
@@ -54,5 +54,91 @@ test('finished forwards-filled motion can be cancelled to release frozen layout 
     await Promise.resolve(); stopMotion(element); assert.equal(cancels, 1);
     playMotion(element, [{ opacity: 0 }, { opacity: 1 }], { fill: 'both' });
     await Promise.resolve(); playMotion(element, [{ opacity: 1 }, { opacity: 0 }]); assert.equal(cancels, 2);
+  } finally { globalThis.matchMedia = previous; }
+});
+
+test('surface transitions cancel stale openings and never animate a closed or detached surface', () => {
+  const originals = Object.fromEntries(['MutationObserver','requestAnimationFrame','cancelAnimationFrame','matchMedia'].map(key => [key,globalThis[key]]));
+  let notify, sequence = 0, animations = 0;
+  const queue = new Map();
+  globalThis.MutationObserver = class { constructor(callback) { notify = callback; } observe() {} disconnect() {} };
+  globalThis.requestAnimationFrame = callback => { queue.set(++sequence, callback); return sequence; };
+  globalThis.cancelAnimationFrame = id => queue.delete(id);
+  globalThis.matchMedia = () => ({ matches: false });
+  const surface = { hidden: false, isConnected: true, children: [], matches: () => false, getClientRects: () => [1], animate: () => { animations++; return { finished: Promise.resolve(), cancel() {} }; } };
+  const flush = () => { const callbacks = [...queue.values()]; queue.clear(); callbacks.forEach(callback => callback()); };
+  try {
+    const disconnect = installSurfaceMotion({ querySelectorAll: () => [surface] });
+    notify([{ target: surface }]); surface.hidden = true; notify([{ target: surface }]);
+    assert.equal(queue.size, 1); flush(); assert.equal(animations, 0);
+    surface.hidden = false; surface.isConnected = false; notify([{ target: surface }]); flush(); assert.equal(animations, 0);
+    surface.isConnected = true; notify([{ target: surface }]); flush(); assert.equal(animations, 1);
+    surface.matches = () => true; surface.open = false; notify([{ target: surface }]); flush(); assert.equal(animations, 1);
+    globalThis.matchMedia = () => ({ matches: true }); surface.matches = () => false;
+    notify([{ target: surface }]); flush(); assert.equal(animations, 1);
+    disconnect();
+  } finally { for (const [key,value] of Object.entries(originals)) { if (value === undefined) delete globalThis[key]; else globalThis[key] = value; } }
+});
+
+test('fast pointer streams paint once per frame and release flushes the latest position', () => {
+  let pending, calls = [], cancelled = 0;
+  const scheduler = createFrameScheduler(value => calls.push(value), { request: callback => { pending = callback; return 1; }, cancel: () => { cancelled++; } });
+  for (let i = 0; i < 100; i++) scheduler.schedule(i);
+  assert.deepEqual(calls, []); pending(); assert.deepEqual(calls, [99]);
+  scheduler.schedule(100); scheduler.schedule(101); scheduler.flush();
+  assert.deepEqual(calls, [99,101]); assert.equal(cancelled, 1);
+  pending(); assert.deepEqual(calls, [99,101]);
+  scheduler.schedule(102); scheduler.cancel(); pending(); assert.deepEqual(calls, [99,101]);
+});
+
+test('bottom navigation stays still while ordinary action icons retain tap feedback', () => {
+  const previous = globalThis.matchMedia; globalThis.matchMedia = () => ({ matches: false });
+  try {
+    const listeners = new Map(); let animations = 0, navigation = true;
+    const glyph = { dataset: { art: 'plane' }, querySelector: () => null, animate: () => { animations++; return { finished: Promise.resolve(), cancel() {} }; } };
+    const button = { disabled: false, closest: selector => navigation && selector.includes('.workspace-nav'), querySelector: () => glyph };
+    const event = { target: { closest: () => button }, pointerId: 1, clientX: 10, clientY: 10 };
+    installButtonMotion({ addEventListener: (name, handler) => listeners.set(name, handler) });
+    listeners.get('pointerdown')(event); listeners.get('pointerup')(event);
+    assert.equal(animations, 0);
+    navigation = false;
+    listeners.get('pointerdown')(event); listeners.get('pointerup')(event);
+    assert.equal(animations, 1);
+  } finally { if (previous) globalThis.matchMedia = previous; else delete globalThis.matchMedia; }
+});
+
+
+test('calendar close holds its modal layout until a short exit completes and ignores repeated taps', async () => {
+  const previous = globalThis.matchMedia; globalThis.matchMedia = () => ({ matches: false });
+  try {
+    let finish, closes = 0, frames;
+    const listeners = new Map();
+    const dialog = { open: true, dataset: {}, addEventListener: (name, fn) => listeners.set(name, fn), removeEventListener: name => listeners.delete(name), close() { this.open = false; closes++; }, animate(value, options) { frames = value; assert.equal(options.duration, 160); return { finished: new Promise(resolve => { finish = resolve; }), cancel() {} }; } };
+    const first = closeDialogSmooth(dialog), second = closeDialogSmooth(dialog);
+    assert.equal(first, second); assert.equal(dialog.open, true); assert.equal(dialog.dataset.closing, 'true'); assert.equal(closes, 0);
+    assert.ok(frames.every(frame => !Object.hasOwn(frame, 'height') && !/scale/.test(frame.transform)));
+    finish(); await first;
+    assert.equal(dialog.open, false); assert.equal(closes, 1); assert.equal(dialog.dataset.closing, undefined);
+    assert.equal(listeners.size, 0);
+  } finally { globalThis.matchMedia = previous; }
+});
+
+test('an external dialog handoff cancels the exit and cannot later close a reopened editor', async () => {
+  const previous = globalThis.matchMedia; globalThis.matchMedia = () => ({ matches: false });
+  try {
+    let finish, closes = 0, cancelled = 0;
+    const listeners = new Map();
+    const dialog = { open: true, dataset: {}, addEventListener: (name, fn) => listeners.set(name, fn), removeEventListener: name => listeners.delete(name), close() { this.open = false; closes++; listeners.get('close')?.(); }, animate: () => ({ finished: new Promise(resolve => { finish = resolve; }), cancel() { cancelled++; } }) };
+    const pending = closeDialogSmooth(dialog);
+    dialog.close(); await pending; dialog.open = true; finish(); await Promise.resolve();
+    assert.equal(dialog.open, true); assert.equal(closes, 1); assert.equal(cancelled, 1); assert.equal(dialog.dataset.closing, undefined);
+  } finally { globalThis.matchMedia = previous; }
+});
+
+test('reduced-motion calendar closes immediately without a transitional frame', async () => {
+  const previous = globalThis.matchMedia; globalThis.matchMedia = () => ({ matches: true });
+  try {
+    const dialog = { open: true, dataset: {}, addEventListener() {}, removeEventListener() {}, close() { this.open = false; }, animate() { assert.fail('Animation must be skipped'); } };
+    await closeDialogSmooth(dialog); assert.equal(dialog.open, false); assert.equal(dialog.dataset.closing, undefined);
   } finally { globalThis.matchMedia = previous; }
 });

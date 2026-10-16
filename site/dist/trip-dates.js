@@ -1,3 +1,4 @@
+import { assertFlightAvailability } from './flight-window.js';
 import { isDate, rangeLength } from './date-range.js';
 import { activityInstant } from './domain.js';
 
@@ -35,5 +36,6 @@ export function changeTripDates(trip, startDate, endDate, { movePlans = true } =
     const departure = instant('departure'), arrival = instant('arrival');
     if (departure === null || arrival === null || arrival <= departure) throw new Error(`Check the local times for ${segment.service_id} before moving these dates.`);
   }
+  for (const item of next.items || []) assertFlightAvailability(next, item);
   return next;
 }

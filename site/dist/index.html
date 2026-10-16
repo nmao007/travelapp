@@ -8,7 +8,7 @@
   <title>TripPilot — Go somewhere</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='4' fill='%23f67735'/%3E%3Cpath d='m12 42 40-28-14 36-6-17-20 9Z' fill='%23ffffff'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="/app.css">
   <link rel="stylesheet" href="/mobile.css">
@@ -69,7 +69,41 @@
 
     <main>
       <section class="home-view" id="home-view" aria-labelledby="home-title">
-        <h1 id="home-title">Where to<span class="home-punctuation">?</span></h1>
+        <div class="home-intro">
+          <h1 id="home-title">Where to<span class="home-punctuation">?</span></h1>
+          <div class="home-art" aria-hidden="true">
+            <svg viewBox="0 0 320 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <g class="home-postcard">
+                <path d="M79 42Q79 28 95 28H264Q280 28 280 44V167Q280 183 264 183H95Q79 183 79 167Z" fill="#F0F0FC"/>
+                <path d="M91 91V46Q91 40 98 40H261Q268 40 268 47V91Z" fill="#E5E4F8"/>
+                <path d="M91 169V123L133 81L179 127L217 94L268 145V169Q268 171 261 171H98Q91 171 91 169Z" fill="#B5B5E5"/>
+                <path d="M91 169V151L152 105L215 171H98Q91 171 91 169Z" fill="#787DB5"/>
+                <path d="M224 60C224 51 231 47 238 48C247 49 251 55 249 63C247 71 241 75 233 73C227 72 223 67 224 60Z" fill="#FFAE77"/>
+              </g>
+              <g class="home-passport">
+                <path d="M48 74Q48 55 67 55H158Q177 55 177 74V211Q177 230 158 230H67Q48 230 48 211Z" fill="#4260CF"/>
+                <path d="M58 58V227" stroke="#2E47A9" stroke-width="2"/>
+                <path d="M80 85H145M80 91H122" stroke="#A7B7F4" stroke-width="3" stroke-linecap="round"/>
+                <path d="M87 143C87 126 98 115 114 115C131 115 142 127 142 143C142 160 130 170 114 170C98 170 87 159 87 143Z" stroke="#FFF2DA" stroke-width="2.5"/>
+                <path d="M87 143H142M114 115C100 129 100 156 114 170C128 156 128 129 114 115Z" stroke="#FFF2DA" stroke-width="2.5"/>
+                <path d="M98 197H130M104 203H124" stroke="#A7B7F4" stroke-width="3" stroke-linecap="round"/>
+              </g>
+              <g class="home-ticket">
+                <path d="M154 142Q154 131 165 131H284Q295 131 295 142V161C283 161 283 179 295 179V198Q295 209 284 209H165Q154 209 154 198V179C166 179 166 161 154 161Z" fill="#F57842"/>
+                <path d="M253 139V201" stroke="#D75C2A" stroke-width="1.5" stroke-dasharray="3 4"/>
+                <path d="M171 149H205M171 156H194" stroke="#FFD8BC" stroke-width="3" stroke-linecap="round"/>
+                <path d="M172 190V182M177 190V177M183 190V180M189 190V176M195 190V181M200 190V178M206 190V176M212 190V182M218 190V177M224 190V180M230 190V176" stroke="#A63F19" stroke-width="2"/>
+                <path d="M270 152V184M266 178L270 184L274 178" stroke="#FFF3E8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </g>
+              <g class="home-paper-plane">
+                <path d="M201 48L270 16L247 84L233 59L201 48Z" fill="#F57842"/>
+                <path d="M233 59L270 16L226 52Z" fill="#CF4E26"/>
+                <path d="M233 59L231 76L241 70Z" fill="#E06536"/>
+              </g>
+              <path d="M32 38V52M25 45H39M293 104V114M288 109H298" stroke="#B7B7D7" stroke-width="2.5" stroke-linecap="round"/>
+            </svg>
+          </div>
+        </div>
         <div class="search-block">
           <label class="sr-only" for="destination">Search for a destination</label>
           <div class="search-field home-search"><svg class="icon"><use href="#i-search"/></svg><input id="destination" type="search" role="combobox" aria-autocomplete="list" aria-controls="suggestions" aria-expanded="false" autocomplete="off" placeholder="City, region, or place" spellcheck="false"></div>
@@ -93,8 +127,8 @@
           <div id="phone-plan-tools" class="phone-plan-tools" hidden></div>
           <button id="back-button" type="button" hidden aria-label="Back to trips"></button>
         </div>
-        <div class="trip-menu" id="trip-menu" hidden><button id="phone-rename" class="phone-only" type="button"><svg class="icon" aria-hidden="true"><use href="#i-edit"/></svg>Rename trip</button><button id="phone-account" class="phone-only" type="button">Account</button><button id="mobile-add-stop" type="button"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg>Add destination</button><button id="menu-photo-credits" type="button" hidden><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="1"/><circle cx="8" cy="9" r="1.5"/><path d="m3 17 5-5 4 4 4-6 5 7"/></svg>Photo credits</button><button id="export-calendar" type="button"><svg class="icon" aria-hidden="true"><use href="#i-calendar"/></svg> Export to calendar</button><button id="delete-trip" type="button">Delete trip</button></div>
-        <div class="route-bar" id="route-bar"><div class="route-list" id="route-list" aria-label="Trip destinations"></div><div class="mobile-stop-picker"><select id="mobile-stop-selector" aria-label="Choose a destination"></select></div></div>
+        <div class="trip-menu" id="trip-menu" hidden><button id="phone-rename" class="phone-only" type="button"><svg class="icon" aria-hidden="true"><use href="#i-edit"/></svg>Rename trip</button><button id="phone-account" class="phone-only" type="button">Account</button><button id="mobile-add-stop" type="button"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg>Add destination</button><button id="menu-photo-credits" type="button" hidden><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="1"/><circle cx="8" cy="9" r="1.5"/><path d="m3 17 5-5 4 4 4-6 5 7"/></svg>Photo credits</button><button id="save-trip-guide" type="button"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></svg>Save offline itinerary</button><button id="export-calendar" type="button"><svg class="icon" aria-hidden="true"><use href="#i-calendar"/></svg> Export to calendar</button><button id="delete-trip" type="button">Delete trip</button></div>
+        <div class="route-bar" id="route-bar"><div class="route-list" id="route-list" aria-label="Trip destinations"></div><div class="mobile-stop-picker"><select id="mobile-stop-selector" aria-label="Choose a destination"></select></div><div id="phone-view-switch" class="phone-only"></div></div>
         </div>
         <nav class="workspace-nav" aria-label="Trip navigation"><button type="button" data-workspace-view="itinerary" aria-pressed="true"><svg class="icon"><use href="#i-list"/></svg>Plan</button><button type="button" data-workspace-view="explore" aria-pressed="false"><svg class="icon"><use href="#i-map"/></svg><span class="desktop-only">Discover</span><span class="phone-only">Map</span></button><button type="button" data-workspace-view="transportation" aria-pressed="false"><svg class="icon"><use href="#i-plane"/></svg>Travel</button><div id="workspace-tools" class="workspace-tools" hidden></div></nav>
         <div class="trip-body" id="plan-controls" data-view="itinerary" data-mobile-surface="content">
@@ -153,7 +187,7 @@
     <div id="date-selection-region">
     <div class="calendar-head"><button type="button" id="previous-month" aria-label="Previous month"><svg class="icon"><use href="#i-back"/></svg></button><strong id="calendar-month"></strong><button type="button" id="next-month" aria-label="Next month"><svg class="icon"><use href="#i-arrow"/></svg></button></div>
     <div class="calendar-grid" id="calendar-grid" aria-label="Date calendar"></div>
-    </div><div id="trip-date-shift" class="trip-date-shift" hidden><label><input type="checkbox" id="shift-trip-plans" checked>Move plans with trip</label><p id="trip-date-effect"></p></div><div class="calendar-stop-list" id="calendar-stops" aria-label="Stop dates" hidden></div>
+    </div><div id="trip-date-shift" class="trip-date-shift" hidden><label><input type="checkbox" id="shift-trip-plans" checked>Move plans with trip</label><p id="trip-date-effect"></p></div><details class="date-stop-disclosure" id="date-stop-disclosure" hidden><summary>Stop dates<svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg></summary><div class="calendar-stop-list" id="calendar-stops" aria-label="Stop dates" hidden></div></details>
     <p class="calendar-message" id="calendar-message" role="status" aria-live="polite"></p>
     </div><div class="calendar-actions"><button id="save-dates" type="button">Save dates <svg class="icon"><use href="#i-arrow"/></svg></button></div>
   </dialog>

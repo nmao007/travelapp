@@ -1,0 +1,28 @@
+// Small, local vector illustrations. No image downloads or provider requests.
+const drawings = {
+  list: `<rect x="10" y="8" width="28" height="35" rx="6" fill="#f4a776"/><path d="M18 6h12v7H18Z" fill="#ce744c"/><path d="m16 23 2 2 4-5m-6 14 2 2 4-5" fill="none" stroke="#fff7e8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M26 23h6m-6 11h6" stroke="#bd6b45" stroke-width="2" stroke-linecap="round"/>`,
+  map: `<path d="m5 12 12-5 14 5 12-5v31l-12 5-14-5-12 5Z" fill="#d3dff3"/><path d="M17 7v31l14 5V12Z" fill="#97b2dd"/><path d="m8 30 9-7 8 3 14-10" fill="none" stroke="#f8fbff" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="3 4"/><g class="art-detail"><path d="M31 26s-7-7-7-12a7 7 0 0 1 14 0c0 5-7 12-7 12Z" fill="#f38b62"/><circle cx="31" cy="14" r="2.5" fill="#fff3df"/></g>`,
+  food: `<path d="M7 23h34c-1 12-8 17-17 17S8 35 7 23Z" fill="#f47746"/><path d="M8 23c7-4 25-4 32 0" fill="#ffd782"/><path d="M15 25c3 3 6 2 8-1m3 1c3 3 6 2 8-1" fill="none" stroke="#b94a26" stroke-width="2"/><g class="art-detail" stroke="#84533e" stroke-width="2.5" stroke-linecap="round"><path d="m25 5 6 19M32 4l4 19"/></g><path d="M16 15c-4-4 4-5 0-9m-6 12c-3-3 3-4 0-7" fill="none" stroke="#f5b7a1" stroke-width="2" stroke-linecap="round"/>`,
+  landmark: `<path d="m5 18 19-12 19 12v4H5Z" fill="#7a88e3"/><path d="m13 17 11-7 11 7" fill="#c9d0ff"/><path d="M10 24h6v13h-6m11-13h6v13h-6m11-13h6v13h-6" fill="#6673c6"/><path d="M7 37h34v5H7Z" fill="#97a3ef"/><path d="M5 42h38" stroke="#4e5ba6" stroke-width="2.5" stroke-linecap="round"/><path d="m36 5 1.5 3.5L41 10l-3.5 1.5L36 15l-1.5-3.5L31 10l3.5-1.5Z" fill="#ffd678"/>`,
+  sports: `<path d="M5 22c1-10 37-10 38 0v13c-8 10-30 10-38 0Z" fill="#a398db"/><ellipse cx="24" cy="22" rx="19" ry="9" fill="#ded8f8"/><ellipse cx="24" cy="23" rx="12" ry="5" fill="#7e72b1"/><path d="M10 30v8m7-6v9m7-8v9m7-10v9m7-11v8" stroke="#f2edff" stroke-width="2"/><path d="M12 8v8m24-8v8" stroke="#78659e" stroke-width="2"/><path d="M12 8h8l-2 4h-6m24-4h8l-2 4h-6" fill="#f69b66"/>`,
+  stay: `<g class="art-detail"><path d="M17 13V9c0-4 14-4 14 0v4" fill="none" stroke="#9a743a" stroke-width="3"/><path d="M11 13h26v26H11Z" fill="#efbd5e"/></g><path d="M16 14v25m16-25v25" stroke="#c38b35" stroke-width="2"/><path d="M9 18h30v16H9Z" fill="#ffd880"/><rect x="20" y="21" width="8" height="8" rx="2" fill="#fffbec"/><path d="M15 40v2m18-2v2" stroke="#9a743a" stroke-width="3" stroke-linecap="round"/>`,
+  plane: `<path d="M6 36c9 10 27 4 34-5" fill="none" stroke="#c1ccef" stroke-width="2" stroke-dasharray="2 5" stroke-linecap="round"/><g class="art-detail"><path d="m7 21 13-1 9-12c3-4 7-3 6 1l-4 12 10 6-2 3-12-3-5 10-3-1 1-11-12-1Z" fill="#6989d9"/><path d="m21 20 8-12c3-4 7-3 6 1l-4 12-5 4Z" fill="#a2b7ef"/><path d="m13 17-4-5 3-1 8 9" fill="#92a9e7"/></g>`,
+  train: `<rect x="10" y="5" width="28" height="33" rx="9" fill="#79a7c1"/><path d="M15 11h18v11H15Z" fill="#d9f0fc"/><path d="M24 11v11M15 28h3m12 0h3" stroke="#446d86" stroke-width="2.5" stroke-linecap="round"/><path d="m17 38-5 6m19-6 5 6M14 41h20" stroke="#6a7d90" stroke-width="2.5" stroke-linecap="round"/>`,
+  leaf: `<path d="M8 37c16 6 32-9 31-31C17 6 2 20 8 37Z" fill="#8cb6af"/><path d="M8 40 31 17m-15 15 1-11m6 5h9" fill="none" stroke="#4d817b" stroke-width="2.5" stroke-linecap="round"/><path d="M9 14c1-5 5-8 9-9" fill="none" stroke="#e3bf67" stroke-width="2.5" stroke-linecap="round"/>`,
+  car: `<path d="m11 22 4-12h18l5 12" fill="#f4c767"/><path d="m17 13-3 9h20l-3-9Z" fill="#fff4d1"/><rect x="6" y="22" width="36" height="16" rx="6" fill="#f19b50"/><path d="M10 38v4m28-4v4" stroke="#856a54" stroke-width="4" stroke-linecap="round"/><path d="M11 28h5m16 0h5" stroke="#fff3d4" stroke-width="3" stroke-linecap="round"/>`,
+  guide: `<rect x="8" y="9" width="28" height="32" rx="5" fill="#9ba5e8"/><path d="M14 9v32" stroke="#7782cd" stroke-width="2"/><path d="m25 15 7 12-7 7-7-7Z" fill="#ffdf9c"/><path d="m25 18 3 9-3 4-3-4Z" fill="#f38a50"/><path d="m36 11 5-4v18l-5-3" fill="#e7bd67"/>`,
+  day: `<rect x="8" y="10" width="32" height="31" rx="6" fill="#f79a6b"/><path d="M8 20h32" stroke="#ce7046" stroke-width="2"/><path d="M16 7v8m16-8v8" stroke="#bd734f" stroke-width="3" stroke-linecap="round"/><path d="m18 29 4 4 9-10" fill="none" stroke="#fff6df" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`,
+  pin: `<path d="M24 43S9 30 9 19a15 15 0 0 1 30 0c0 11-15 24-15 24Z" fill="#f58c60"/><path d="M24 31c-4-5-8-9-8-13a8 8 0 0 1 16 0c0 4-4 8-8 13Z" fill="#ffbe96"/><path d="m24 13 2 4 5 1-4 3 1 5-4-2-4 2 1-5-4-3 5-1Z" fill="#fff7e4"/>`,
+};
+export const illustrationKinds = Object.freeze(Object.keys(drawings));
+export function paintPlaceArt(svg, symbol) {
+  const key = Object.hasOwn(drawings, symbol) ? symbol : 'pin';
+  if (svg.dataset.art === key) return;
+  svg.setAttribute('viewBox', '0 0 48 48'); svg.setAttribute('aria-hidden', 'true');
+  svg.classList.add('illustrated-icon'); svg.dataset.art = key;
+  svg.innerHTML = drawings[key];
+}
+export function placeArt(symbol) {
+  const key = Object.hasOwn(drawings, symbol) ? symbol : 'pin';
+  return `<svg class="icon illustrated-icon" data-art="${key}" viewBox="0 0 48 48" aria-hidden="true">${drawings[key]}</svg>`;
+}

@@ -1,3 +1,4 @@
+import { assertFlightAvailability, flightConflict } from './flight-window.js';
 import { tourDetails } from './tour-model.js';
 import { activityInstant, isDate, isTimeZone } from './domain.js';
 import { eventsForTripDay, tripCalendarMonths, tripDates } from './trip-itinerary.js';
@@ -11,7 +12,9 @@ const flexibleEvent = event => event.kind === 'activity' && !fixedItem(event.ite
 function flightBoundary(event, trip) {
   if (event.kind !== 'transport' || event.transport.mode !== 'Flight') return null;
   const flight = event.transport;
-  if (event.leg === 'arrival' || flight.leg === 'arrival') return 'start';
+  if (event.leg === 'arrival') return 'start';
+  if (flight.departure_date !== flight.arrival_date) return 'end';
+  if (flight.leg === 'arrival') return 'start';
   if (flight.leg === 'home' || flight.leg === 'transfer') return 'end';
   const stops = trip.stops?.length ? trip.stops : [trip], clean = value => String(value || '').trim().toLocaleLowerCase();
   if (stops.some(stop => flight.fromPlaceId === stop.placeId || clean(flight.departure_location) === clean(stop.name))) return 'end';
@@ -66,6 +69,7 @@ export function planDropPosition(trip, sourceId, day, beforeKey = null) {
   if (beforeKey && !/^(plan|transport):/.test(beforeKey)) beforeKey = `plan:${beforeKey}`;
   const source = trip.items?.find(item => item.id === sourceId);
   if (!source || fixedItem(source) || !datesForTrip(trip).includes(day)) return { allowed: false };
+  if (flightConflict(trip, { ...source, day })) return { allowed: false };
   const original = eventsForDay(trip, day), events = original.filter(event => event.kind !== 'activity' || event.id !== sourceId);
   let index = beforeKey ? events.findIndex(event => itineraryEventKey(event) === beforeKey) : events.length;
   if (index < 0) return { allowed: false };
@@ -90,6 +94,7 @@ export function makePlan(trip, input, existing = null) {
   if (time && (day === 'ideas' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time))) throw new Error('Choose a trip day for a timed plan.');
   if (!isTimeZone(timeZone)) throw new Error('Choose a valid time zone.');
   if (time && activityInstant({ date: day, time, time_zone: timeZone }) === null) throw new Error('That time does not exist when the clocks change.');
+  assertFlightAvailability(trip, { ...input, day, time, timeZone });
   if ((input.notes || '').length > 4000 || (input.address || '').length > 300 || (input.reference || '').length > 160) throw new Error('Shorten the notes, location, or booking reference.');
   return { ...existing, ...(input.placeId && mappedPlace(input) ? { placeId: input.placeId, latitude: input.latitude, longitude: input.longitude } : {}), tour: input.kind === 'Tour' ? tourDetails(input.tour) : undefined, id: existing?.id || crypto.randomUUID(), name, day, time, timeZone, kind: ['Activity', 'Food', 'Stay', 'Flight', 'Train', 'Transport', 'Tour'].includes(input.kind) ? input.kind : 'Activity', booked: Boolean(input.booked), address: input.address?.trim() || '', notes: input.notes?.trim() || '', reference: input.reference?.trim() || '' };
 }
@@ -115,7 +120,10 @@ export function makeTransport(trip, input, id = crypto.randomUUID()) {
 
 export function upsertTransport(trip, segment) {
   const transport = trip.transport || [];
-  return { ...trip, transport: transport.some(item => item.id === segment.id) ? transport.map(item => item.id === segment.id ? segment : item) : [...transport, segment] };
+  const next = { ...trip, transport: transport.some(item => item.id === segment.id) ? transport.map(item => item.id === segment.id ? segment : item) : [...transport, segment] };
+  const flightTrip = { ...next, transport: [segment] };
+  for (const item of next.items || []) assertFlightAvailability(flightTrip, item);
+  return next;
 }
 
 export function duplicatePlan(trip, id, day) {
@@ -134,6 +142,7 @@ export function duplicatePlan(trip, id, day) {
 export function reorderPlan(trip, sourceId, targetId) {
   const items = [...(trip.items || [])], source = items.find(item => item.id === sourceId), target = items.find(item => item.id === targetId);
   if (!source || !target || source.id === target.id || fixedItem(source) || fixedItem(target)) return trip;
+  if (flightConflict(trip, { ...source, day: target.day })) return trip;
   const moved = { ...source, day: target.day };
   items.splice(items.indexOf(source), 1);
   items.splice(items.findIndex(item => item.id === target.id), 0, moved);
@@ -145,7 +154,7 @@ export function reorderPlan(trip, sourceId, targetId) {
 export function stepPlan(trip, id, direction) {
   if (!['up', 'down'].includes(direction)) return trip;
   const items = trip.items || [], source = items.find(item => item.id === id);
-  if (!source || fixedItem(source) || !datesForTrip(trip).includes(source.day)) return trip;
+  if (!source || fixedItem(source) || !datesForTrip(trip).includes(source.day) || flightConflict(trip, source)) return trip;
   const flexible = eventsForDay(trip, source.day).filter(event => event.kind === 'activity' && !fixedItem(event.item)).map(event => event.item);
   const index = flexible.indexOf(source), neighbor = flexible[index + (direction === 'up' ? -1 : 1)];
   if (!neighbor) return trip;
@@ -184,7 +193,13 @@ export function restoreItineraryEvent(trip, removal) {
   const next = records.findIndex(item => item.id === removal.nextId), previous = records.findIndex(item => item.id === removal.previousId);
   const position = next >= 0 ? next : previous >= 0 ? previous + 1 : Math.min(removal.index, records.length);
   records.splice(position, 0, structuredClone(record));
-  return { ...trip, [collection]: records };
+  const nextTrip = { ...trip, [collection]: records };
+  if (collection === 'items') assertFlightAvailability(nextTrip, record);
+  else {
+    const flightTrip = { ...nextTrip, transport: [record] };
+    for (const item of nextTrip.items || []) assertFlightAvailability(flightTrip, item);
+  }
+  return nextTrip;
 }
 
 export function insertPlan(trip, sourceId, day, beforeKey = null) {

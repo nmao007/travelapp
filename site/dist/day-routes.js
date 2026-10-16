@@ -1,10 +1,10 @@
 import { directionsMapsURL } from './maps-links.js';
-import { dayRouteLegs, routePoint, routeKey, routeModes, travelLabel, travelConflict, decodePolyline } from './day-route-model.js';
+import { dayRouteLegs, routePoint, routeKey, routeModes, travelLabel, travelTiming, decodePolyline } from './day-route-model.js';
 import { phoneMediaQuery } from './phone-devices.js';
 import { enhanceDropdowns } from './dropdowns.js';
 
 const node = (tag, className, text) => { const element = document.createElement(tag); element.className = className; if (text) element.textContent = text; return element; };
-export function createDayRoutes({ state, commit, icon, cancelCamera, showMap }) {
+export function createDayRoutes({ state, commit, icon, cancelCamera, showMap, editPlan }) {
   let version = 0, timer, lines = [], fittedKey = '';
   const cache = new Map();
   const clearLines = () => { lines.forEach(line => line.setMap(null)); lines = []; };
@@ -49,6 +49,7 @@ export function createDayRoutes({ state, commit, icon, cancelCamera, showMap }) 
     bar.append(controls, total); section.querySelector('.itinerary-day-heading').after(bar);
     if (phone) { controls.hidden = true; enhanceDropdowns(bar); }
     if (mode === 'TRANSIT') bar.after(node('p', 'route-notice', 'Transit estimates use current schedules.'));
+    if (mode === 'DRIVE') bar.after(node('p', 'route-notice', 'Estimates use current traffic.'));
     const holders = legs.map(leg => {
       const holder = node('div', 'travel-leg'); holder.dataset.routeKey = leg.key;
       holder.dataset.motionKey = `route:${leg.key}`;
@@ -79,11 +80,26 @@ export function createDayRoutes({ state, commit, icon, cancelCamera, showMap }) 
         if (steps.children.length) details.append(steps);
         const mapsLink = node('a', 'detail-chip', 'Google Maps'); mapsLink.href = directionsMapsURL(leg.to, leg.from, mode); mapsLink.target = '_blank'; mapsLink.rel = 'noopener noreferrer'; mapsLink.insertAdjacentHTML('afterbegin', icon('external')); details.append(mapsLink);
         for (const warning of route.warnings) details.append(node('p', 'route-warning', warning));
-        if (travelConflict(leg, route.seconds, state.trip)) details.append(node('p', 'route-warning', 'Travel time exceeds the gap between these plans.'));
         details.addEventListener('toggle', () => { if (details.open) fit([path]); }); holder.append(details);
+        const timing = travelTiming(leg, route.seconds, state.trip);
+        if (timing) {
+          const guidance = node('div', `travel-timing${timing.conflict ? ' has-conflict' : ''}`);
+          const copy = node('span', '', `Leave by ${timing.leaveLabel}`);
+          copy.title = `Estimated departure from ${leg.from.name}, ${timing.timeZone.replaceAll('_', ' ')}. Travel estimates can change.`;
+          if (timing.conflict) {
+            guidance.setAttribute('role', 'status');
+            copy.prepend(node('strong', '', `${timing.shortageMinutes} min short · `));
+            if (editPlan) {
+              const adjust = node('button', 'travel-adjust', 'Edit time'); adjust.type = 'button';
+              adjust.setAttribute('aria-label', `Edit time for ${leg.to.name}`);
+              adjust.addEventListener('click', () => editPlan(leg.to)); guidance.append(copy, adjust);
+            } else guidance.append(copy);
+          } else guidance.append(copy);
+          holder.append(guidance);
+        }
       });
       total.textContent = routes.length ? `${travelLabel(seconds, meters)}${unavailable ? ' · partial' : ''}` : 'Directions unavailable';
-      total.title = 'Total travel between mapped stops';
+      total.title = `Total travel between mapped stops. ${mode === 'DRIVE' ? 'Estimates use current traffic, not your trip date.' : mode === 'TRANSIT' ? 'Estimates use current schedules, not your trip date.' : 'Estimated walking times.'}`;
       if (!state.map || !paths.length) return;
       const routeColor = getComputedStyle(document.documentElement).getPropertyValue(`--route-${mode.toLowerCase()}`).trim();
       for (const path of paths) lines.push(new google.maps.Polyline({ map: state.map, path, strokeColor: routeColor, strokeOpacity: .85, strokeWeight: 5, clickable: false, zIndex: 1 }));

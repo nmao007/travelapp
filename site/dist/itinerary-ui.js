@@ -1,6 +1,8 @@
+import { placeArt } from './place-art.js';
 import { phoneMediaQuery } from './phone-devices.js';
 import { tourDraft, tourSummary, tourEndLabel } from './tour-model.js';
 import { playMotion, morphFrom, morphFrames, revealSequence, celebratePlacement } from './motion.js';
+import { flightDayBlock } from './flight-window.js';
 import { datesForTrip, monthsForTrip, calendarDisplayCells, eventsForDay, fixedItem, mappedPlace, makePlan, makeTransport, upsertTransport, reorderPlan, stepPlan, removeItineraryEvent, restoreItineraryEvent, duplicatePlan } from './itinerary-model.js';
 import { destinationForDay } from './place-model.js';
 import { tripStops, datesForStop, stopSchedule } from './trip-store.js';
@@ -39,10 +41,12 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
   let automaticArrivalDate = true;
   const navigation = createPlanNavigation();
   const defaultZone = () => state.selected?.timeZone || state.trip?.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-  const dayOptions = (select, selected, ideas = false) => {
+  const dayOptions = (select, selected, ideas = false, planDates = false) => {
     select.replaceChildren();
     for (const day of [...datesForTrip(state.trip), ...(ideas ? ['ideas'] : [])]) {
-      const option = node('option', '', day === 'ideas' ? 'Choose dates' : format(day)); option.value = day; select.append(option);
+      const option = node('option', '', day === 'ideas' ? 'Choose dates' : format(day)); option.value = day;
+      if (planDates && flightDayBlock(state.trip, day, defaultZone())) { option.disabled = true; option.textContent += ' · In flight'; }
+      select.append(option);
     }
     if ([...select.options].some(option => option.value === selected)) select.value = selected;
     refreshDropdowns(select);
@@ -100,10 +104,12 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
     if (close && [...$('plan-dialog').querySelectorAll('.time-number,.editable-dropdown input:not([hidden])')].some(input => !input.reportValidity())) return;
     draft = { ...draft, ...patch, name: $('plan-name').value.trim(), timeZone: $('plan-zone').value || defaultZone() };
     if (!editingPlan && !close) { renderPlanTools(); return; }
+    const previousDay = state.day; let persisted = false;
     try {
       const item = makePlan(state.trip, draft, editingPlan), items = state.trip.items || [];
+      state.day = item.day;
       commit({ ...state.trip, items: items.some(entry => entry.id === item.id) ? items.map(entry => entry.id === item.id ? item : entry) : [...items, item] });
-      editingPlan = item; draft = { ...item }; state.day = item.day; onDayChange?.(item.day); render();
+      persisted = true; editingPlan = item; draft = { ...item }; onDayChange?.(item.day);
       $('plan-error').textContent = ''; renderPlanTools();
       if (close) {
         $('plan-dialog').close();
@@ -112,7 +118,7 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
           row?.scrollIntoView({ block: 'nearest' }); celebratePlacement(row);
         }
       }
-    } catch (error) { $('plan-error').textContent = error.message; }
+    } catch (error) { if (!persisted) state.day = previousDay; $('plan-error').textContent = error.message; }
   }
 
   function renderPlanTools() {
@@ -140,7 +146,7 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
       if (index > 0) position.append(action('Move earlier', () => { commit(reorderPlan(state.trip, editingPlan.id, flexible[index - 1].id)); renderPlanTools(); }, 'quiet-action'));
       if (index >= 0 && index < flexible.length - 1) position.append(action('Move later', () => { commit(reorderPlan(state.trip, flexible[index + 1].id, editingPlan.id)); renderPlanTools(); }, 'quiet-action'));
     }
-    dayOptions($('phone-plan-day'), draft.day);
+    dayOptions($('phone-plan-day'), draft.day, false, true);
     $('phone-plan-day').setAttribute('aria-label', duplicatingPlan ? 'Duplicate plan to day' : 'Move plan to day');
     const chips = $('plan-day-chips'); chips.replaceChildren();
     chips.setAttribute('aria-label', duplicatingPlan ? 'Duplicate plan to day' : 'Move plan to day');
@@ -158,6 +164,7 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
       }, 'detail-chip');
       if (duplicatingPlan) { button.disabled = draft.day === day; button.setAttribute('aria-label', `Duplicate to ${format(day)}`); }
       else button.setAttribute('aria-pressed', String(draft.day === day));
+      if (flightDayBlock(state.trip, day, draft.timeZone || defaultZone())) { button.disabled = true; button.title = 'In flight'; }
       button.dataset.day = day; chips.append(button);
     }
   }
@@ -316,7 +323,9 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
     row.dataset.eventKey = `plan:${item.id}`;
     const head = node('div', detailed ? 'day-card-heading' : 'timeline-row');
     let reorderControls = null;
-    const marker = node('span', 'place-marker'); marker.append(placeSymbol(item)); marker.setAttribute('aria-hidden', 'true');
+    const marker = node('span', 'place-marker');
+    marker.append(placeSymbol(item));
+    marker.setAttribute('aria-hidden', 'true');
     const copy = action('', () => { if (mappedPlace(item)) focusPlace(item); openPlan(item); }, 'place-copy'); copy.setAttribute('aria-label', `Open ${item.name}`); copy.append(node('strong', '', item.name));
     row.addEventListener('click', event => {
       if (matchMedia(phoneMediaQuery).matches && !event.target.closest('button,a,input,textarea,summary,details')) copy.click();
@@ -382,7 +391,7 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
     const card = action('', () => openTransport(segment), 'transport-card'); card.setAttribute('aria-label', `Edit ${segment.mode} ${segment.service_id}${leg ? `, ${leg}` : ''}`);
     card.dataset.motionKey = `transport:${segment.id}:${leg || 'departure'}`;
     card.dataset.eventKey = card.dataset.motionKey;
-    const heading = node('span', 'transport-card-heading'); heading.innerHTML = icon(segment.mode === 'Flight' ? 'plane' : 'train'); heading.append(node('strong', '', segment.service_id), node('small', '', segment.flightData?.airline || '')); card.append(heading);
+    const heading = node('span', 'transport-card-heading'); heading.innerHTML = placeArt(segment.mode === 'Flight' ? 'plane' : 'train'); heading.append(node('strong', '', segment.service_id), node('small', '', segment.flightData?.airline || '')); card.append(heading);
     const legs = node('span', 'transport-card-legs');
     for (const key of ['departure', 'arrival']) {
       const detail = node('span', 'transport-leg'); detail.append(node('small', '', `${key === 'departure' ? 'Departs' : 'Arrives'} · ${format(segment[`${key}_date`], { month: 'short', day: 'numeric' })}`), node('strong', '', formatClock(segment[`${key}_time`])), node('span', '', segment[`${key}_location`]), node('small', '', segment[`${key}_time_zone`].replaceAll('_', ' '))); legs.append(detail);
@@ -409,15 +418,17 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
     container.append(source);
   }
 
+  const overviewLocation = value => String(value || '').replace(/\s+(?:International\s+)?Airport$/i, '').replace(/\s+International$/i, '');
+
   function transportJourney(segment) {
     const journey = node('div', 'flight-journey');
     journey.dataset.eventKey = `transport:${segment.id}:departure`;
     const main = action('', () => openTransport(segment), 'flight-main-card');
-    const iconNode = node('span', 'flight-main-icon'); iconNode.innerHTML = icon(segment.mode === 'Train' ? 'train' : 'plane');
+    const iconNode = node('span', 'flight-main-icon'); iconNode.innerHTML = placeArt(segment.mode === 'Train' ? 'train' : 'plane');
     const details = node('span', 'flight-main-copy');
     const id = segment.service_id || segment.flightData?.flightNumber || segment.mode;
-    const from = segment.flightData?.departure_code || segment.departure_location;
-    const to = segment.flightData?.arrival_code || segment.arrival_location;
+    const from = segment.flightData?.departure_code || overviewLocation(segment.departure_location);
+    const to = segment.flightData?.arrival_code || overviewLocation(segment.arrival_location);
     const arrivalDay = segment.arrival_date !== segment.departure_date ? ` · ${format(segment.arrival_date, { month: 'short', day: 'numeric' })}` : '';
     details.append(node('strong', '', `${from} → ${to}`), node('span', '', `${formatClock(segment.departure_time)} – ${formatClock(segment.arrival_time)}${arrivalDay} · ${id}`));
     main.append(iconNode, details);
@@ -430,10 +441,10 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
     const journey = node('div', 'flight-journey flight-arrival-only');
     journey.dataset.eventKey = `transport:${segment.id}:arrival`;
     const card = action('', () => openTransport(segment), 'flight-main-card');
-    const location = segment.flightData?.arrival_code || segment.arrival_location;
-    const from = segment.flightData?.departure_code || segment.departure_location;
+    const location = segment.flightData?.arrival_code || overviewLocation(segment.arrival_location);
+    const from = segment.flightData?.departure_code || overviewLocation(segment.departure_location);
     const time = formatClock(segment.arrival_time);
-    const symbol = node('span', 'flight-main-icon'); symbol.innerHTML = icon(segment.mode === 'Train' ? 'train' : 'plane');
+    const symbol = node('span', 'flight-main-icon'); symbol.innerHTML = placeArt(segment.mode === 'Train' ? 'train' : 'plane');
     const copy = node('span', 'flight-main-copy');
     copy.append(node('strong', '', `Arrive in ${location}`), node('span', '', [segment.service_id, from && `From ${from}`].filter(Boolean).join(' · ')));
     const clock = node('time', 'flight-arrival-time', time); clock.dateTime = segment.arrival_time;
@@ -446,7 +457,7 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
     const journey = node('div', 'flight-journey flight-journey-draft');
     journey.setAttribute('aria-label', `Travel from ${segment.departure_location || 'starting point'} to ${segment.arrival_location || 'home'}`);
     const main = action('', () => openTransport(segment), 'flight-main-card');
-    const iconNode = node('span', 'flight-main-icon'); iconNode.innerHTML = icon(segment.mode === 'Train' ? 'train' : 'plane');
+    const iconNode = node('span', 'flight-main-icon'); iconNode.innerHTML = placeArt(segment.mode === 'Train' ? 'train' : 'plane');
     const copy = node('span', 'flight-main-copy');
     const title = segment.leg === 'arrival' ? `Travel to ${segment.arrival_location}` : segment.leg === 'home' ? 'Return travel' : `${segment.departure_location} → ${segment.arrival_location}`;
     copy.append(node('strong', '', title));
@@ -466,6 +477,7 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
     const headingMain = node('div', 'itinerary-day-heading-main');
     const dateLabel = format(day, { weekday: 'short', month: 'short', day: 'numeric' });
     headingMain.append(selected ? node('h2', 'day-heading-title', dateLabel) : action(dateLabel, () => chooseDay(day, 'day'), 'day-heading-button'));
+    if (!selected) headingMain.querySelector('.day-heading-button').insertAdjacentHTML('beforeend', icon('chevron'));
     heading.append(marker, headingMain);
     section.append(heading);
     for (const segment of boundarySegments) section.append(transportDraftCard(segment));
@@ -481,12 +493,17 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
       const scopedDays = state.stopFilter ? datesForStop(state.trip, state.stopFilter) : datesForTrip(state.trip);
       const previous = scopedDays[scopedDays.indexOf(day) - 1];
       const previousStop = previous && destinationForDay(state.trip, tripStops(state.trip), previous);
-      if (selected || !previousStop || previousStop.placeId !== stop?.placeId) headingMain.append(destination);
+      if (!state.stopFilter && (selected || !previousStop || previousStop.placeId !== stop?.placeId)) headingMain.append(destination);
+    }
+    const inFlight = flightDayBlock(state.trip, day);
+    if (inFlight) {
+      const notice = node('div', 'in-flight-day'); notice.innerHTML = icon('plane'); notice.append(node('span', '', `In flight · ${inFlight.flights.map(flight => flight.service_id).filter(Boolean).join(' / ')}`)); section.append(notice);
     }
     const compact = !selected && !events.length && !boundarySegments.length;
     if (compact) section.classList.add('empty-itinerary-day');
     const add = action('', () => addDayPlan(day), 'day-add-event');
     add.innerHTML = icon('plus'); add.setAttribute('aria-label', `Add a plan on ${format(day, { month: 'short', day: 'numeric' })}`); add.title = 'Add plan';
+    if (inFlight) { add.disabled = true; add.title = 'In flight'; add.setAttribute('aria-label', 'In flight — choose another day for plans'); }
     heading.append(add);
     for (const event of events) {
       if (event.kind === 'activity') { section.append(planRow(event.item, selected)); continue; }
@@ -495,7 +512,7 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
       else if (selected) section.append(transportCard(event.transport, event.leg));
       else section.append(transportJourney(event.transport));
     }
-    if (selected && !events.length) section.append(action('Find places', () => findPlaces(day), 'open-day'));
+    if (selected && !events.length && !inFlight) { const empty = action('', () => findPlaces(day), 'open-day illustrated-empty'); empty.innerHTML = placeArt('guide'); empty.append(node('span', '', 'Find something good')); section.append(empty); }
     return section;
   }
 
@@ -554,7 +571,7 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
         tabs.scrollLeft = Math.max(0, activeDay.offsetLeft - (tabs.clientWidth - activeDay.offsetWidth) / 2);
       }
     }
-    dayOptions($('explore-day'), state.day); $('explore-day').disabled = !days.length; $('add-to-day-label').textContent = '';
+    dayOptions($('explore-day'), state.day, false, true); $('explore-day').disabled = !days.length; $('add-to-day-label').textContent = '';
     const count = (state.trip.items || []).length + (state.trip.transport || []).length;
     $('place-count').textContent = `${count} ${count === 1 ? 'plan' : 'plans'}`;
     const content = $('day-content'); const previousMode = content.dataset.mode;

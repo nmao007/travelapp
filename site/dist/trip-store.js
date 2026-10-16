@@ -1,3 +1,4 @@
+import { assertFlightAvailability } from './flight-window.js';
 import { fixedItem, datesForTrip } from './itinerary-model.js';
 import { isDate } from './domain.js';
 export const STORAGE_KEY = 'trippilot-site-trips-v1';
@@ -279,6 +280,7 @@ export function deleteTrip(id, storage = localStorage) {
 export function addPlace(trip, place) {
   if (!isTrip(trip) || !place?.placeId || !place?.name) throw new Error('Choose a place.');
   if (trip.items?.some(item => item.placeId === place.placeId && item.day === place.day)) return trip;
+  assertFlightAvailability(trip, place);
   return { ...trip, items: [...(trip.items || []), { id: crypto.randomUUID(), ...place }] };
 }
 
@@ -288,6 +290,8 @@ export function removePlace(trip, itemId) {
 
 export function movePlace(trip, itemId, day) {
   if (trip.items?.some(item => item.id === itemId && fixedItem(item))) return trip;
+  const source = trip.items?.find(item => item.id === itemId);
+  if (source) assertFlightAvailability(trip, { ...source, day });
   return { ...trip, items: (trip.items || []).map(item => item.id === itemId ? { ...item, day } : item) };
 }
 

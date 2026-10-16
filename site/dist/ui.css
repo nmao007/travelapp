@@ -1,16 +1,18 @@
 /* A quiet planning surface. Orange marks actions and selection. */
 :root{
-  --ink:#292929;--muted:#777773;--line:#e9e9e6;--soft:#f5f5f3;--tint:#fff1e7;
-  --action:#b94817;--accent:#f67735;--accent-hover:#e86b2d;--sun:#ffd9be;
+  --ink:#27292e;--muted:#737780;--line:#e9eaed;--soft:#f5f6f8;--tint:#fff2eb;
+  --body-font:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif;--display:var(--body-font);
+  --ease-out:cubic-bezier(.16,1,.3,1);--ease-move:cubic-bezier(.22,.8,.25,1);
+  --action:#c34e1f;--accent:#f36b32;--accent-hover:#df5c26;--sun:#ffd9be;
   --focus:#f2a574;--radius:4px;--popover-shadow:0 6px 24px #35241412;
   --dialog-shadow:0 18px 60px #35241425;--backdrop:#34251d50;
 }
 body,.app-shell{background:#fff}
 /* Keep app controls rectangular. Hardware and semantic SVG glyphs stay intact. */
-body :is(button,input,textarea,select,summary){border-radius:4px!important}
+body :is(button,input,textarea,select,summary){border-radius:12px!important;corner-shape:squircle}
 body :is(.place-marker,.flight-main-icon,.suggestion-icon,.route-index,.calendar-stop-index,.pin-symbol,.map-place-pin,.pin-order,.detail-chip,.day-tab,.preview-date-stamp,.spinner){border-radius:4px!important}
 button:active:not(:disabled){filter:none}
-.topbar{height:48px;padding:0 20px;border-bottom:1px solid var(--line);background:#fffdfb;gap:14px}
+.topbar{height:48px;padding:0 20px;border-bottom:1px solid var(--line);background:#fff;gap:14px}
 .brand{font-size:21px;letter-spacing:-.9px}.brand-slash{color:var(--accent)}
 .my-trips{font-size:13px;color:var(--muted);padding:0 8px}
 .account-button,.account-signout{box-shadow:none!important;background:transparent!important;color:var(--muted)!important;border:0!important;font-size:13px!important}
@@ -23,7 +25,7 @@ button:active:not(:disabled){filter:none}
 .suggestions,.dropdown-menu,.trip-menu,.hero-photo-credits{border-radius:6px;box-shadow:var(--popover-shadow);padding:4px}
 .suggestion{padding:10px 12px}.suggestion-icon{background:var(--tint);color:var(--action)}
 .dropdown-trigger{background:white}.dropdown-option{min-height:40px}
-.workspace{--hero-height:72px;--banner-compact-height:72px;display:flex;height:calc(100dvh - 48px);min-height:0;padding:0 20px 16px;overflow:hidden;background:#fffdfb;animation:none}
+.workspace{--hero-height:72px;--banner-compact-height:72px;display:flex;height:calc(100dvh - 48px);min-height:0;padding:0 20px 16px;overflow:hidden;background:#fff;animation:none}
 .trip-masthead{position:relative;top:0;background:transparent;flex:none;transform:none!important;opacity:1!important}
 .workspace .destination-hero,.workspace .destination-hero[data-stop-count]:not([data-stop-count="1"]){height:72px;margin:0;border-radius:0;background:transparent;border-bottom:1px solid var(--line);box-shadow:none;animation:none}
 .destination-hero:after,.banner-thumbnail,.hero-art,.hero-photo-shade{display:none!important}
@@ -132,7 +134,7 @@ button:active:not(:disabled){filter:none}
 @media(min-width:581px) and (max-width:900px){.workspace>.trip-body{display:grid;grid-template-columns:minmax(330px,1.25fr) minmax(220px,1fr);gap:12px}.workspace .trip-title-wrap{right:190px}.workspace .hero-top .route-add span{display:none}}
 @media(max-width:580px), (max-width:980px) and (max-height:500px){
   :root{--phone-nav:56px;--phone-header:44px}
-  .topbar{height:calc(var(--safe-top) + var(--phone-header));padding:calc(var(--safe-top) + 1px) 14px 1px;background:#fffdfb;border:0;gap:6px}
+  .topbar{height:calc(var(--safe-top) + var(--phone-header));padding:calc(var(--safe-top) + 1px) 14px 1px;background:#fff;border:0;gap:6px}
   .brand{font-size:20px}.my-trips{font-size:13px;min-height:44px;padding:0 6px}.account-actions button{height:44px;font-size:13px!important}
   .home-view{padding:56px 20px calc(32px + var(--safe-bottom))}.home-view h1{font-size:66px}.home-search{height:58px}
   .workspace{--hero-height:72px;--banner-compact-height:72px;display:flex;height:calc(100dvh - var(--safe-top) - var(--phone-header));min-height:0;padding:0 0 calc(var(--phone-nav) + var(--safe-bottom));overflow:hidden}
@@ -148,7 +150,7 @@ button:active:not(:disabled){filter:none}
   .workspace .destination-hero.long-title{height:96px}.workspace .destination-hero.long-title .trip-title-wrap h1{font-size:20px;line-height:1.12}
   .trip-masthead>.trip-menu{top:46px;right:14px;z-index:90}
   .route-bar{min-height:44px;padding:0}.route-bar[data-stop-count="1"]{display:none}.mobile-stop-picker .dropdown-trigger{min-height:44px;height:44px;padding:0 4px;background:transparent;border:0;font-size:13px}.mobile-stop-picker .dropdown-value{font-size:13px}
-  .workspace-nav{position:fixed;bottom:0;left:0;right:0;z-index:45;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-items:start;height:calc(var(--phone-nav) + var(--safe-bottom));margin:0;padding:0 14px var(--safe-bottom);border-top:1px solid var(--line);border-bottom:0;gap:6px;background:#fffdfb;box-shadow:none}
+  .workspace-nav{position:fixed;bottom:0;left:0;right:0;z-index:45;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-items:start;height:calc(var(--phone-nav) + var(--safe-bottom));margin:0;padding:0 14px var(--safe-bottom);border-top:1px solid var(--line);border-bottom:0;gap:6px;background:#fff;box-shadow:none}
   .workspace-nav button{width:100%;min-width:0;height:56px;min-height:56px;padding:4px 0;flex-direction:column;gap:3px;font-size:12px;line-height:16px;background:transparent}
   .workspace-nav button .icon{width:22px;height:22px}.workspace-nav button[aria-pressed=true]{color:var(--action);background:transparent}.workspace-nav button:after{display:block;top:0;bottom:auto;height:2px;left:20px;right:20px}
   .workspace>.trip-body,.workspace>.trip-body[data-view=itinerary][data-mode=calendar],.workspace>.trip-body[data-view=itinerary][data-mode=day],.workspace>.trip-body[data-view=explore]{display:flex;flex:1;height:auto;min-height:0;overflow:hidden;padding:6px 14px 0;gap:0}
@@ -283,7 +285,7 @@ button:active:not(:disabled){filter:none}
 /* Stable controls, neutral map markers, and compact day groups. */
 .trip-timeline:before{top:18px;bottom:18px}
 #day-content[data-mode=list] .itinerary-day-heading{position:sticky;top:0;z-index:4;background:#fff}
-.plan-toolbar>.small-action,.recommendation-add,.primary-action,.calendar-actions button,#save-stop{background:#343536;color:#fff}
+.plan-toolbar>.small-action,.recommendation-add,.primary-action,.calendar-actions button,#save-stop{background:var(--accent);color:#fff}
 .planned-pin,.planned-pin .pin-symbol{background:#fff;color:#343536}
 .map-place-pin{border:1px solid #d6d7d5;box-shadow:0 2px 6px #00000018}
 .pin-order{background:#454647;color:#fff}
@@ -291,7 +293,7 @@ button:active:not(:disabled){filter:none}
 .route-stop.active,.route-all[aria-pressed=true]{background:var(--soft);border-color:var(--line);color:var(--ink)}
 .route-index,.route-stop.active .route-index{background:#ececea;color:#575853}
 .date-summary button[aria-pressed=true]{background:var(--soft);border-color:#bcbdb8}
-.calendar-grid button.range-edge{background:#343536;color:#fff}
+.calendar-grid button.range-edge{background:var(--accent);color:#fff}
 .calendar-grid button.in-range{background:var(--soft);color:var(--ink)}
 .day-tabs .day-tab[aria-selected=true],.nearby-filters button.active{background:var(--soft)!important;color:var(--ink)}
 .planning-gap{border:1px dashed #999b96;background:#f1f2ef;border-radius:4px}
@@ -341,18 +343,11 @@ button:active:not(:disabled){filter:none}
 button:focus-visible{outline:2px solid #555751;outline-offset:2px}
 .plan-spark{position:absolute;left:34px;top:15px;width:0;height:0;z-index:5;pointer-events:none}
 .plan-spark i{position:absolute;width:5px;height:5px;background:var(--spark-color);border-radius:0}
-.editor-dialog[open],.date-picker[open],.account-dialog[open]{animation:playful-sheet .38s cubic-bezier(.2,.8,.2,1) both;transform-origin:50% 80%}
+
 .day-card-disclosure[open] .disclosure-body{animation:detail-unfold .28s cubic-bezier(.2,.8,.2,1) both}
-.map-place-pin{animation:marker-arrive .36s cubic-bezier(.2,.8,.2,1) both;transform-origin:50% 100%}
-@keyframes playful-sheet{
-  0%{opacity:.25;translate:0 22px;scale:.97}
-  75%{opacity:1;translate:0 -3px;scale:1.003}
-  100%{opacity:1;translate:0 0;scale:1}
-}
 @keyframes detail-unfold{from{opacity:.3;translate:0 -5px}to{opacity:1;translate:0 0}}
-@keyframes marker-arrive{0%{opacity:.3;translate:0 6px;scale:.8}70%{opacity:1;translate:0 -2px;scale:1.07}100%{opacity:1;translate:0 0;scale:1}}
 @media(hover:hover) and (pointer:fine){
-  .small-action:hover>.icon,.more-button:hover>.icon,.recommendation-add:hover>.icon{transform:rotate(7deg) scale(1.1)}
+  .small-action:hover>.icon,.more-button:hover>.icon,.recommendation-add:hover>.icon{transform:translateY(-1px) scale(1.07)}
   .small-action>.icon,.more-button>.icon,.recommendation-add>.icon{transition:transform .22s cubic-bezier(.2,.8,.2,1)}
 }
 @media(max-width:580px), (max-width:980px) and (max-height:500px){
@@ -393,3 +388,192 @@ button:focus-visible{outline:2px solid #555751;outline-offset:2px}
 }
 .calendar-trip-range{display:block;margin-top:4px;font-size:13px;color:var(--muted)}
 .month-controls .calendar-edit-dates{display:grid;place-items:center;min-width:44px;min-height:44px;background:transparent;color:var(--muted)}
+
+/* Shared surfaces use one rhythm; only the layout changes with the device. */
+.suggestions,.dropdown-menu,.trip-menu{border:1px solid var(--line);border-radius:16px;box-shadow:0 12px 36px #20283814;padding:6px}
+.dropdown-option,.suggestion{border-radius:10px;min-height:44px}
+.dropdown-trigger,input,textarea{transition:border-color .18s,background .18s,box-shadow .18s}
+.primary-action:hover{background:var(--accent-hover)}
+:where(.editor-dialog,.date-picker,.account-dialog){opacity:0;translate:0 16px;transition:opacity .18s ease,translate .26s var(--ease-out),display .26s allow-discrete,overlay .26s allow-discrete}
+:where(.editor-dialog,.date-picker,.account-dialog)[open]{opacity:1;translate:0 0}
+:where(.editor-dialog,.date-picker,.account-dialog)::backdrop{background:#151a243d;backdrop-filter:blur(4px);opacity:0;transition:opacity .2s,display .26s allow-discrete,overlay .26s allow-discrete}
+:where(.editor-dialog,.date-picker,.account-dialog)[open]::backdrop{opacity:1}
+@starting-style{:where(.editor-dialog,.date-picker,.account-dialog)[open]{opacity:0;translate:0 24px}:where(.editor-dialog,.date-picker,.account-dialog)[open]::backdrop{opacity:0}}
+@media(min-width:581px) and (min-height:501px){
+  .workspace{padding:0 28px 20px;--hero-height:80px;--banner-compact-height:80px}.workspace .destination-hero{height:80px}
+  .workspace .hero-gallery{top:12px;bottom:12px;border-radius:12px}.workspace .trip-title-wrap{top:13px}
+  .route-bar{min-height:52px}.route-stop{padding:6px 10px}.route-stop.active{border-color:transparent;background:var(--soft)}
+  .workspace-nav{gap:8px;margin-bottom:14px}.workspace-nav>button{padding:0 14px}
+  .workspace-nav>button[aria-pressed=true]{background:var(--tint);color:var(--action)}
+  .workspace>.trip-body{gap:28px!important;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr)!important}
+  .map-frame{border-radius:18px}.day-content{padding-right:16px}
+  .plan-toolbar .itinerary-toggle button{background:var(--soft);width:40px;height:40px}
+  #day-content[data-mode=list] .itinerary-day-heading{min-height:46px}
+  #day-content[data-mode=list] .itinerary-day-marker{top:18px}
+  #day-content[data-mode=list] .timeline-row{min-height:68px;padding:10px 4px}
+  #day-content[data-mode=list] .place-marker,.flight-main-icon{background:var(--soft);color:#697386;border-radius:12px!important}
+  #day-content[data-mode=list] .place-copy{display:flex;align-items:flex-start;gap:4px}
+  .flight-main-card{min-height:68px}.flight-main-copy strong{font-size:16px}
+  .editor-dialog,.date-picker,.account-dialog{border-radius:22px;box-shadow:0 20px 80px #20283820}
+}
+@media(prefers-reduced-motion:reduce){:where(.editor-dialog,.date-picker,.account-dialog),:where(.editor-dialog,.date-picker,.account-dialog)::backdrop{transition:none}}
+
+/* A press responds immediately; the release animation never moves the hit area. */
+button>.icon{transition:scale 90ms ease,transform .18s var(--ease-out)}
+button:active:not(:disabled)>.icon{scale:.9}
+.mobile-drag-handle:active>.icon{scale:1}
+@media(hover:hover) and (pointer:fine){
+  :is(.small-action,.more-button,.month-nav,.calendar-edit-dates){position:relative;isolation:isolate;background:transparent}
+  :is(.small-action,.more-button,.month-nav,.calendar-edit-dates):before{content:'';position:absolute;inset:3px;border-radius:50%;background:var(--soft);z-index:-1;scale:.7;opacity:0;transition:scale .2s var(--ease-out),opacity .15s}
+  :is(.small-action,.more-button,.month-nav,.calendar-edit-dates):hover:before{scale:1;opacity:1}
+  #add-plan:before{display:none}
+}
+@media(prefers-reduced-motion:reduce){button>.icon{transition:none}button:active:not(:disabled)>.icon{scale:1}}
+
+/* Local illustrations carry the character; controls remain immediately legible. */
+.illustrated-icon{width:32px!important;height:32px!important;stroke:none!important;fill:none;overflow:visible;flex:none}
+.illustrated-icon .art-detail{transform-box:fill-box;transform-origin:center}
+:root body .place-marker:has(.illustrated-icon),:root body .flight-main-icon:has(.illustrated-icon){border:0;background:#f5f5fa!important;border-radius:20px!important;corner-shape:squircle}
+:root body .place-marker:has([data-art=food]){background:#fff1e6!important}
+:root body .flight-main-icon:has([data-art=plane]){background:#f0f3fc!important}
+.workspace-nav .illustrated-icon{display:block!important;width:26px!important;height:26px!important;opacity:.6;transition:opacity .15s,scale .15s}
+.workspace-nav [aria-pressed=true] .illustrated-icon{opacity:1}
+.illustrated-empty{display:flex;align-items:center;justify-content:center;gap:12px;min-height:112px;background:#faf9ff;border:0;border-radius:28px!important;corner-shape:squircle;font-size:15px;color:var(--ink)}
+.illustrated-empty .illustrated-icon{width:54px!important;height:54px!important}
+.transport-card{position:relative;border-style:solid;border-radius:28px!important;corner-shape:squircle;background:linear-gradient(135deg,#f7f8ff,#fff 65%)}
+.transport-card-heading{padding-bottom:12px;border-bottom:1px dashed #dcdfe9}
+.transport-card-heading>.icon{color:#6b80b5}
+@media(prefers-reduced-motion:reduce){.workspace-nav .illustrated-icon{transition:none}}
+.calendar-event>.illustrated-icon{width:20px!important;height:20px!important}
+.transport-card-heading>.illustrated-icon{width:28px!important;height:28px!important}
+.plan-added-check{position:absolute;left:-7px;top:4px;display:grid;place-items:center;width:18px;height:18px;border-radius:9px;corner-shape:squircle;background:var(--accent);color:#fff;font:700 12px/1 Arial,sans-serif}
+.recent-trip-copy{display:grid;gap:4px;flex:1;min-width:0;text-align:left}.recent-trip-copy strong{font-size:16px;font-weight:600}.recent-trip-copy small{font-size:12px;color:var(--muted)}.recent-trip-copy small:empty{display:none}.recent-trip>.illustrated-icon{width:38px!important;height:38px!important}
+
+/* Useful route guidance stays visible without expanding turn-by-turn steps. */
+.travel-timing{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px 10px;font-size:12px;color:#60616a;padding:2px 0 6px;line-height:1.5}
+.travel-timing.has-conflict{color:#a6461c;background:#fff3e9;padding:8px 10px;margin:2px 0 6px;border-radius:16px;corner-shape:squircle}
+.travel-timing strong{font-weight:650}.travel-adjust{flex-shrink:0;min-height:44px;padding:0 10px;background:#fff;color:#a6461c;font-size:12px;font-weight:650;border-radius:16px;corner-shape:squircle}
+
+/* Static superellipse markers. Their silhouette is independent of browser support. */
+:root body .map-place-pin,:root body .map-place-pin:hover,:root body .map-place-pin.selected{
+  --pin-shape:polygon(100.00% 50.00%,99.88% 65.65%,99.52% 72.08%,98.91% 76.94%,98.06% 80.93%,96.96% 84.33%,95.59% 87.27%,93.96% 89.82%,92.04% 92.04%,89.82% 93.96%,87.27% 95.59%,84.33% 96.96%,80.93% 98.06%,76.94% 98.91%,72.08% 99.52%,65.65% 99.88%,50.00% 100.00%,34.35% 99.88%,27.92% 99.52%,23.06% 98.91%,19.07% 98.06%,15.67% 96.96%,12.73% 95.59%,10.18% 93.96%,7.96% 92.04%,6.04% 89.82%,4.41% 87.27%,3.04% 84.33%,1.94% 80.93%,1.09% 76.94%,0.48% 72.08%,0.12% 65.65%,0.00% 50.00%,0.12% 34.35%,0.48% 27.92%,1.09% 23.06%,1.94% 19.07%,3.04% 15.67%,4.41% 12.73%,6.04% 10.18%,7.96% 7.96%,10.18% 6.04%,12.73% 4.41%,15.67% 3.04%,19.07% 1.94%,23.06% 1.09%,27.92% 0.48%,34.35% 0.12%,50.00% 0.00%,65.65% 0.12%,72.08% 0.48%,76.94% 1.09%,80.93% 1.94%,84.33% 3.04%,87.27% 4.41%,89.82% 6.04%,92.04% 7.96%,93.96% 10.18%,95.59% 12.73%,96.96% 15.67%,98.06% 19.07%,98.91% 23.06%,99.52% 27.92%,99.88% 34.35%);--pin-frame:#dce0e6;
+  display:grid;place-items:center;width:42px;height:42px;padding:3px;border:0!important;
+  background:transparent!important;box-shadow:none!important;outline:0!important;
+  overflow:visible;border-radius:0!important;animation:none!important;transition:none!important;
+  transform:none!important;translate:none!important;scale:none!important;filter:none!important;
+}
+:root body .map-place-pin::before,:root body .map-place-pin::after{content:'';position:absolute;inset:0;clip-path:var(--pin-shape);background:var(--pin-frame);pointer-events:none}
+:root body .map-place-pin::after{inset:1px;background:#fff}
+:root body .map-place-pin.planned-pin,:root body .map-place-pin.selected{--pin-frame:#ef7547}
+:root body .map-place-pin .pin-symbol{position:relative;z-index:1;width:34px;height:34px;clip-path:var(--pin-shape);border-radius:0!important;color:var(--pin-color,#697386);background:var(--pin-surface,#f2f4f8);animation:none!important;transition:none!important}
+:root body .planned-pin .pin-symbol{color:#bf5027;background:#fff2ea}
+:root body .map-place-pin .pin-order{z-index:2;top:-3px;right:-3px;width:18px;min-width:18px;height:18px;padding:0;border:0!important;border-radius:0!important;clip-path:var(--pin-shape);background:#ed703d;color:#fff;font-size:10px;animation:none!important;transition:none!important}
+:root body .map-place-pin .icon,:root body .map-marker-label{animation:none!important;transition:none!important;transform:none;translate:none;scale:none}
+:root body .map-marker-label{border-radius:18px;corner-shape:squircle;box-shadow:0 2px 8px #20283814}
+.gm-style .gm-style-iw-c:has(.map-entry-info){border-radius:26px!important;corner-shape:squircle;box-shadow:0 4px 18px #2028381c!important}
+.gm-style .map-entry-actions :is(button,.detail-chip){border-radius:18px!important;corner-shape:squircle;min-height:40px}
+@supports(corner-shape:squircle){
+  :root body .map-place-pin::before,:root body .map-place-pin::after,:root body .map-place-pin .pin-symbol,:root body .map-place-pin .pin-order{clip-path:none;border-radius:50%!important;corner-shape:squircle}
+}
+
+/* One compact month; destination-specific controls remain optional. */
+#edit-date-picker{width:360px;max-width:calc(100vw - 32px);height:auto;min-height:0;padding:18px;gap:12px;border:1px solid #eceef1;border-radius:30px;corner-shape:squircle;box-shadow:0 12px 48px #2028381c}
+#edit-date-picker .editor-heading{min-height:40px;margin:0;padding:0;gap:8px}
+#edit-date-picker .editor-heading h2{font-size:20px;line-height:1.25;letter-spacing:-.5px}
+#edit-date-picker .calendar-scroll-body{flex:0 1 auto}
+#edit-date-picker .date-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;padding:4px;margin:0 0 10px;background:#f5f6f8;border-radius:20px;corner-shape:squircle}
+#edit-date-picker .date-summary button{min-height:52px;padding:6px 10px;gap:2px;border:0;background:transparent;border-radius:16px;corner-shape:squircle}
+#edit-date-picker .date-summary button[aria-pressed=true]{background:#fff0e7;color:#ac451c}
+#edit-date-picker .date-summary button>span{font-size:11px;line-height:16px;color:#777a82}
+#edit-date-picker .date-summary strong{font-size:14px;line-height:20px;font-weight:600}
+#edit-date-picker .calendar-head{margin:0 0 2px;min-height:44px}
+#edit-date-picker .calendar-head strong{font-size:14px}
+#edit-date-picker .calendar-head button{width:44px;height:44px;min-height:44px;background:transparent;color:#555b66}
+#edit-date-picker .calendar-grid{gap:0;grid-template-columns:repeat(7,minmax(0,1fr))}
+#edit-date-picker .calendar-grid>.calendar-weekday{font-size:11px;padding:5px 0;line-height:16px;text-align:center}
+#edit-date-picker .calendar-grid button{height:44px;min-height:44px;padding:0;font-size:14px;font-weight:500;background:transparent;border-radius:0;clip-path:none}
+#edit-date-picker .calendar-grid button.in-range{background:#fff2e9;color:#a94b26}
+#edit-date-picker .calendar-grid button.selected{background:#ed703d;color:#fff;border-radius:16px;corner-shape:squircle}
+#edit-date-picker .calendar-grid button[data-stop-id]{box-shadow:inset 0 -2px var(--stop-color)}
+#edit-date-picker .calendar-actions{padding:0;margin:0;background:#fff}
+#edit-date-picker #save-dates{min-height:44px;padding:10px 14px;border-radius:18px;corner-shape:squircle;font-size:14px}
+#edit-date-picker .calendar-message:empty{display:none}
+#edit-date-picker .calendar-message{font-size:12px;margin:6px 0 0}
+.date-stop-disclosure{border-top:1px solid #eceef1;margin-top:10px}
+.date-stop-disclosure>summary{display:flex;align-items:center;justify-content:space-between;min-height:44px;gap:8px;list-style:none;font-size:13px;font-weight:600;color:#626976;cursor:pointer}
+.date-stop-disclosure>summary::-webkit-details-marker{display:none}
+.date-stop-disclosure>summary .icon{width:14px;height:14px}
+.date-stop-disclosure[open]>summary .icon{rotate:180deg}
+#edit-date-picker .calendar-stop-list{grid-template-columns:1fr;gap:4px;margin:0 0 4px}
+#edit-date-picker .calendar-stop-row{min-height:44px;padding:6px 8px;gap:8px;background:#f7f8fa;border-radius:16px;corner-shape:squircle}
+#edit-date-picker .calendar-stop-index{width:22px;height:24px;font-size:12px}
+#edit-date-picker .calendar-stop-copy{flex-direction:row;flex-wrap:wrap;align-items:baseline;gap:2px 8px}
+#edit-date-picker .calendar-stop-copy strong{font-size:13px}
+#edit-date-picker .calendar-stop-copy>span{font-size:12px}
+#edit-date-picker .calendar-stop-row>.icon{width:14px;height:14px}
+#edit-date-picker .trip-date-shift{margin:8px 0 0;padding:4px 0 0}
+#edit-date-picker .trip-date-shift>label{font-size:13px;min-height:44px}
+#edit-date-picker .trip-date-shift>p{font-size:11px;line-height:16px}
+.map-open-link,.search-map-area{border-radius:18px;corner-shape:squircle}
+@supports not (corner-shape:squircle){
+  @supports(clip-path:shape(from 0 0,line to 100% 0,line to 100% 100%,close)){
+    .gm-style .gm-style-iw-c:has(.map-entry-info),.gm-style .map-entry-actions :is(button,.detail-chip),:root body .map-marker-label,.map-open-link,.search-map-area{
+      --map-corner:18px;border-radius:0!important;
+      clip-path:shape(from 0 var(--map-corner),curve to var(--map-corner) 0 with 0 0 / 0 0,line to calc(100% - var(--map-corner)) 0,curve to 100% var(--map-corner) with 100% 0 / 100% 0,line to 100% calc(100% - var(--map-corner)),curve to calc(100% - var(--map-corner)) 100% with 100% 100% / 100% 100%,line to var(--map-corner) 100%,curve to 0 calc(100% - var(--map-corner)) with 0 100% / 0 100%,close);
+    }
+    .gm-style .gm-style-iw-c:has(.map-entry-info){--map-corner:26px}
+  }
+}
+
+/* A travel-poster welcome, with one clear place to start. */
+#home-view{max-width:960px;padding:clamp(36px,7vh,76px) 32px 56px}
+.home-intro{display:flex;align-items:center;justify-content:space-between;gap:24px;min-height:238px;margin-bottom:26px}
+#home-view h1{max-width:540px;margin:0;font-size:clamp(72px,8.8vw,108px);line-height:.97;letter-spacing:-.075em;font-weight:700;color:#292c35;animation:none}
+#home-view .home-punctuation{display:inline-block;color:#ef7541;rotate:-8deg}
+.home-art{width:300px;flex:0 0 300px;pointer-events:none}
+.home-art svg{display:block;width:100%;height:auto;overflow:visible}
+.home-postcard,.home-passport,.home-ticket,.home-paper-plane{transform-box:fill-box;transform-origin:center}
+.home-postcard{rotate:8deg}.home-passport{rotate:-9deg}.home-ticket{rotate:7deg}
+#home-view .search-block{z-index:3}
+#home-view .home-search{height:68px;border:1.5px solid #e3e5eb;border-radius:26px;corner-shape:squircle;background:#fff;gap:14px;padding:0 20px;box-shadow:0 5px 22px #27345c06}
+#home-view .home-search>.icon{width:23px;height:23px;flex:none;color:#e76632;stroke-width:1.8}
+#home-view .home-search input{font-size:18px;letter-spacing:-.2px}
+#home-view .home-search input::placeholder{color:#8b8e99}
+#home-view .home-search:focus-within{border-color:#ef7541;background:#fffcfa;box-shadow:0 0 0 4px #fff0e6}
+#home-view .suggestions{top:calc(100% + 8px);border:1px solid #e9ebef;border-radius:24px;corner-shape:squircle;box-shadow:0 10px 28px #20283812;padding:6px}
+#home-view .suggestion{min-height:68px;border-radius:20px!important;corner-shape:squircle}
+#home-view .recent{margin-top:36px}
+#home-view .recent .section-label{font-size:15px;font-weight:600;letter-spacing:-.2px;text-transform:none;color:#5d6270;margin-bottom:12px}
+#home-view .recent-items{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+#home-view .recent-trip{width:100%;max-width:none;min-width:0;min-height:84px;padding:16px;gap:14px;border:1px solid #eff0f3;border-radius:26px!important;corner-shape:squircle;background:#f8f9fc;box-shadow:none;text-align:left;transition:background .15s ease,border-color .15s ease}
+#home-view .recent-trip>.illustrated-icon{width:42px!important;height:42px!important;flex:none}
+#home-view .recent-trip:nth-child(3n+2){background:#fff8f2;border-color:#f9eee5}
+#home-view .recent-trip:nth-child(3n+3){background:#f6f4fc;border-color:#efedf6}
+#home-view .recent-trip-copy{gap:5px}
+#home-view .recent-trip-copy strong{font-size:17px;line-height:1.25;letter-spacing:-.3px;color:#313541}
+#home-view .recent-trip-copy small{font-size:12px;color:#7d8290}
+#home-view .recent-trip>.icon:last-child{width:17px;height:17px;flex:none;margin-left:0;color:#969ca9}
+@media(hover:hover) and (pointer:fine){#home-view .recent-trip:hover{background:#f0f2fa;border-color:#d4dbef}}
+@media(prefers-reduced-motion:no-preference){
+  .home-intro h1{animation:welcome-copy .32s ease-out both!important}
+  .home-postcard{animation:welcome-postcard .42s var(--ease-out) both}
+  .home-passport{animation:welcome-passport .44s .04s var(--ease-out) both}
+  .home-ticket{animation:welcome-ticket .42s .1s var(--ease-out) both}
+  .home-paper-plane{animation:welcome-plane .52s .08s var(--ease-out) both}
+  @keyframes welcome-copy{from{opacity:0;translate:0 10px}to{opacity:1;translate:0 0}}
+  @keyframes welcome-postcard{from{opacity:0;translate:8px 12px;rotate:2deg}to{opacity:1;translate:0 0;rotate:8deg}}
+  @keyframes welcome-passport{from{opacity:0;translate:-8px 12px;rotate:-15deg}to{opacity:1;translate:0 0;rotate:-9deg}}
+  @keyframes welcome-ticket{from{opacity:0;translate:16px 0;rotate:12deg}to{opacity:1;translate:0 0;rotate:7deg}}
+  @keyframes welcome-plane{from{opacity:0;translate:-20px 14px;scale:.8}to{opacity:1;translate:0 0;scale:1}}
+}
+@supports not (corner-shape:squircle){
+  @supports(clip-path:shape(from 0 0,line to 100% 0,line to 100% 100%,close)){
+    #home-view .recent-trip{border-radius:0!important;clip-path:shape(from 0 24px,curve to 24px 0 with 0 0 / 0 0,line to calc(100% - 24px) 0,curve to 100% 24px with 100% 0 / 100% 0,line to 100% calc(100% - 24px),curve to calc(100% - 24px) 100% with 100% 100% / 100% 100%,line to 24px 100%,curve to 0 calc(100% - 24px) with 0 100% / 0 100%,close)}
+  }
+}
+
+/* Navigation stays anchored during taps; selection uses color, never a tile. */
+:root body .workspace-nav>button,:root body .workspace-nav>button:is(:active,:hover,[aria-pressed=true]){background:transparent!important;box-shadow:none!important;filter:none!important;transform:none!important;--phone-pressed:transparent;-webkit-tap-highlight-color:transparent}
+:root body .workspace-nav>button .icon{flex-shrink:0;transform:none!important;translate:none!important;scale:1!important;rotate:none!important;transition:opacity .15s ease}
+.in-flight-day{display:flex;align-items:center;gap:9px;min-height:44px;margin:0 0 8px 38px;color:#737b8c;font-size:13px}.in-flight-day>.icon{width:18px;height:18px}
+.day-add-event:disabled{opacity:.25;cursor:default}

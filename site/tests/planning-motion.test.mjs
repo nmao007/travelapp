@@ -53,3 +53,22 @@ test('reduced motion preserves the final layout without animating rearrangement'
     assert.equal(node.frames.length, 0); assert.equal(node.top, 200);
   } finally { globalThis.matchMedia = previousMedia; }
 });
+
+test('long itineraries animate only nearby rows and batch geometry reads before writes', () => {
+  const previousMedia = globalThis.matchMedia; globalThis.matchMedia = () => ({ matches: false });
+  try {
+    const operations = [], nodes = Array.from({length:1500}, (_,i) => element(String(i),i*50,{item:true}));
+    for (const node of nodes) {
+      const measure = node.getBoundingClientRect.bind(node), animate = node.animate.bind(node);
+      node.getBoundingClientRect = () => { operations.push('read'); return measure(); };
+      node.animate = frames => { operations.push('write'); return animate(frames); };
+    }
+    const container = {...root(nodes),getBoundingClientRect:()=>({top:0,height:400})};
+    const before = capturePlanningLayout(container); assert.ok(before.size < 15);
+    for (const node of nodes) node.top += 24;
+    operations.length = 0; animatePlanningLayout(container,before);
+    assert.ok(nodes.filter(node=>node.frames.length).length < 15);
+    assert.ok(operations.lastIndexOf('read') < operations.indexOf('write'));
+    assert.equal(nodes[1499].frames.length,0);
+  } finally { globalThis.matchMedia = previousMedia; }
+});

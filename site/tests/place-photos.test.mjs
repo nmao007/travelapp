@@ -103,3 +103,13 @@ test('unavailable displayed photos wait a minute before retrying', async () => {
   await display({ placeId: 'none' }, 420); await display({ placeId: 'none' }, 420); assert.equal(calls, 1);
   clock = 60001; await display({ placeId: 'none' }, 420); assert.equal(calls, 2);
 });
+
+test('timeline thumbnails only peek at loaded photos and never cause an extra lookup', async () => {
+  let clock=0,calls=0;
+  const display=createPhotoDisplayCache(async()=>{calls++;return {src:'cached-image',image:{},googlePhoto:{name:'private-resource'}};},{now:()=>clock});
+  const record={placeId:'place'};
+  assert.equal(display.peek(record),null); assert.equal(calls,0);
+  const pending=display(record,900); assert.equal(display.peek(record),null); await pending;
+  assert.equal(display.peek(record).src,'cached-image'); assert.equal(display.peek(record).googlePhoto.name,undefined); assert.equal(calls,1);
+  clock=300001; assert.equal(display.peek(record),null); assert.equal(calls,1);
+});

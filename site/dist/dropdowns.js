@@ -117,10 +117,11 @@ function enhance(source) {
 
   function open(query = '') {
     if (source.disabled) return;
+    const wasOpen = opened;
     if (active && active !== controller) active.close(); readOptions(); opened = true; active = controller;
     menu.hidden = false; if (menu.showPopover && !menu.matches(':popover-open')) menu.showPopover();
     trigger.setAttribute('aria-expanded', 'true'); render(query);
-    playMotion(menu, [{ opacity: 0, transform: 'scaleY(.96)' }, { opacity: 1, transform: 'scaleY(1)' }], { duration: 150 });
+    if (!wasOpen) playMotion(menu, [{ opacity: .2, translate: '0 -4px' }, { opacity: 1, translate: '0 0' }], { duration: 180 });
   }
   const controller = { source, host, menu, sync, close, positionMenu }; controls.set(source, controller);
   trigger.addEventListener('click', event => { if (!editable) { event.preventDefault(); opened ? close() : open(); } else if (!opened) open(); });

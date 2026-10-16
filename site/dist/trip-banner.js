@@ -120,6 +120,8 @@ export function createTripBanner({ workspace, header, hero, onResize }) {
   function wheel(event) {
     // Phone panels use native touch scrolling, with no nested header snap.
     if (phone.matches) return;
+    // A fixed-height header has nothing to snap. Keep wheel scrolling native.
+    if (scrollLimit() <= 1) { gesture.reset(); resetIntent(); return; }
     if (workspace.hidden || event.ctrlKey || event.metaKey) { resetIntent(); return; }
     const targetElement = desktop.matches ? bannerWheelTarget(event, workspace, (x, y) => document.elementFromPoint(x, y)) : event.target;
     if (!targetElement || !workspace.contains(targetElement)) return;
@@ -176,7 +178,7 @@ export function createTripBanner({ workspace, header, hero, onResize }) {
   function update() {
     frame = 0;
     syncPhoneHeader();
-    if (workspace.hidden) return;
+    if (workspace.hidden || phone.matches) return;
     const offset = desktop.matches ? workspace.scrollTop : Math.max(0, window.scrollY - origin);
     const shift = Math.min(travel, Math.max(0, offset));
     const progress = travel ? shift / travel : 0;
@@ -193,6 +195,11 @@ export function createTripBanner({ workspace, header, hero, onResize }) {
   function schedule() { if (!frame) frame = requestAnimationFrame(update); }
   function measure() {
     if (workspace.hidden) return;
+    if (phone.matches) {
+      travel = 0; workspace.style.setProperty('--banner-travel', '0px');
+      workspace.style.removeProperty('--workspace-body-height'); bodyHeight = 0;
+      schedule(); return;
+    }
     const compactHeight = parseFloat(getComputedStyle(workspace).getPropertyValue('--banner-compact-height')) || 60;
     travel = phone.matches ? 0 : Math.max(0, hero.offsetHeight - compactHeight);
     workspace.style.setProperty('--banner-travel', `${travel}px`);

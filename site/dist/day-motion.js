@@ -1,4 +1,4 @@
-import { playMotion, stopMotion, reducedMotion } from './motion.js';
+import { playMotion, stopMotion, reducedMotion, revealSequence } from './motion.js';
 
 // Snapshot only the departing day, keeping the map and scroll containers stable.
 export function createDayMotion(content, host) {
@@ -19,12 +19,17 @@ export function createDayMotion(content, host) {
         snapshot = document.createElement('div'); snapshot.className = 'day-transition-snapshot';
         snapshot.setAttribute('aria-hidden', 'true'); snapshot.inert = true;
         Object.assign(snapshot.style, { left: `${bounds.left - parent.left}px`, top: `${bounds.top - parent.top}px`, width: `${content.clientWidth}px`, height: `${content.clientHeight}px`, opacity: visible.opacity });
-        const copy = section.cloneNode(true);
-        copy.classList.remove('selected-day');
-        // A second click starts from the currently visible incoming day.
-        copy.style.transform = visible.transform;
-        copy.style.translate = visible.translate;
-        copy.style.position = 'relative'; copy.style.top = `${-content.scrollTop}px`;
+        const copy = section.cloneNode(false);
+        Object.assign(copy.style, {position:'relative',top:'0',height:`${content.clientHeight}px`,margin:'0'});
+        // Only snapshot what is on screen. A long day no longer clones every
+        // address, disclosure and link just to animate a few visible cards.
+        for (const child of section.children) {
+          const rect = child.getBoundingClientRect();
+          if (!rect.height || rect.top > bounds.bottom + 80 || rect.bottom < bounds.top - 80) continue;
+          const clone = child.cloneNode(true);
+          Object.assign(clone.style, {position:'absolute',left:`${rect.left - bounds.left}px`,top:`${rect.top - bounds.top}px`,width:`${rect.width}px`,margin:'0'});
+          copy.append(clone);
+        }
         for (const element of [copy, ...copy.querySelectorAll('[id]')]) element.removeAttribute('id');
         snapshot.append(copy);
       }
@@ -44,7 +49,10 @@ export function createDayMotion(content, host) {
           { translate: `${direction * 28}px 0`, opacity: .35 },
           { translate: `${-direction * 2}px 0`, opacity: 1, offset: .78 },
           { translate: '0 0', opacity: 1 },
-        ], { duration: 280 });
+        ], { duration: 240 });
+        const bounds = content.getBoundingClientRect();
+        revealSequence([...(incoming?.querySelectorAll('.day-place-card,.transport-card,.flight-main-card') || [])].filter(row => row.getBoundingClientRect().top < bounds.bottom).slice(0, 5), {step:12});
+        playMotion(document.querySelector('#phone-day-picker .dropdown-value'), [{opacity:.4,translate:'0 5px'},{opacity:1,translate:'0 0'}], {duration:180});
       };
     },
   };

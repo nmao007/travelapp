@@ -1,10 +1,12 @@
 import { phoneMediaQuery, phoneViewport } from './phone-devices.js';
 import { phonePlaceSymbol } from './phone-motion.js';
+import { paintPlaceArt, placeArt } from './place-art.js';
+import { createPlaceTargets } from './place-targets.js';
 import { createTravelEssentials } from './travel-essentials.js';
 import { placeMapsURL, mapViewURL, directionsMapsURL } from './maps-links.js';
 import { createPlaceSearch, createPlaceDetails, placeSearchGroups, mixedMapPlaces, createQuotaMemory, placeIcon, createSearchSelection, quotaFailure, boundedPlaceRequest } from './place-search.js';
 import { isTourOperator } from './tour-model.js';
-import { playMotion, revealSequence, reducedMotion, installButtonMotion } from './motion.js';
+import { playMotion, closeDialogSmooth, revealSequence, reducedMotion, installButtonMotion, installSurfaceMotion } from './motion.js';
 import { createTripBanner } from './trip-banner.js';
 import { readTrips, saveTrip, deleteTrip, addPlace, removePlace, movePlace, addStop, moveStop, removeStop, tripStops, stopSchedule, datesForStop, setStopDates, tripTitle, renameTrip, currentAccount, createAccount, signIn, signOut, restoreSession, loadCloudTrips } from './trip-store.js';
 import { calendarMonth, presetRange } from './date-range.js';
@@ -15,6 +17,7 @@ import { mapEntries, scheduleUnassigned, googlePlaceRecord, destinationForDay, g
 import { enhanceDropdowns, refreshDropdowns } from './dropdowns.js';
 import { viewportSearchArea, inSearchArea, createSearchAreaTracker } from './explore-model.js';
 import { createPhotoLookup, resolvePlacePhoto, createPhotoDisplayCache } from './place-photos.js';
+import { downloadTripGuide } from './trip-guide.js';
 import { downloadTripCalendar } from './calendar-export.js';
 import { createTransientNotice } from './notices.js';
 import { enhanceTimePickers } from './time-picker.js';
@@ -83,12 +86,15 @@ function updateRecent() {
   $('my-trips').firstChild.textContent = currentAccount() ? 'My trips ' : 'Trips ';
   $('trip-count').textContent = String(trips.length);
   $('recent').hidden = !trips.length;
+  // The home screen is rebuilt when opened, not on every edit behind a sheet.
+  if ($('home-view').hidden) return;
   $('recent-items').replaceChildren();
   for (const trip of trips.slice(0, 6)) {
     const button = document.createElement('button');
     button.type = 'button'; button.className = 'recent-trip';
-    button.innerHTML = `${icon('pin')}<strong></strong>${icon('arrow')}`;
+    button.innerHTML = `${placeArt('guide')}<span class="recent-trip-copy"><strong></strong><small></small></span>${icon('arrow')}`;
     button.querySelector('strong').textContent = tripTitle(trip);
+    button.querySelector('small').textContent = trip.startDate ? tripDateLabel(trip) : '';
     button.addEventListener('click', () => openTrip(trip));
     $('recent-items').append(button);
   }
@@ -167,8 +173,13 @@ function navigateStop(stop) {
   selectStop(stop);
   $('day-content').scrollTop = 0; $('day-tabs').scrollLeft = 0;
 }
+let routeSnapshot = null;
 function renderRoute() {
-  const entries = stopSchedule(state.trip), list = $('route-list'), scroll = list.scrollLeft;
+  const entries = stopSchedule(state.trip);
+  const snapshot = JSON.stringify([state.trip.id, state.stopFilter, entries.map(entry => [entry.stop.placeId, entry.stop.name, entry.start, entry.end])]);
+  if (routeSnapshot === snapshot) return;
+  routeSnapshot = snapshot;
+  const list = $('route-list'), scroll = list.scrollLeft;
   const focusedStop = list.contains(document.activeElement) ? document.activeElement.dataset.stopId : null;
   $('route-bar').dataset.stopCount = String(entries.length);
   $('destination-hero').dataset.stopCount = String(entries.length);
@@ -194,10 +205,11 @@ function renderRoute() {
   const options = [];
   for (const entry of entries) {
     const option = new Option(entry.stop.name, entry.stop.placeId);
-    option.label = `${entry.index + 1}. ${entry.stop.name}\n${stopRangeLabel(entry)}`;
+    option.label = `${entry.stop.name} · ${stopRangeLabel(entry)}`;
     options.push(option);
   }
   destinationPicker.replaceChildren(...options);
+  destinationPicker.disabled = entries.length < 2;
   destinationPicker.value = state.stopFilter || entries[0]?.stop.placeId || '';
   refreshDropdowns(destinationPicker);
 }
@@ -215,7 +227,7 @@ function selectStop(stop, syncDay = true) {
   $('trip-address').textContent = stop.address || '';
   $('map-caption').textContent = stop.name;
 
-  renderRoute(); renderPlan(); showMap(stop, true); drawMarkers();
+  renderPlan(); showMap(stop, true);
   if (state.places?.Place || matchMedia(phoneMediaQuery).matches) loadDestinationPhoto(stop);
   if (state.workspaceView === 'explore') { state.pendingNearby = state.nearbyCategory; scheduleAreaSearch(); }
 }
@@ -376,7 +388,7 @@ function pinContent(entry) {
   symbol.innerHTML = icon(symbolName);
   if (entry.planned) { const order = document.createElement('span'); order.className = 'pin-order'; order.textContent = String(entry.number); pin.append(order); }
   const label = document.createElement('span'); label.className = 'pin-label'; label.textContent = entry.name;
-  pin.append(symbol, label); return pin;
+  pin.append(symbol, label); pinTargets.add(pin.dataset.placeId, pin); return pin;
 }
 
 const mapLabel = document.createElement('div'); mapLabel.className = 'map-marker-label'; mapLabel.hidden = true; mapLabel.setAttribute('aria-hidden', 'true');
@@ -493,13 +505,12 @@ function showLimitedMapEntry(placeId, point) {
   openMapCard(entry, title, content, { native: true, recenter: false });
 }
 
+let markerSnapshot = null, markerMap = null;
 function drawMarkers() {
-  hideMapLabel();
+  // Editing the phone itinerary should not rebuild an offscreen Google scene.
+  if (phoneHeaderLayout.matches && $('plan-controls').dataset.mobileSurface !== 'map') return;
   if (!state.map || state.mapUnavailable || !state.markerClass || !state.selected) return;
   try {
-  if (state.marker) state.marker.map = null;
-  for (const marker of [...state.stopMarkers, ...state.placeMarkers, ...state.suggestionMarkers]) marker.map = null;
-  state.stopMarkers = []; state.placeMarkers = []; state.suggestionMarkers = [];
   const optional = google.maps.CollisionBehavior.OPTIONAL_AND_HIDES_LOWER_PRIORITY;
   // Planned places take priority. Suggestions for those places never get a second pin.
   const dayOnly = state.workspaceView === 'itinerary' && state.planMode === 'day';
@@ -507,7 +518,14 @@ function drawMarkers() {
   const items = dayOnly && state.trip ? eventsForDay(state.trip, state.day).filter(event => event.kind === 'activity').map(event => event.item) : stopDays ? state.trip.items.filter(item => stopDays.includes(item.day)) : state.trip?.items;
   const area = currentSearchArea();
   const recommendations = state.mapSuggestions.filter(place => !area || inSearchArea(area, { lat: place.latitude, lng: place.longitude }));
-  for (const entry of mapEntries(items, recommendations, { timeZone: state.trip?.timeZone || 'UTC' })) {
+  const entries = mapEntries(items, recommendations, { timeZone: state.trip?.timeZone || 'UTC' });
+  const snapshot = JSON.stringify([state.trip?.id, state.selected.placeId, entries]);
+  if (markerMap === state.map && markerSnapshot === snapshot) return;
+  hideMapLabel();
+  if (state.marker) state.marker.map = null;
+  for (const marker of [...state.stopMarkers, ...state.placeMarkers, ...state.suggestionMarkers]) marker.map = null;
+  state.stopMarkers = []; state.placeMarkers = []; state.suggestionMarkers = []; pinTargets.clear();
+  for (const entry of entries) {
     const pin = pinContent(entry), priority = entry.planned ? 1000 : Math.round((entry.rating || 0) * 100) + Math.min(99, Math.round(Math.log10((entry.ratingCount || 0) + 1) * 20));
     const marker = new state.markerClass({ map: state.map, position: coordinates(entry), title: entry.name, content: pin, gmpClickable: true, collisionBehavior: entry.planned ? google.maps.CollisionBehavior.REQUIRED_AND_HIDES_OPTIONAL : optional, zIndex: priority });
     const showLabel = () => { if (!phoneHeaderLayout.matches) showMapLabel(marker, pin, entry, priority); };
@@ -517,6 +535,7 @@ function drawMarkers() {
     marker.addEventListener('gmp-click', () => showMapEntry(entry));
     (entry.planned ? state.placeMarkers : state.suggestionMarkers).push(marker);
   }
+  markerMap = state.map; markerSnapshot = snapshot;
   } catch {
     // An unavailable Google renderer must never interrupt local trip editing.
     state.mapUnavailable = true; state.cameraMoving = false; clearMapSearch();
@@ -544,6 +563,7 @@ function clearMapSearch() {
 }
 function scheduleMapSuggestions() {
   clearTimeout(state.mapSearchTimer);
+  if (phoneHeaderLayout.matches && $('plan-controls').dataset.mobileSurface !== 'map') return;
   if (state.planMode === 'calendar' && !matchMedia(phoneMediaQuery).matches) return;
   if (!state.trip || !state.places || !state.map || state.cameraMoving || state.workspaceView !== 'itinerary' || state.infoWindow?.isOpen || $('place-dialog').open || $('plan-dialog').open) return;
   const area = currentSearchArea();
@@ -605,10 +625,11 @@ function addToDay(place) {
   if (!days.includes(state.day)) state.day = days[0];
   // Live Google content stays in memory; only itinerary choices and the place ID are saved.
   const item = { placeId: place.placeId, name: place.name, address: place.address, latitude: place.latitude, longitude: place.longitude, day: state.day, timeZone: state.selected?.timeZone || state.trip.timeZone, kind: place.primaryType === 'hotel' ? 'Stay' : ['restaurant', 'cafe', 'bakery'].includes(place.primaryType) ? 'Food' : 'Activity' };
-  const next = addPlace(state.trip, item);
-  if (next === state.trip) { status('trip-status', 'Already on this day.'); return; }
-  try { state.infoWindow?.close(); commitTrip(next); animateMap(place, 15); status('trip-status', `Added to ${dateLong(state.day)}`); syncDiscovery(); }
-  catch { status('trip-status', 'Could not save this place.'); }
+  try {
+    const next = addPlace(state.trip, item);
+    if (next === state.trip) { status('trip-status', 'Already on this day.'); return; }
+    state.infoWindow?.close(); commitTrip(next); animateMap(place, 15); status('trip-status', `Added to ${dateLong(state.day)}`); syncDiscovery(); }
+  catch (error) { status('trip-status', error.message || 'Could not save this place.'); }
 }
 
 const lookupGooglePhotos = createPhotoLookup(async (id, record) => {
@@ -789,17 +810,16 @@ function renderPlaceContent(container, record, { contactOnly = false, compact = 
   if (features.childNodes.length) container.append(features);
   for (const provider of record.attributions || []) { if (!/^https?:/i.test(provider.providerURI || '')) continue; const link = document.createElement('a'); link.className = 'provider-credit'; link.href = provider.providerURI; link.textContent = provider.provider; link.target = '_blank'; link.rel = 'noopener noreferrer'; container.append(link); }
 }
-const pendingDayDetails = new Map();
+const pendingDayDetails = new Map(), iconTargets = createPlaceTargets(), pinTargets = createPlaceTargets();
 function refreshItineraryPlaceIcons(record) {
   if (!record.placeId) return;
-  for (const svg of document.querySelectorAll('svg[data-icon-place-id]')) {
-    if (svg.dataset.iconPlaceId !== record.placeId) continue;
+  for (const svg of iconTargets.get(record.placeId)) {
+    if (!svg.isConnected) continue;
     const available = { ...record, kind: svg.dataset.planKind };
     const symbol = placeIcon(available);
-    svg.querySelector('use')?.setAttribute('href', `#i-${matchMedia(phoneMediaQuery).matches ? phonePlaceSymbol(available, symbol) : symbol}`);
+    paintPlaceArt(svg, phonePlaceSymbol(available, symbol));
   }
-  for (const pin of document.querySelectorAll('.map-place-pin')) {
-    if (pin.dataset.placeId !== record.placeId) continue;
+  for (const pin of pinTargets.get(record.placeId)) {
     const symbol = placeIcon({ ...record, kind: pin.dataset.planKind });
     pin.dataset.symbol = symbol; pin.querySelector('.pin-symbol use')?.setAttribute('href', `#i-${symbol}`);
   }
@@ -807,9 +827,9 @@ function refreshItineraryPlaceIcons(record) {
 function decoratePlaceIcon(svg, record) {
   const available = knownGoogleContent(record);
   const symbol = placeIcon(available);
-  svg.querySelector('use').setAttribute('href', `#i-${matchMedia(phoneMediaQuery).matches ? phonePlaceSymbol(available, symbol) : symbol}`);
+  paintPlaceArt(svg, phonePlaceSymbol(available, symbol));
   if (!record.placeId) return;
-  svg.dataset.iconPlaceId = record.placeId; svg.dataset.planKind = record.kind || '';
+  svg.dataset.iconPlaceId = record.placeId; svg.dataset.planKind = record.kind || ''; iconTargets.add(record.placeId, svg);
   if (available.primaryType || available.category || available.types?.length || ['Flight', 'Train', 'Food', 'Stay', 'Tour', 'Transport'].includes(record.kind)) return;
   // Visible calendar icons share the same coalesced, lightweight request as
   // timeline ratings; never fetch full details or photos just for an icon.
@@ -830,6 +850,7 @@ const dayDetailObserver = new IntersectionObserver(entries => {
   }
 }, { rootMargin: '0px' });
 function pruneDayDetails() {
+  iconTargets.prune();
   for (const element of pendingDayDetails.keys()) if (!element.isConnected) { pendingDayDetails.delete(element); dayDetailObserver.unobserve(element); }
 }
 async function hydratePlace(container, record, { contactOnly = false, compact = false, visible = false, daySummary = false } = {}) {
@@ -1084,9 +1105,11 @@ function setupAutocomplete(inputId, listId, onSelect, biasToTrip = false) {
 
 function commitTrip(next) {
   state.infoWindow?.close();
-  next = scheduleUnassigned(next); saveTrip(next); state.trip = next; renderPlan(); drawMarkers(); updateRecent();
+  next = scheduleUnassigned(next); saveTrip(next); state.trip = next; renderPlan(); updateRecent();
 }
+for (const button of document.querySelectorAll('[data-workspace-view]')) paintPlaceArt(button.querySelector('svg'), { itinerary: 'list', explore: 'map', transportation: 'plane' }[button.dataset.workspaceView]);
 installButtonMotion(document);
+installSurfaceMotion(document);
 function setWorkspaceView(view, { keepMobileMap = false, showPlaces = false, remember = true } = {}) {
   const previousView = state.workspaceView;
   if (remember && previousView !== view) {
@@ -1126,6 +1149,7 @@ function setMobileMap(show) {
   const button = $('mobile-map-toggle'), controls = $('plan-controls');
   const changed = controls.dataset.mobileSurface !== (show ? 'map' : 'content');
   controls.dataset.mobileSurface = show ? 'map' : 'content';
+  if (show) { drawMarkers(); scheduleMapSuggestions(); }
   button.setAttribute('aria-pressed', String(show));
   button.setAttribute('aria-label', show ? (state.workspaceView === 'explore' ? 'Search places' : 'Back to day') : 'Show map');
   button.querySelector('use').setAttribute('href', show ? (state.workspaceView === 'explore' ? '#i-search' : '#i-back') : '#i-map');
@@ -1182,7 +1206,7 @@ function updateDayContext(day) {
   if (stop && stop.placeId !== state.selected?.placeId) selectStop(stop, false);
   else renderRoute();
 }
-const dayRoutes = createDayRoutes({ state, commit: commitTrip, icon, showMap: () => setMobileMap(true), cancelCamera: () => { cancelAnimationFrame(state.animation); state.animation = 0; state.cameraMoving = false; } });
+const dayRoutes = createDayRoutes({ state, commit: commitTrip, icon, editPlan: item => { itinerary.openPlan(item); $('plan-time-button').click(); }, showMap: () => setMobileMap(true), cancelCamera: () => { cancelAnimationFrame(state.animation); state.animation = 0; state.cameraMoving = false; } });
 const essentials = createTravelEssentials({ state, getDestination: () => state.selected || state.trip, icon });
 const planToolbar = document.querySelector('.plan-toolbar');
 const toolbarAnchor = document.createComment('Phone plan controls');
@@ -1208,7 +1232,7 @@ function positionPlanToolbar() {
     $('phone-place-category').value = state.nearbyCategory; refreshDropdowns($('phone-place-category'));
     $('phone-leading').append($('back-button'), backPlan);
     phoneHost.append(addPlan);
-    $('trip-menu').prepend(viewToggle);
+    $('phone-view-switch').append(viewToggle);
     mapToggleAnchor.before(mapToggle);
     planToolbar.hidden = true;
     $('back-button').hidden = day || calendar;
@@ -1429,10 +1453,10 @@ $('mobile-stop-selector').addEventListener('change', event => {
   const stop = tripStops(state.trip).find(stop => stop.placeId === event.target.value);
   if (stop) navigateStop(stop);
 });
-phoneHeaderLayout.addEventListener('change', () => { if (state.trip) renderRoute(); });
+phoneHeaderLayout.addEventListener('change', () => { if (state.trip) { renderRoute(); drawMarkers(); scheduleMapSuggestions(); } });
 function renderCalendar() {
   const { start, end } = state.calendarRange;
-  $('date-summary').innerHTML = `<button type="button" data-calendar-endpoint="start" aria-pressed="${calendarEndpoint === 'start'}"><span>${calendarContext === 'stop' ? 'Arrival' : 'Start'}</span><strong>${start ? dateLong(start) : 'Choose a day'}</strong></button>${icon('arrow')}<button type="button" data-calendar-endpoint="end" aria-pressed="${calendarEndpoint === 'end'}"><span>${calendarContext === 'stop' ? 'Departure' : 'End'}</span><strong>${end ? dateLong(end) : 'Choose a day'}</strong></button>`;
+  $('date-summary').innerHTML = `<button type="button" data-calendar-endpoint="start" aria-pressed="${calendarEndpoint === 'start'}"><span>${calendarContext === 'stop' ? 'Arrival' : 'Start'}</span><strong>${start ? dateLong(start) : 'Choose a day'}</strong></button><button type="button" data-calendar-endpoint="end" aria-pressed="${calendarEndpoint === 'end'}"><span>${calendarContext === 'stop' ? 'Departure' : 'End'}</span><strong>${end ? dateLong(end) : 'Choose a day'}</strong></button>`;
   for (const button of $('date-summary').querySelectorAll('button')) button.addEventListener('click', () => {
     calendarEndpoint = button.dataset.calendarEndpoint;
     const value = state.calendarRange[calendarEndpoint];
@@ -1448,6 +1472,7 @@ function renderCalendar() {
     const previous = { range: { ...state.calendarRange }, endpoint: calendarEndpoint, year: state.calendarYear, month: state.calendarMonth, scrollTop: $('edit-date-picker').querySelector('.calendar-scroll-body').scrollTop };
     $('edit-date-picker').close(); openStopEditor(stop, previous);
   } });
+  $('date-stop-disclosure').hidden = calendarContext !== 'trip' || stopEntries.length < 2;
   for (const button of $('calendar-stops').querySelectorAll('button')) {
     button.disabled = Boolean(shift);
     if (shift) button.title = 'Save the trip dates before editing an individual stop.';
@@ -1463,7 +1488,7 @@ function renderCalendar() {
     const button = document.createElement('button'); button.type = 'button'; button.dataset.date = date; button.textContent = String(Number(date.slice(-2)));
     button.setAttribute('aria-label', new Intl.DateTimeFormat('en', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${date}T12:00:00Z`)));
     const entry = stopEntries.length > 1 ? calendarStopOnDay(calendarTrip, date, stopEntries) : null;
-    if (entry) { button.dataset.stopId = entry.stop.placeId; button.style.setProperty('--stop-color', entry.color); button.title = entry.stop.name; button.setAttribute('aria-label', `${button.getAttribute('aria-label')}, ${entry.stop.name}`); }
+    if (entry) { button.dataset.stopId = entry.stop.placeId; button.dataset.stopNumber = String(entry.index + 1); button.title = entry.stop.name; button.setAttribute('aria-label', `${button.getAttribute('aria-label')}, ${entry.stop.name}`); }
     button.setAttribute('aria-pressed', String(date === start || date === end));
     if (date === start || date === end) button.classList.add('selected');
     if (start && end && date > start && date < end) button.classList.add('in-range');
@@ -1488,6 +1513,7 @@ function openCalendar(context = 'trip', endpoint = 'start', trigger = $('trip-me
   const picker = $('edit-date-picker');
   if (picker.open) { picker.close(); return; }
   calendarContext = context; calendarEndpoint = endpoint; calendarTrigger = trigger;
+  $('date-stop-disclosure').open = false;
   $('shift-trip-plans').checked = true;
   state.calendarRange = context === 'stop' ? { start: $('stop-arrival').value || null, end: $('stop-departure').value || null } : { start: state.trip?.startDate || null, end: state.trip?.endDate || null };
   const value = state.calendarRange[endpoint] || state.calendarRange.start;
@@ -1513,7 +1539,7 @@ function saveDates(startDate, endDate) {
     state.day = $('shift-trip-plans').checked ? offsetDate(state.day, delta) : state.day;
     state.trip = scheduled; itinerary.resetNavigation();
     if (!datesForStop(scheduled, state.stopFilter).includes(state.day)) state.day = datesForStop(scheduled, state.stopFilter)[0] || 'ideas';
-    $('edit-date-picker').close(); $('trip-dates').textContent = tripDateLabel(next);
+    closeDatePicker(); $('trip-dates').textContent = tripDateLabel(next);
     renderRoute(); renderPlan(); status('trip-status', 'Trip dates updated');
   } catch { $('calendar-message').textContent = 'Could not save dates on this device.'; }
 }
@@ -1524,10 +1550,18 @@ $('save-dates').addEventListener('click', () => {
     const draft = editingStopId ? state.trip : addStop(state.trip, pendingStop);
     setStopDates(draft, pendingStop.placeId, start, end, { extendTrip: true });
     $('stop-arrival').value = start; $('stop-departure').value = end;
-    updateStopDateFields(); $('destination-picker-status').textContent = ''; $('edit-date-picker').close();
+    updateStopDateFields(); $('destination-picker-status').textContent = ''; closeDatePicker();
   } catch (error) { $('calendar-message').textContent = error.message; }
 });
-$('clear-dates').addEventListener('click', () => $('edit-date-picker').close());
+function closeDatePicker() {
+  const picker = $('edit-date-picker');
+  if (phoneHeaderLayout.matches) return closeDialogSmooth(picker);
+  picker.close();
+}
+$('clear-dates').addEventListener('click', closeDatePicker);
+$('edit-date-picker').addEventListener('cancel', event => {
+  if (phoneHeaderLayout.matches) { event.preventDefault(); closeDatePicker(); }
+});
 document.querySelectorAll('[data-date-preset]').forEach(button => button.addEventListener('click', () => {
   const range = presetRange(button.dataset.datePreset);
   if (range) { state.calendarRange = range; calendarEndpoint = 'start'; const date = new Date(`${range.start}T12:00:00Z`); state.calendarYear = date.getUTCFullYear(); state.calendarMonth = date.getUTCMonth(); $('calendar-message').replaceChildren(); renderCalendar(); }
@@ -1539,6 +1573,14 @@ function moveCalendarMonth(delta) {
 $('previous-month').addEventListener('click', () => moveCalendarMonth(-1));
 $('next-month').addEventListener('click', () => moveCalendarMonth(1));
 $('trip-menu-button').addEventListener('click', () => { $('trip-menu').hidden = !$('trip-menu').hidden; $('delete-trip').textContent = 'Delete trip'; $('delete-trip').dataset.confirm = 'false'; });
+$('save-trip-guide').addEventListener('click', () => {
+  try {
+    downloadTripGuide(state.trip);
+    $('trip-menu').hidden = true;
+    $('trip-menu-button').focus({ preventScroll: true });
+    status('trip-status', 'Itinerary saved. Open the downloaded file to read it offline.');
+  } catch (error) { status('trip-status', error.message); }
+});
 $('export-calendar').addEventListener('click', () => {
   try {
     downloadTripCalendar(state.trip);
