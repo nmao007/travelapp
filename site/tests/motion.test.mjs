@@ -142,3 +142,50 @@ test('reduced-motion calendar closes immediately without a transitional frame', 
     await closeDialogSmooth(dialog); assert.equal(dialog.open, false); assert.equal(dialog.dataset.closing, undefined);
   } finally { globalThis.matchMedia = previous; }
 });
+
+
+test('a queued entrance cannot interrupt a closing dialog or restart its children', () => {
+  const keys = ['MutationObserver', 'requestAnimationFrame', 'cancelAnimationFrame', 'matchMedia'];
+  const originals = Object.fromEntries(keys.map(key => [key, globalThis[key]]));
+  let notify, scheduled, animations = 0;
+  globalThis.MutationObserver = class { constructor(callback) { notify = callback; } observe() {} disconnect() {} };
+  globalThis.requestAnimationFrame = callback => { scheduled = callback; return 1; };
+  globalThis.cancelAnimationFrame = () => {};
+  globalThis.matchMedia = () => ({ matches: false });
+  const dialog = { open: true, dataset: {}, hidden: false, isConnected: true, matches: selector => selector === 'dialog', getClientRects: () => [1], animate() { animations++; return { finished: Promise.resolve(), cancel() {} }; }, querySelector() { assert.fail('Children must not animate separately from their surface'); } };
+  try {
+    installSurfaceMotion({ querySelectorAll: () => [dialog] });
+    notify([{ target: dialog }]); dialog.dataset.closing = 'true'; scheduled();
+    assert.equal(animations, 0);
+    delete dialog.dataset.closing; notify([{ target: dialog }]); scheduled();
+    assert.equal(animations, 1);
+  } finally { for (const [key, value] of Object.entries(originals)) { if (value === undefined) delete globalThis[key]; else globalThis[key] = value; } }
+});
+
+test('closing during entry continues from the visible opacity and position', async () => {
+  const previous = globalThis.matchMedia, previousStyle = globalThis.getComputedStyle;
+  globalThis.matchMedia = () => ({ matches: false });
+  globalThis.getComputedStyle = () => ({ opacity: '0.45', transform: 'matrix(1, 0, 0, 1, 0, 8)' });
+  let finish, frames;
+  const dialog = { open: true, dataset: {}, addEventListener() {}, removeEventListener() {}, close() { this.open = false; }, animate(value) { frames = value; return { finished: new Promise(resolve => { finish = resolve; }), cancel() {} }; } };
+  try {
+    const pending = closeDialogSmooth(dialog);
+    assert.deepEqual(frames[0], { opacity: '0.45', transform: 'matrix(1, 0, 0, 1, 0, 8)' });
+    assert.equal(dialog.open, true); finish(); await pending; assert.equal(dialog.open, false);
+  } finally { globalThis.matchMedia = previous; if (previousStyle === undefined) delete globalThis.getComputedStyle; else globalThis.getComputedStyle = previousStyle; }
+});
+
+test('Escape uses the complete dialog exit and removes its shared listener on teardown', async () => {
+  const previous = globalThis.matchMedia, previousObserver = globalThis.MutationObserver;
+  globalThis.matchMedia = () => ({ matches: false });
+  globalThis.MutationObserver = class { observe() {} disconnect() {} };
+  let cancel, finish, prevented = 0, removed = 0;
+  const dialog = { open: true, dataset: {}, matches: selector => selector === 'dialog', addEventListener() {}, removeEventListener() {}, close() { this.open = false; }, animate: () => ({ finished: new Promise(resolve => { finish = resolve; }), cancel() {} }) };
+  try {
+    const teardown = installSurfaceMotion({ querySelectorAll: () => [], addEventListener(name, handler, capture) { assert.equal(name, 'cancel'); assert.equal(capture, true); cancel = handler; }, removeEventListener(name, handler, capture) { assert.equal(handler, cancel); assert.equal(capture, true); removed++; } });
+    cancel({ target: dialog, defaultPrevented: false, preventDefault() { prevented++; } });
+    assert.equal(prevented, 1); assert.equal(dialog.open, true); assert.equal(dialog.dataset.closing, 'true');
+    const pending = closeDialogSmooth(dialog); finish(); await pending; assert.equal(dialog.open, false);
+    teardown(); assert.equal(removed, 1);
+  } finally { globalThis.matchMedia = previous; if (previousObserver === undefined) delete globalThis.MutationObserver; else globalThis.MutationObserver = previousObserver; }
+});

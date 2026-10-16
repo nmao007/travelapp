@@ -394,11 +394,14 @@ button:focus-visible{outline:2px solid #555751;outline-offset:2px}
 .dropdown-option,.suggestion{border-radius:10px;min-height:44px}
 .dropdown-trigger,input,textarea{transition:border-color .18s,background .18s,box-shadow .18s}
 .primary-action:hover{background:var(--accent-hover)}
-:where(.editor-dialog,.date-picker,.account-dialog){opacity:0;translate:0 16px;transition:opacity .18s ease,translate .26s var(--ease-out),display .26s allow-discrete,overlay .26s allow-discrete}
-:where(.editor-dialog,.date-picker,.account-dialog)[open]{opacity:1;translate:0 0}
-:where(.editor-dialog,.date-picker,.account-dialog)::backdrop{background:#151a243d;backdrop-filter:blur(4px);opacity:0;transition:opacity .2s,display .26s allow-discrete,overlay .26s allow-discrete}
-:where(.editor-dialog,.date-picker,.account-dialog)[open]::backdrop{opacity:1}
-@starting-style{:where(.editor-dialog,.date-picker,.account-dialog)[open]{opacity:0;translate:0 24px}:where(.editor-dialog,.date-picker,.account-dialog)[open]::backdrop{opacity:0}}
+/* Native display/overlay transitions can detach the background before text.
+   Keep the modal open for the shared animation; hide it atomically after close. */
+:where(.editor-dialog,.date-picker,.account-dialog){opacity:1;translate:0 0;transition:none;animation:none!important}
+dialog:not([open]){display:none!important}
+dialog[data-closing=true]{pointer-events:none;will-change:opacity,transform}
+:where(.editor-dialog,.date-picker,.account-dialog)::backdrop{background:#151a243d;backdrop-filter:blur(4px);opacity:1;transition:opacity .16s ease}
+dialog[data-closing=true]::backdrop{opacity:0}
+@starting-style{:where(.editor-dialog,.date-picker,.account-dialog)[open]::backdrop{opacity:0}}
 @media(min-width:581px) and (min-height:501px){
   .workspace{padding:0 28px 20px;--hero-height:80px;--banner-compact-height:80px}.workspace .destination-hero{height:80px}
   .workspace .hero-gallery{top:12px;bottom:12px;border-radius:12px}.workspace .trip-title-wrap{top:13px}

@@ -123,8 +123,8 @@ function setAccountMode(signup) {
 
 $('account-button').addEventListener('click', () => { setAccountMode(false); $('account-dialog').showModal(); $('account-email').focus(); });
 $('account-mode-toggle').addEventListener('click', () => setAccountMode($('account-dialog').dataset.mode !== 'signup'));
-$('account-close').addEventListener('click', () => $('account-dialog').close());
-$('account-dialog').addEventListener('click', event => { if (event.target === $('account-dialog')) $('account-dialog').close(); });
+$('account-close').addEventListener('click', () => closeDialogSmooth($('account-dialog')));
+$('account-dialog').addEventListener('click', event => { if (event.target === $('account-dialog')) closeDialogSmooth($('account-dialog')); });
 $('account-form').addEventListener('submit', async event => {
   event.preventDefault();
   const form = event.currentTarget, submit = $('account-submit');
@@ -1470,7 +1470,7 @@ function openDestinationPicker() {
 }
 $('add-stop').addEventListener('click', openDestinationPicker);
 $('mobile-add-stop').addEventListener('click', openDestinationPicker);
-$('close-destination-picker').addEventListener('click', () => $('route-search').close());
+$('close-destination-picker').addEventListener('click', () => closeDialogSmooth($('route-search')));
 $('route-search').addEventListener('close', () => stopAutocomplete.reset());
 $('mobile-stop-selector').addEventListener('change', event => {
   const stop = tripStops(state.trip).find(stop => stop.placeId === event.target.value);
@@ -1534,7 +1534,7 @@ function renderCalendar() {
 let calendarContext = 'trip', calendarEndpoint = 'start', calendarTrigger = null;
 function openCalendar(context = 'trip', endpoint = 'start', trigger = $('trip-menu-button')) {
   const picker = $('edit-date-picker');
-  if (picker.open) { picker.close(); return; }
+  if (picker.open) { closeDialogSmooth(picker); return; }
   calendarContext = context; calendarEndpoint = endpoint; calendarTrigger = trigger;
   $('date-stop-disclosure').open = false;
   $('shift-trip-plans').checked = true;
@@ -1578,12 +1578,11 @@ $('save-dates').addEventListener('click', () => {
 });
 function closeDatePicker() {
   const picker = $('edit-date-picker');
-  if (phoneHeaderLayout.matches) return closeDialogSmooth(picker);
-  picker.close();
+  return closeDialogSmooth(picker);
 }
 $('clear-dates').addEventListener('click', closeDatePicker);
 $('edit-date-picker').addEventListener('cancel', event => {
-  if (phoneHeaderLayout.matches) { event.preventDefault(); closeDatePicker(); }
+  event.preventDefault(); closeDatePicker();
 });
 document.querySelectorAll('[data-date-preset]').forEach(button => button.addEventListener('click', () => {
   const range = presetRange(button.dataset.datePreset);
