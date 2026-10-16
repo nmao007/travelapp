@@ -56,10 +56,15 @@ export async function resolvePlacePhoto(record, { width, lookup, load, fallback 
 // names or references. Each caller clones the loaded image before mounting it.
 export function createPhotoDisplayCache(resolve, { now = Date.now, ttl = 5 * 60000, limit = 64 } = {}) {
   const cache = new Map();
+  const reusable = (record, width, destination, pending = false) => [...cache.values()]
+    .filter(entry => entry.placeId === record.placeId && entry.destination === destination && entry.width >= width && (entry.expires > now()) && (entry.value || (pending && entry.pending)))
+    .sort((a, b) => a.width - b.width)[0];
   const display = (record, width, destination = false) => {
     const key = `${record.placeId}:${width}:${destination}`, existing = cache.get(key);
     if (existing && (existing.pending || existing.expires > now())) return existing.promise;
-    const entry = { pending: true, expires: Infinity };
+    const larger = reusable(record, width, destination, true);
+    if (larger) return larger.promise;
+    const entry = { pending: true, expires: Infinity, placeId: record.placeId, width, destination };
     entry.promise = Promise.resolve().then(() => resolve(record, width, destination)).then(source => {
       entry.pending = false; entry.expires = now() + (source ? ttl : 60000);
       if (!source) return null;
@@ -73,9 +78,11 @@ export function createPhotoDisplayCache(resolve, { now = Date.now, ttl = 5 * 600
     return entry.promise;
   };
   // Read an already loaded image. This never starts a lookup or refresh.
-  display.peek = record => {
-    for (const [key, entry] of cache) if (key.startsWith(`${record.placeId}:`) && key.endsWith(':false') && entry.expires > now() && entry.value) return entry.value;
-    return null;
+  display.peek = (record, width = 0, destination = false) => {
+    const exactOrLarger = reusable(record, width, destination);
+    if (exactOrLarger) return exactOrLarger.value;
+    const smaller = [...cache.values()].filter(entry => entry.placeId === record.placeId && entry.destination === destination && entry.expires > now() && entry.value).sort((a, b) => b.width - a.width)[0];
+    return smaller?.value || null;
   };
   return display;
 }

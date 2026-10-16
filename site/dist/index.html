@@ -152,6 +152,8 @@
 
           </section>
           <section class="transport-panel" id="transport-panel" aria-label="Transportation" hidden>
+            <div class="panel-heading"><div class="section-label">Flights &amp; trains</div><button type="button" id="add-transport" class="small-action" aria-label="Add flight or train"><svg class="icon"><use href="#i-plus"/></svg></button></div><div id="transport-content"></div>
+            <section id="trip-wallet" class="trip-wallet" aria-label="Trip spending" hidden></section>
             <div id="travel-essentials" class="travel-essentials" hidden>
               <article id="weather-card" class="weather-card" aria-label="Destination weather"></article>
               <article class="currency-card" aria-label="Currency converter">
@@ -161,7 +163,6 @@
                 <small id="currency-date"></small><a href="https://frankfurter.dev/" target="_blank" rel="noopener noreferrer" class="data-source">Frankfurter</a>
               </article>
             </div>
-            <div class="panel-heading"><div class="section-label">Flights & trains</div><button type="button" id="add-transport" class="small-action" aria-label="Add flight or train"><svg class="icon"><use href="#i-plus"/></svg></button></div><div id="transport-content"></div>
           </section>
           <section class="map-column" id="map-column" aria-label="Destination map"><div class="map-heading"><div class="section-label">MAP</div><span id="map-caption"></span></div><div class="map-frame"><a id="open-google-map" class="map-open-link" target="_blank" rel="noopener noreferrer" title="Open this map in Google Maps" aria-label="Open this map in Google Maps" hidden><svg class="icon"><use href="#i-external"/></svg></a><button type="button" id="search-map-area" class="search-map-area" hidden>Search this area</button><div id="map" class="google-map"></div><div class="map-loading" id="map-loading"><span class="spinner"></span>Loading map</div></div></section>
         </div>
@@ -209,7 +210,7 @@
   <dialog id="plan-dialog" class="editor-dialog plan-sheet" aria-label="Plan details">
     <div class="phone-sheet-heading">
     <div class="sheet-top"><span id="plan-dialog-kind" hidden></span><button type="button" class="small-action" data-close-dialog aria-label="Close plan details"><svg class="icon"><use href="#i-close"/></svg></button></div>
-    <label class="sr-only" for="plan-name">Plan name</label><input id="plan-name" class="editable-title" maxlength="160" placeholder="Plan name" autocomplete="off">
+    <label class="sr-only" for="plan-name">Plan name</label><textarea id="plan-name" class="editable-title" maxlength="160" rows="1" placeholder="Plan name" autocomplete="off" enterkeyhint="done"></textarea>
     </div>
     <div class="phone-sheet-body">
     <div id="tour-planning" class="tour-planning" hidden>

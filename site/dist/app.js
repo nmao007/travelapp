@@ -2,6 +2,7 @@ import { phoneMediaQuery, phoneViewport } from './phone-devices.js';
 import { phonePlaceSymbol } from './phone-motion.js';
 import { paintPlaceArt, placeArt } from './place-art.js';
 import { createPlaceTargets } from './place-targets.js';
+import { createWallet } from './wallet-ui.js';
 import { createTravelEssentials } from './travel-essentials.js';
 import { placeMapsURL, mapViewURL, directionsMapsURL } from './maps-links.js';
 import { createPlaceSearch, createPlaceDetails, placeSearchGroups, mixedMapPlaces, createQuotaMemory, placeIcon, createSearchSelection, quotaFailure, boundedPlaceRequest } from './place-search.js';
@@ -154,6 +155,7 @@ function showHome({ focus = false } = {}) {
   cancelAnimationFrame(state.animation);
   state.photoRequest++; state.nearbyRequest++; clearTimeout(state.nearbyTimer); state.cameraMoving = false;
   state.selected = null; state.trip = null; state.infoWindow?.close(); $('place-dialog').close(); $('plan-dialog').close(); $('route-search').close();
+  wallet.close();
   $('home-view').hidden = false;
   $('workspace').hidden = true;
   $('destination').value = '';
@@ -347,8 +349,7 @@ async function loadDestinationPhoto() {
     segment.append(image, credit); gallery.append(segment);
     destinationPhoto(stop).then(source => {
       if (!source?.src || !segment.isConnected || gallery.dataset.route !== route) return;
-      image.onload = () => { image.hidden = false; }; image.onerror = () => { image.hidden = true; };
-      image.src = source.src;
+      const loaded = source.image.cloneNode(true); loaded.className = 'hero-photo'; loaded.alt = stop.name; loaded.hidden = false; image.replaceWith(loaded);
       if (source.googlePhoto) { credit.dataset.google = 'true'; photoCredits(credit, source.googlePhoto); } else wikimediaCredits(credit, source);
       if (!credit.hidden) { const group = document.createElement('div'), title = document.createElement('strong'); title.textContent = stop.name; group.append(title, ...Array.from(credit.childNodes, node => node.cloneNode(true))); $('hero-photo-credits').append(group); $('hero-credits-toggle').hidden = false; $('menu-photo-credits').hidden = false; }
     });
@@ -650,7 +651,8 @@ function loadPhotoImage(src) {
   return new Promise((resolve, reject) => {
     const image = new Image();
     const timeout = setTimeout(() => { image.src = ''; reject(new Error('Photo timed out')); }, 10000);
-    image.onload = () => { clearTimeout(timeout); resolve(image); };
+    image.decoding = 'async';
+    image.onload = async () => { clearTimeout(timeout); try { await image.decode(); } catch { /* A loaded image can still be displayed. */ } resolve(image); };
     image.onerror = () => { clearTimeout(timeout); reject(new Error('Photo failed')); };
     image.src = src;
   });
@@ -662,12 +664,10 @@ const displayedPhotos = createPhotoDisplayCache((record, width, destination) => 
     return state.imageCache.get(key).promise;
   } }));
 
-async function showPlacePhoto(container, record, className = 'detail-photo') {
-  const request = crypto.randomUUID(); container.dataset.photoRequest = request;
-  const width = className === 'detail-photo' ? 900 : 420;
-  const source = await displayedPhotos(record, width);
-  if (!source || !container.isConnected || container.dataset.photoRequest !== request || container.dataset.photoPlace !== record.placeId) return;
+function mountPlacePhoto(container, record, source, className) {
+  if (container.dataset.photoSrc === source.src && container.querySelector('img')) return;
   const image = source.image.cloneNode(true); image.alt = record.name;
+  image.width = source.image.naturalWidth || 900; image.height = source.image.naturalHeight || 600;
   if (className === 'detail-photo') {
     const credit = document.createElement('figcaption');
     if (source.googlePhoto) photoCredits(credit, source.googlePhoto); else wikimediaCredits(credit, source);
@@ -677,6 +677,18 @@ async function showPlacePhoto(container, record, className = 'detail-photo') {
     container.replaceChildren(image);
     // Credits stay with the full photo in the opened place details.
   }
+  container.dataset.photoSrc = source.src;
+}
+async function showPlacePhoto(container, record, className = 'detail-photo') {
+  const request = crypto.randomUUID(); container.dataset.photoRequest = request;
+  const width = className === 'detail-photo' ? 900 : 160;
+  // Mount session images synchronously, before waiting for details or a sharper photo.
+  const cached = displayedPhotos.peek(record, width);
+  if (cached) mountPlacePhoto(container, record, cached, className);
+  const source = await displayedPhotos(record, width);
+  if (!container.isConnected || container.dataset.photoRequest !== request || container.dataset.photoPlace !== record.placeId) return;
+  if (source) mountPlacePhoto(container, record, source, className);
+  else if (!cached) container.querySelector('.photo-pending')?.remove();
 }
 const photoObserver = new IntersectionObserver(entries => {
   for (const entry of entries) {
@@ -685,7 +697,7 @@ const photoObserver = new IntersectionObserver(entries => {
     const record = placeSearch.find(entry.target.dataset.photoPlace) || state.suggestions.find(place => place.placeId === entry.target.dataset.photoPlace);
     if (record) showPlacePhoto(entry.target, record, 'recommendation-photo').catch(() => {});
   }
-}, { rootMargin: '0px' });
+}, { rootMargin: '240px 0px' });
 
 const recommendationMotion = new IntersectionObserver(entries => {
   for (const entry of entries) if (entry.isIntersecting) { recommendationMotion.unobserve(entry.target); revealSequence([entry.target]); }
@@ -709,7 +721,10 @@ function renderRecommendations() {
     open.addEventListener('click', () => { animateMap(place, 15); openDiscovery(place); });
     const add = document.createElement('button'); add.type = 'button'; add.className = 'recommendation-add'; add.innerHTML = icon('plus'); add.setAttribute('aria-label', `Add ${place.name} to day`); add.addEventListener('click', () => planDiscoveredPlace(place));
     row.append(open, add); container.append(row); recommendationMotion.observe(row);
-    photo.dataset.photoPlace = place.placeId; photoObserver.observe(photo);
+    photo.dataset.photoPlace = place.placeId;
+    const cached = displayedPhotos.peek(place, 160);
+    if (cached) mountPlacePhoto(photo, place, cached, 'recommendation-photo');
+    photoObserver.observe(photo);
   }
 
   syncSuggestionCards();
@@ -860,6 +875,13 @@ async function hydratePlace(container, record, { contactOnly = false, compact = 
   // Day cards reuse saved/cached details and the existing lightweight rating
   // request; revealing a day never starts full place-detail or photo requests.
   if (daySummary) return;
+  if (!compact && !contactOnly) {
+    const cached = displayedPhotos.peek(available, 900);
+    if (cached) mountPlacePhoto(container, available, cached, 'detail-photo');
+    else if (!container.querySelector('.detail-photo')) { const placeholder = document.createElement('figure'); placeholder.className = 'detail-photo photo-pending'; placeholder.setAttribute('aria-hidden', 'true'); container.prepend(placeholder); }
+    // Search results already include photo metadata; do not wait for another details request.
+    if (available.photos?.length || available.photo || available.photosLoaded) showPlacePhoto(container, available).catch(() => {});
+  }
   if (compact && googleRatingLabel(available)) { container.setAttribute('aria-busy', 'false'); return; }
   if (compact) container.setAttribute('aria-busy', 'true');
   if (!visible && (compact || container.classList.contains('day-card-details'))) {
@@ -1208,6 +1230,7 @@ function updateDayContext(day) {
 }
 const dayRoutes = createDayRoutes({ state, commit: commitTrip, icon, editPlan: item => { itinerary.openPlan(item); $('plan-time-button').click(); }, showMap: () => setMobileMap(true), cancelCamera: () => { cancelAnimationFrame(state.animation); state.animation = 0; state.cameraMoving = false; } });
 const essentials = createTravelEssentials({ state, getDestination: () => state.selected || state.trip, icon });
+const wallet = createWallet({ state, commit: commitTrip, icon });
 const planToolbar = document.querySelector('.plan-toolbar');
 const toolbarAnchor = document.createComment('Phone plan controls');
 planToolbar.before(toolbarAnchor);
@@ -1265,7 +1288,7 @@ const itinerary = createItineraryUI({ state, commit: commitTrip,
   onDayChange: updateDayContext,
   editTripDates: trigger => openCalendar('trip', 'start', trigger),
   editStopDates: stop => openStopEditor(stop?.placeId ? stop : tripStops(state.trip).find(stop => stop.placeId === state.stopFilter) || state.selected),
-  onRendered: () => { pruneDayDetails(); dayRoutes.render(); drawMarkers(); essentials.render(); },
+  onRendered: () => { pruneDayDetails(); dayRoutes.render(); drawMarkers(); essentials.render(); wallet.render(); },
   onModeChange: mode => {
     positionPlanToolbar();
     const selectedNavigation = state.workspaceView;

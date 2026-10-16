@@ -189,10 +189,16 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
   }
   for (const [id, change] of [['tour-fewer', -1], ['tour-more', 1]]) $(id).addEventListener('click', () => savePlanPatch({ tour: { ...draft.tour, people: Math.max(1, Math.min(50, draft.tour.people + change)) } }));
 
+  function fitPlanName() {
+    const field = $('plan-name');
+    field.style.height = 'auto';
+    field.style.height = `${Math.min(160, Math.max(52, field.scrollHeight + 2))}px`;
+  }
+
   function openTour(operator) {
     if (!datesForTrip(state.trip).length) { chooseDates(); return; }
     openPlan(); draft = { ...draft, ...tourDraft(operator) };
-    $('plan-name').value = draft.name; renderPlanTools();
+    $('plan-name').value = draft.name; fitPlanName(); renderPlanTools();
     hydratePlace($('tour-operator-links'), operator, { contactOnly: true });
     $('plan-done').textContent = 'Add tour'; $('plan-done').focus({ preventScroll: true });
   }
@@ -218,7 +224,7 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
     if (item?.kind === 'Tour' && item.tour) hydratePlace(operatorLinks, { placeId: item.tour.operatorPlaceId, name: item.tour.operatorName, latitude: item.tour.operatorLatitude, longitude: item.tour.operatorLongitude }, { contactOnly: true });
     if (item?.placeId) hydratePlace(details, item.kind === 'Tour' ? { ...item, name: item.tour?.meetingName || item.name } : item);
     $('plan-done').textContent = item ? 'Done' : 'Add plan';
-    $('plan-dialog').showModal();
+    $('plan-dialog').showModal(); fitPlanName();
     $('plan-dialog').querySelector('.phone-sheet-body').scrollTop = 0;
     if (!item) $('plan-name').focus(); else $('plan-done').focus({ preventScroll: true });
   }
@@ -736,6 +742,10 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
   $('phone-plan-day').addEventListener('change', event => { const button = [...$('plan-day-chips').querySelectorAll('button')].find(button => button.dataset.day === event.target.value); button?.click(); });
   $('phone-plan-more').addEventListener('click', () => { const open = $('plan-dialog').dataset.moreOptions !== 'true'; $('plan-dialog').dataset.moreOptions = String(open); $('phone-plan-more').setAttribute('aria-expanded', String(open)); });
   $('duplicate-plan').addEventListener('click', () => { if (!duplicatingPlan && $('plan-error').textContent) return; duplicatingPlan = !duplicatingPlan; $('plan-error').textContent = ''; renderPlanTools(); if (duplicatingPlan) { const target = matchMedia(phoneMediaQuery).matches ? $('phone-plan-day').closest('.coded-dropdown')?.querySelector('.dropdown-trigger') : $('plan-day-chips').querySelector('button:not(:disabled)'); target?.focus({ preventScroll: true }); } });
+  $('plan-name').addEventListener('input', fitPlanName);
+  document.fonts?.ready.then(() => { if ($('plan-dialog').open) fitPlanName(); });
+  window.addEventListener('resize', () => { if ($('plan-dialog').open) fitPlanName(); });
+  $('plan-name').addEventListener('keydown', event => { if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); $('plan-done').focus(); } });
   $('plan-name').addEventListener('change', () => savePlanPatch());
   for (const [button, panel] of [['plan-time-button', 'plan-time-controls'], ['plan-note-button', 'plan-note-wrap']]) $(button).setAttribute('aria-controls', panel);
   $('plan-time-button').addEventListener('click', () => { const open = !panelIsOpen($('plan-time-controls')); $('plan-time-button').setAttribute('aria-expanded', String(open)); setPanelOpen($('plan-time-controls'), open, { onComplete: () => { if (open) revealPhoneSection($('plan-time-controls')); } }); });
@@ -771,6 +781,7 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
   function attachPlace(place) {
     if (!draft) return;
     if (!$('plan-name').value.trim()) $('plan-name').value = place.name;
+    fitPlanName();
     savePlanPatch({ ...place, ...(draft.kind === 'Tour' ? { tour: { ...draft.tour, meetingName: place.name.slice(0, 160) } } : {}) }); $('plan-location-picker').hidden = true; $('plan-error').textContent = '';
     hydratePlace($('plan-place-details'), place);
   }

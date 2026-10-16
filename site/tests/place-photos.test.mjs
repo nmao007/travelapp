@@ -113,3 +113,33 @@ test('timeline thumbnails only peek at loaded photos and never cause an extra lo
   assert.equal(display.peek(record).src,'cached-image'); assert.equal(display.peek(record).googlePhoto.name,undefined); assert.equal(calls,1);
   clock=300001; assert.equal(display.peek(record),null); assert.equal(calls,1);
 });
+
+
+test('larger loaded or pending photos serve smaller views without another lookup', async () => {
+  let calls = 0, finish;
+  const display = createPhotoDisplayCache(() => { calls++; return new Promise(resolve => { finish = resolve; }); });
+  const record = { placeId: 'same' };
+  const large = display(record, 900); await Promise.resolve();
+  assert.equal(display(record, 160), large);
+  finish({ src: 'large', image: {}, googlePhoto: { authorAttributions: [{ displayName: 'Author' }] } });
+  await large;
+  assert.equal(display.peek(record, 160).src, 'large');
+  assert.equal((await display(record, 420)).src, 'large');
+  assert.equal(calls, 1);
+});
+
+test('instant previews choose the best size and keep destination photos separate', async () => {
+  let clock = 0;
+  const display = createPhotoDisplayCache(async (record, width, destination) => ({ src: `${width}:${destination}`, image: {} }), { now: () => clock });
+  const record = { placeId: 'same' };
+  await display(record, 160);
+  assert.equal(display.peek(record, 900).src, '160:false');
+  await display(record, 900);
+  assert.equal(display.peek(record, 900).src, '900:false');
+  assert.equal(display.peek(record, 900, true), null);
+  await display(record, 1200, true);
+  assert.equal(display.peek(record, 1200, true).src, '1200:true');
+  assert.equal(display.peek(record, 160).src, '160:false');
+  clock = 300001;
+  assert.equal(display.peek(record, 900), null);
+});
