@@ -374,3 +374,4 @@ body .time-picker input.time-number{padding:0 2px;min-height:44px;border:0!impor
   .wallet-overview-dialog .wallet-overview-title h2{font-size:20px}.wallet-overview-title{gap:4px 8px}
   .wallet-launcher{gap:10px;padding:10px 12px}.wallet-launcher-copy strong{font-size:15px}.wallet-launcher-amount{font-size:16px}
 }
+@media(max-width:580px){.workspace-nav{grid-template-columns:repeat(4,minmax(0,1fr))}.workspace-nav>button{font-size:12px}}

@@ -9,9 +9,9 @@ import { createPlaceSearch, createPlaceDetails, placeSearchGroups, mixedMapPlace
 import { isTourOperator } from './tour-model.js';
 import { playMotion, closeDialogSmooth, revealSequence, reducedMotion, installButtonMotion, installSurfaceMotion } from './motion.js';
 import { createTripBanner } from './trip-banner.js';
-import { readTrips, saveTrip, deleteTrip, addPlace, removePlace, movePlace, addStop, moveStop, removeStop, tripStops, stopSchedule, datesForStop, setStopDates, tripTitle, renameTrip, currentAccount, createAccount, signIn, signOut, restoreSession, loadCloudTrips } from './trip-store.js';
+import { readTrips, saveTrip, deleteTrip, addPlace, removePlace, movePlace, addStop, moveStop, removeStop, tripStops, stopSchedule, datesForStop, setStopDates, tripTitle, renameTrip, currentAccount, createAccount, signIn, signOut, restoreSession, loadCloudTrips, loadPersonalIdeas, savePersonalIdea, deletePersonalIdea } from './trip-store.js';
 import { calendarMonth, presetRange } from './date-range.js';
-import { datesForTrip, eventsForDay, mappedPlace } from './itinerary-model.js';
+import { datesForTrip, eventsForDay, mappedPlace, makePlan } from './itinerary-model.js';
 import { createDayRoutes } from './day-routes.js';
 import { createItineraryUI } from './itinerary-ui.js';
 import { mapEntries, scheduleUnassigned, googlePlaceRecord, destinationForDay, googlePlaceSummary, googleRatingLabel, mergeGoogleContent, mapLabelPosition } from './place-model.js';
@@ -43,8 +43,9 @@ let resolveMapsReady;
 const mapsReady = new Promise(resolve => { resolveMapsReady = resolve; });
 let quotaStorage; try { quotaStorage = sessionStorage; } catch { /* Storage is optional. */ }
 const quotaMemory = createQuotaMemory(quotaStorage);
-const state = { maps: null, places: null, markerClass: null, map: null, mapUnavailable: false, marker: null, stopMarkers: [], placeMarkers: [], suggestionMarkers: [], suggestions: [], selected: null, trip: null, day: 'ideas', animation: 0, config: null, pendingNearby: null, nearbyRequest: 0, photoRequest: 0, calendarRange: { start: null, end: null }, calendarYear: 0, calendarMonth: 0, routeEditing: false, stopFilter: null, planMode: 'list', workspaceView: 'itinerary', nearbyCategory: 'see', detailCooldownUntil: quotaMemory.read('selection-details'), photoCooldownUntil: quotaMemory.read('photo-details'), detailCache: new Map(), imageCache: new Map(), infoWindow: null, activePlaceId: null, discoveryPlace: null, mapSuggestions: [], mapAreaKey: null, mapSearchVersion: 0, mapSearchTimer: null, placeClickVersion: 0, nearbyAreaKey: null, nearbyTimer: null, cameraMoving: false };
+const state = { maps: null, places: null, markerClass: null, map: null, mapUnavailable: false, marker: null, stopMarkers: [], placeMarkers: [], suggestionMarkers: [], suggestions: [], selected: null, trip: null, day: 'ideas', animation: 0, config: null, pendingNearby: null, nearbyRequest: 0, photoRequest: 0, calendarRange: { start: null, end: null }, calendarYear: 0, calendarMonth: 0, routeEditing: false, stopFilter: null, planMode: 'list', workspaceView: 'itinerary', nearbyCategory: 'see', detailCooldownUntil: quotaMemory.read('selection-details'), photoCooldownUntil: quotaMemory.read('photo-details'), detailCache: new Map(), imageCache: new Map(), infoWindow: null, activePlaceId: null, discoveryPlace: null, mapSuggestions: [], mapAreaKey: null, mapSearchVersion: 0, mapSearchTimer: null, placeClickVersion: 0, nearbyAreaKey: null, nearbyTimer: null, cameraMoving: false, boardScale: 1, boardX: 0, boardY: 0, boardConnect: false, boardSource: null, boardGroupMode: false, boardSelection: [], boardDrawMode: false, boardPenColor: 'sun', boardPenWidth: 12, boardDrawing: null, boardPointer: null, boardEditing: null, boardHistory: [], boardFuture: [], boardSnapshot: null, boardView: 'canvas', boardSaveTimer: null, boardLibrary: [] };
 let workspaceTrail = [];
+const boardPointers = new Map();
 const tripBanner = createTripBanner({ workspace: $('workspace'), header: $('trip-masthead'), hero: $('destination-hero'), onResize: () => { if (state.map) requestAnimationFrame(() => google.maps.event.trigger(state.map, 'resize')); } });
 const dateLabel = value => new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T12:00:00Z`));
 const dateLong = value => new Intl.DateTimeFormat('en', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T12:00:00Z`));
@@ -52,6 +53,8 @@ const tripDateLabel = trip => trip.startDate && trip.endDate ? `${dateLabel(trip
 const coordinates = place => ({ lat: place.latitude, lng: place.longitude });
 const notices = new Map(['home-status', 'trip-status'].map(id => [id, createTransientNotice($(id), { onHide: () => { $(id).textContent = ''; } })]));
 const status = (id, text = '') => { if (!text) { notices.get(id).clear(); return; } $(id).textContent = text; notices.get(id).show(); };
+window.addEventListener('trippilot-cloud-save-ok', event => { if(state.trip?.id===event.detail?.id) $('board-save-state').textContent='Synced'; });
+window.addEventListener('trippilot-cloud-save-error', event => { if(state.workspaceView==='ideas') $('board-save-state').textContent='Sync paused · saved on this device'; });
 
 const daysForTrip = datesForTrip;
 
@@ -249,6 +252,7 @@ function showWorkspace(place, trip = null) {
   $('trip-title-input').hidden = true; $('edit-trip-title').hidden = false;
   $('place-dialog').close(); $('plan-dialog').close(); $('transport-dialog').close();
   state.selected = place; state.trip = trip ? scheduleUnassigned(trip) : trip;
+  const savedBoardView = state.trip?.boardViewport || {}; state.boardX = Number(savedBoardView.x) || 0; state.boardY = Number(savedBoardView.y) || 0; state.boardScale = Number(savedBoardView.scale) || 1; state.boardHistory = []; state.boardFuture = []; state.boardSnapshot = state.trip ? boardSnapshot() : null; state.boardView = 'canvas'; setBoardView('canvas');
   state.infoWindow?.close(); state.activePlaceId = null; state.nearbyAreaKey = null; clearTimeout(state.nearbyTimer); $('search-map-area').hidden = true;
   if (trip && state.trip !== trip) { saveTrip(state.trip); trip = state.trip; }
   state.photoRequest++;
@@ -1129,7 +1133,224 @@ function commitTrip(next) {
   state.infoWindow?.close();
   next = scheduleUnassigned(next); saveTrip(next); state.trip = next; renderPlan(); updateRecent();
 }
-for (const button of document.querySelectorAll('[data-workspace-view]')) paintPlaceArt(button.querySelector('svg'), { itinerary: 'list', explore: 'map', transportation: 'plane' }[button.dataset.workspaceView]);
+const boardPalette = { sun: '#fff0b8', rose: '#ffd9d0', mint: '#d9f3e4', sky: '#dcecff', lilac: '#eee2ff' };
+function boardItems() { return Array.isArray(state.trip?.boardItems) ? state.trip.boardItems : []; }
+function boardLinks() { return Array.isArray(state.trip?.boardLinks) ? state.trip.boardLinks : []; }
+function boardSnapshot() { return JSON.stringify({ boardItems: boardItems(), boardLinks: boardLinks(), boardViewport: state.trip?.boardViewport || { x: state.boardX, y: state.boardY, scale: state.boardScale } }); }
+function saveBoard(next, { history = true } = {}) {
+  const before = state.boardSnapshot ?? boardSnapshot();
+  state.trip = { ...state.trip, ...next, updatedAt: new Date().toISOString() };
+  if (history) { const after = boardSnapshot(); if (before !== after) { state.boardHistory.push(before); if (state.boardHistory.length > 50) state.boardHistory.shift(); state.boardFuture = []; } }
+  state.boardSnapshot = boardSnapshot(); saveTrip(state.trip); updateRecent();
+  $('board-save-state').textContent = currentAccount() ? 'Saved on this device · syncing…' : 'Saved on this device';
+  clearTimeout(state.boardSaveTimer); state.boardSaveTimer = setTimeout(() => { if (!currentAccount()) $('board-save-state').textContent = 'Saved on this device'; }, 450);
+}
+function restoreBoardSnapshot(snapshot) {
+  if (!state.trip || !snapshot) return;
+  const value = JSON.parse(snapshot); state.trip = { ...state.trip, boardItems: value.boardItems, boardLinks: value.boardLinks, boardViewport: value.boardViewport };
+  const viewport = value.boardViewport || {}; state.boardX = Number(viewport.x) || 0; state.boardY = Number(viewport.y) || 0; state.boardScale = Number(viewport.scale) || 1;
+  saveTrip(state.trip); state.boardSnapshot = boardSnapshot(); updateRecent(); renderBoard();
+}
+function undoBoard() { const previous = state.boardHistory.pop(); if (!previous) return; state.boardFuture.push(boardSnapshot()); restoreBoardSnapshot(previous); }
+function redoBoard() { const next = state.boardFuture.pop(); if (!next) return; state.boardHistory.push(boardSnapshot()); restoreBoardSnapshot(next); }
+function persistBoardViewport() { if (!state.trip) return; saveBoard({ boardViewport: { x: state.boardX, y: state.boardY, scale: state.boardScale } }, { history: false }); }
+function applyBoardTransform() { $('ideas-world').style.transform = `translate(${state.boardX}px,${state.boardY}px) scale(${state.boardScale})`; }
+function setBoardView(view) {
+  state.boardView = view; const browse = view === 'browse';
+  $('board-browse').hidden = !browse; $('ideas-canvas').hidden = browse;
+  $('board-canvas-view').setAttribute('aria-pressed', String(!browse)); $('board-browse-view').setAttribute('aria-pressed', String(browse));
+  for (const button of document.querySelectorAll('#board-sticker,#board-connect,#board-group,#board-draw,#board-zoom-out,#board-zoom-in,#board-fit,#board-tool-select,#board-tool-pan,#board-duplicate,#board-delete-selected')) button.hidden = browse;
+  setBoardPenControls(!browse&&state.boardDrawMode);
+  renderBoardBrowse();
+}
+function setBoardPenControls(visible){for(const id of ['board-pen-color','board-pen-width']){const select=$(id);if(!select)continue;select.hidden=!visible;const trigger=select.nextElementSibling;if(trigger?.classList.contains('dropdown-trigger'))trigger.hidden=!visible;}}
+function duplicateBoardSelection() {
+  const selected = boardItems().filter(item => state.boardSelection.includes(item.id)); if (!selected.length) return;
+  const ids = new Map(selected.map(item => [item.id, crypto.randomUUID()]));
+  const copies = selected.map(item => item.type==='draw'?{...structuredClone(item),id:ids.get(item.id),points:item.points.map(point=>({x:point.x+34,y:point.y+34}))}:{ ...structuredClone(item), id: ids.get(item.id), x: item.x + 34, y: item.y + 34, ...(item.memberIds ? { memberIds: item.memberIds.map(id => ids.get(id) || id) } : {}), ...(item.groupId ? { groupId: ids.get(item.groupId) || item.groupId } : {}) });
+  const internalLinks = boardLinks().filter(link => ids.has(link.from) && ids.has(link.to)).map(link => ({ ...link, id: crypto.randomUUID(), from: ids.get(link.from), to: ids.get(link.to) }));
+  saveBoard({ boardItems: [...boardItems(), ...copies], boardLinks: [...boardLinks(), ...internalLinks] }); state.boardSelection = copies.map(item => item.id); renderBoard();
+}
+function deleteBoardSelection() {
+  if (!state.boardSelection.length) return;
+  const ids = new Set(state.boardSelection); let items = boardItems().filter(item => !ids.has(item.id)).map(item => ({ ...item }));
+  for (const group of items.filter(item => item.type === 'group')) { group.memberIds = (group.memberIds || []).filter(id => !ids.has(id)); if (!group.memberIds.length) items = items.filter(item => item.id !== group.id); }
+  items = items.map(item => { if (!ids.has(item.groupId)) return item; const { groupId, ...rest } = item; return rest; });
+  saveBoard({ boardItems: items, boardLinks: boardLinks().filter(link => !ids.has(link.from) && !ids.has(link.to)) }); state.boardSelection = []; renderBoard();
+}
+async function retrieveLinkPreview(rawUrl) {
+  try { const response=await fetch(`/api/idea-preview?url=${encodeURIComponent(rawUrl)}`,{signal:AbortSignal.timeout(6500)});if(!response.ok)return null;const data=await response.json();return data.preview?{title:String(data.preview.title||'').slice(0,120),image:/^https:\/\//i.test(data.preview.image||'')?data.preview.image:'',site:data.preview.site||''}:null; } catch { return null; }
+}
+function renderBoardBrowse() {
+  const grid = $('board-browse-grid'); if (!grid) return;
+  const source=$('board-browse-source').value,query = $('board-search').value.trim().toLowerCase(), category = $('board-category-filter').value, group = $('board-group-filter').value;
+  const groups = boardItems().filter(item => item.type === 'group'),groupFilter=$('board-group-filter'); groupFilter.replaceChildren(new Option('All groups',''), ...groups.map(item => new Option(item.title || 'Group', item.id)));groupFilter.value=groups.some(item=>item.id===group)?group:'';refreshDropdowns(groupFilter);
+  const selectedGroup = groupFilter.value; groupFilter.hidden=true; const groupTrigger=groupFilter.nextElementSibling;if(groupTrigger?.classList.contains('dropdown-trigger'))groupTrigger.hidden=source==='library';
+  grid.replaceChildren();
+  const ideas = (source==='library'?state.boardLibrary:boardItems()).filter(item => ['card','photo','note'].includes(item.type)).filter(item => !query || [item.title,item.location,item.category,item.notes,item.url].some(value => String(value || '').toLowerCase().includes(query))).filter(item => !category || item.category === category).filter(item => source==='library'||!selectedGroup || item.groupId === selectedGroup);
+  for (const item of ideas) {
+    const card = document.createElement('article'); card.className = 'board-browse-card';
+    if (item.image) { const image = document.createElement('img'); image.src = item.image; image.alt = ''; image.loading = 'lazy'; image.onerror = () => image.remove(); card.append(image); }
+    const title = document.createElement('strong'); title.textContent = item.title || (item.type === 'note' ? 'Sticky note' : 'Untitled place'); card.append(title);
+    const meta = document.createElement('span'); meta.textContent = [item.category,item.location].filter(Boolean).join(' · '); card.append(meta);
+    if (item.notes) { const notes = document.createElement('p'); notes.textContent = item.notes; card.append(notes); }
+    const actions = document.createElement('div'); actions.className = 'board-browse-actions';
+    if(source==='library') { const add=document.createElement('button');add.type='button';add.textContent='Add to this board';add.addEventListener('click',()=>{const count=boardItems().length,copy={...item,id:crypto.randomUUID(),libraryIdeaId:item.id,x:($('ideas-canvas').clientWidth/2-state.boardX)/state.boardScale-140+(count%3)*24,y:($('ideas-canvas').clientHeight/2-state.boardY)/state.boardScale-140+(count%4)*24,width:280,height:item.type==='note'?200:300};saveBoard({boardItems:[...boardItems(),copy]});setBoardView('canvas');renderBoard();});actions.append(add);const remove=document.createElement('button');remove.type='button';remove.textContent='Remove';remove.addEventListener('click',()=>{deletePersonalIdea(item.id);state.boardLibrary=state.boardLibrary.filter(idea=>idea.id!==item.id);renderBoardBrowse();});actions.append(remove); }
+    else { const open = document.createElement('button'); open.type = 'button'; open.textContent = 'Open on canvas'; open.addEventListener('click', () => { setBoardView('canvas'); state.boardX = Math.round($('ideas-canvas').clientWidth / 2 - (item.x + item.width / 2) * state.boardScale); state.boardY = Math.round($('ideas-canvas').clientHeight / 2 - (item.y + item.height / 2) * state.boardScale); applyBoardTransform(); }); actions.append(open);
+      const edit = document.createElement('button'); edit.type = 'button'; edit.textContent = 'Edit'; edit.addEventListener('click', () => openIdeaEditor(item)); actions.append(edit);
+      if(boardItems().some(entry=>entry.type==='group')){const move=document.createElement('select');move.setAttribute('aria-label',`Move ${title.textContent} to a group`);move.add(new Option('Move to group…',''));for(const entry of boardItems().filter(value=>value.type==='group'))move.add(new Option(entry.title||'Group',entry.id));move.value=item.groupId||'';move.addEventListener('change',()=>{const target=move.value,items=boardItems().map(entry=>({...entry}));if(item.groupId){const old=items.find(entry=>entry.id===item.groupId);if(old)old.memberIds=(old.memberIds||[]).filter(id=>id!==item.id);}const updated=items.find(entry=>entry.id===item.id);if(target){updated.groupId=target;const group=items.find(entry=>entry.id===target);group.memberIds=[...new Set([...(group.memberIds||[]),item.id])];fitBoardGroup(group);}else delete updated.groupId;saveBoard({boardItems:items});renderBoard();});actions.append(move);}
+      if (item.type !== 'note') { const day = document.createElement('select'); day.setAttribute('aria-label', `Add ${title.textContent} to an itinerary day`); day.innerHTML = '<option value="">Add to day…</option>' + daysForTrip(state.trip).map(date => `<option value="${date}">${dateLabel(date)}</option>`).join(''); day.addEventListener('change', () => addBoardIdeaToDay(item, day.value)); actions.append(day); } }
+    card.append(actions); grid.append(card);
+  }
+  if (!ideas.length) { const empty = document.createElement('p'); empty.className = 'board-browse-empty'; empty.textContent = query || category || selectedGroup ? 'No ideas match those filters.' : source==='library'?'Your personal idea library is empty. Saved ideas from your boards will appear here.':'Your saved ideas will appear here. Add a place, link, or note to get started.'; grid.append(empty); }
+}
+function addBoardIdeaToDay(item, dayValue) {
+  if (!dayValue) return;
+  try { const ideaId=item.libraryIdeaId||item.id;if((state.trip.items||[]).some(entry=>entry.ideaId===ideaId&&entry.day===dayValue)){status('trip-status',`${item.title||'Idea'} is already on ${dateLabel(dayValue)}.`);return;}const kind = ['Food','Stay','Activity','Flight','Train','Transport','Tour'].includes(item.category) ? item.category : 'Activity'; const plan = { ...makePlan(state.trip, { name: item.title || 'Travel idea', day: dayValue, kind, address: item.location || '', notes: item.notes || '' }), ideaId }; saveBoard({ items: [...(state.trip.items || []), plan] }); status('trip-status', `Added ${item.title || 'idea'} to ${dateLabel(dayValue)}.`); }
+  catch (error) { status('trip-status', error.message || 'Could not add that idea to the itinerary.'); }
+  renderBoard();
+}
+function renderBoard() {
+  if (!state.trip) return;
+  const items = boardItems(), wrapper = $('ideas-objects'); wrapper.replaceChildren();
+  for (const item of items) {
+    const card = document.createElement('article'); card.className = `idea-object idea-${item.type} idea-${item.color || 'sun'}${state.boardSelection.includes(item.id) ? ' idea-selected' : ''}`; card.dataset.boardId = item.id;
+    card.style.left = `${item.x || 120}px`; card.style.top = `${item.y || 120}px`; card.style.width = `${item.width || (item.type === 'group' ? 430 : item.type === 'note' ? 220 : 280)}px`; card.style.height = `${item.height || (item.type === 'group' ? 320 : item.type === 'note' ? 200 : 310)}px`;
+    if (item.type === 'draw') continue;
+    if (item.type === 'sticker') {
+      const glyph = document.createElement('span'); glyph.className = 'idea-sticker-glyph'; glyph.textContent = item.sticker || '✨'; card.append(glyph);
+      const editSticker = document.createElement('button'); editSticker.type = 'button'; editSticker.className = 'idea-edit'; editSticker.textContent = '•••'; editSticker.setAttribute('aria-label', 'Change sticker'); editSticker.addEventListener('click', event => { event.stopPropagation(); openIdeaEditor(item); }); card.append(editSticker);
+      const resizeSticker = document.createElement('span'); resizeSticker.className = 'idea-resize'; resizeSticker.setAttribute('aria-hidden', 'true'); card.append(resizeSticker); wrapper.append(card); continue;
+    }
+    const head = document.createElement('div'); head.className = 'idea-object-head';
+    const title = document.createElement('strong'); title.textContent = item.title || (item.type === 'group' ? 'Group' : item.type === 'note' ? 'Sticky note' : 'Untitled place'); head.append(title);
+    const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'idea-edit'; edit.textContent = '•••'; edit.setAttribute('aria-label', `Edit ${title.textContent}`); edit.addEventListener('click', event => { event.stopPropagation(); openIdeaEditor(item); }); head.append(edit); card.append(head);
+    if (item.type === 'card' || item.type === 'photo') {
+      if (item.image) { const img = document.createElement('img'); img.src = item.image; img.alt = ''; img.loading = 'lazy'; img.referrerPolicy = 'no-referrer'; img.className = 'idea-image'; img.onerror = () => img.remove(); card.append(img); }
+      else if (item.type === 'photo') { const placeholder = document.createElement('div'); placeholder.className = 'idea-photo-placeholder'; placeholder.innerHTML = '<span>▧</span><small>Add a travel photo</small>'; card.append(placeholder); }
+      const meta = document.createElement('div'); meta.className = 'idea-meta'; meta.textContent = [item.category, item.location].filter(Boolean).join(' · '); card.append(meta);
+      if (item.notes) { const notes = document.createElement('p'); notes.className = 'idea-copy'; notes.textContent = item.notes; card.append(notes); }
+      if (item.url) { const link = document.createElement('a'); link.href = item.url; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.className = 'idea-link'; link.textContent = 'Open link ↗'; card.append(link); }
+      const actions = document.createElement('div'); actions.className = 'idea-card-actions';
+      const day = document.createElement('select'); day.setAttribute('aria-label', `Add ${title.textContent} to a trip day`); const dates = daysForTrip(state.trip); day.innerHTML = '<option value="">Add to plan…</option>' + dates.map(date => `<option value="${date}">${dateLabel(date)}</option>`).join('');
+      day.addEventListener('change', () => { addBoardIdeaToDay(item, day.value); day.value = ''; }); actions.append(day); card.append(actions);
+    } else if (item.type === 'note') { const body = document.createElement('p'); body.className = 'idea-copy'; body.textContent = item.notes || 'Double-click to add a thought…'; card.append(body); }
+    else { const body = document.createElement('p'); body.className = 'idea-group-copy'; body.textContent = item.notes || 'Drop related ideas here'; card.append(body); }
+    const resize = document.createElement('span'); resize.className = 'idea-resize'; resize.setAttribute('aria-hidden', 'true'); card.append(resize); wrapper.append(card);
+  }
+  const drawings = $('ideas-drawings'); drawings.setAttribute('width', '2600'); drawings.setAttribute('height', '1800'); drawings.replaceChildren();
+  const pointsToPath = points => points?.length ? `M ${points.map(point => `${point.x} ${point.y}`).join(' L ')}` : '';
+  for (const item of items.filter(entry => entry.type === 'draw')) { const path = document.createElementNS('http://www.w3.org/2000/svg', 'path'); path.dataset.boardId = item.id; path.setAttribute('d', pointsToPath(item.points)); path.setAttribute('class', `idea-marker-stroke${state.boardSelection.includes(item.id) ? ' idea-draw-selected' : ''}`); path.setAttribute('stroke', boardPalette[item.color] || boardPalette.sun);path.setAttribute('stroke-width',String(item.strokeWidth||12)); drawings.append(path); }
+  const svg = $('ideas-links'); svg.setAttribute('width', '2600'); svg.setAttribute('height', '1800'); svg.replaceChildren();
+  for (const link of boardLinks()) { const from = items.find(item => item.id === link.from), to = items.find(item => item.id === link.to); if (!from || !to) continue; const x1=(from.x||120)+(from.width||280)/2,y1=(from.y||120)+(from.height||250)/2,x2=(to.x||120)+(to.width||280)/2,y2=(to.y||120)+(to.height||250)/2,line=document.createElementNS('http://www.w3.org/2000/svg','line'); line.setAttribute('x1',String(x1));line.setAttribute('y1',String(y1));line.setAttribute('x2',String(x2));line.setAttribute('y2',String(y2));line.setAttribute('class','idea-connector');line.setAttribute('marker-end','url(#idea-arrow)');line.setAttribute('aria-label','Connector; double-click to label, click to delete');line.addEventListener('click',()=>{clearTimeout(line._deleteTimer);line._deleteTimer=setTimeout(()=>{saveBoard({boardLinks:boardLinks().filter(entry=>entry.id!==link.id)});renderBoard();},450);});line.addEventListener('dblclick',event=>{event.stopPropagation();clearTimeout(line._deleteTimer);const label=prompt('Connector label',link.label||'');if(label===null)return;saveBoard({boardLinks:boardLinks().map(entry=>entry.id===link.id?{...entry,label:label.trim()}:entry)});renderBoard();});svg.append(line); if(link.label){const label=document.createElementNS('http://www.w3.org/2000/svg','text');label.setAttribute('x',String((x1+x2)/2));label.setAttribute('y',String((y1+y2)/2-8));label.setAttribute('class','idea-connector-label');label.textContent=link.label;svg.append(label);} }
+  if (!svg.querySelector('defs')) { const defs=document.createElementNS('http://www.w3.org/2000/svg','defs'),marker=document.createElementNS('http://www.w3.org/2000/svg','marker'),arrow=document.createElementNS('http://www.w3.org/2000/svg','path');marker.id='idea-arrow';marker.setAttribute('markerWidth','9');marker.setAttribute('markerHeight','9');marker.setAttribute('refX','8');marker.setAttribute('refY','4.5');marker.setAttribute('orient','auto');arrow.setAttribute('d','M0,0 L9,4.5 L0,9 z');arrow.setAttribute('fill','#8472b8');marker.append(arrow);defs.append(marker);svg.prepend(defs); }
+  applyBoardTransform(); $('ideas-hint').hidden = items.length > 0; if(state.boardView==='browse')renderBoardBrowse();
+}
+function createBoardItem(type) {
+  if (!state.trip) return;
+  const count = boardItems().length, width=type === 'group' ? 430 : type === 'note' ? 220 : type === 'photo' ? 260 : 280,height=type === 'group' ? 320 : type === 'note' ? 220 : type === 'photo' ? 250 : 310,canvas=$('ideas-canvas'),x=Math.max(40,(canvas.clientWidth/2-state.boardX)/state.boardScale-width/2),y=Math.max(40,(canvas.clientHeight/2-state.boardY)/state.boardScale-height/2),item = { id: crypto.randomUUID(), type, title: type === 'card' ? '' : type === 'photo' ? 'Travel photo' : type === 'note' ? 'New thought' : 'New group', x:x+(count%4)*28, y:y+(count%5)*26, width, height, category: 'Activity', color: ['sun','rose','mint','sky','lilac'][count % 5], image: '', url: '', location: '', notes: '' };
+  saveBoard({ boardItems: [...boardItems(), item] }); renderBoard(); openIdeaEditor(item);
+}
+function createBoardSticker() { const count = boardItems().length, sticker = ['😍','❤️','✨','🌴','📍','✈️','☀️','🌊'][count % 8]; const item = { id: crypto.randomUUID(), type: 'sticker', title: sticker, sticker, x: 140 + (count % 5) * 35, y: 130 + (count % 4) * 35, width: 82, height: 82, color: 'sun' }; saveBoard({ boardItems: [...boardItems(), item] }); renderBoard(); }
+function openIdeaEditor(item) {
+  state.boardEditing = item.id; const form = $('idea-form'); form.elements.title.value = item.title || ''; form.elements.image.value = item.image || ''; form.elements.url.value = item.url || ''; form.elements.location.value = item.location || ''; form.elements.category.value = item.category || 'Activity'; form.elements.notes.value = item.notes || ''; form.elements.color.value = item.color || 'sun'; form.elements.sticker.value = item.sticker || '✨';
+  const sticker = item.type === 'sticker', place = item.type === 'card' || item.type === 'photo';
+  $('idea-editor-title').textContent = item.type === 'card' ? 'Place idea' : item.type === 'photo' ? 'Photo' : item.type === 'note' ? 'Sticky note' : item.type === 'sticker' ? 'Sticker' : 'Group label'; $('idea-title-wrap').hidden = sticker; $('idea-title-wrap').querySelector('input').required = false; $('idea-sticker-wrap').hidden = !sticker; $('idea-color-wrap').hidden = sticker;
+  for (const id of ['idea-image-wrap','idea-url-wrap','idea-location-wrap','idea-category-wrap']) $(id).hidden = !place;
+  $('idea-notes-wrap').hidden = sticker; $('idea-delete').hidden = false; $('idea-error').textContent = ''; $('idea-editor').showModal();
+}
+async function saveIdeaForm(event) { event.preventDefault(); const item = boardItems().find(entry => entry.id === state.boardEditing); if (!item) return; const form = event.currentTarget, sticker = item.type === 'sticker', url = form.elements.url.value.trim(); let title = sticker ? form.elements.sticker.value : form.elements.title.value.trim(), image = form.elements.image.value.trim(); if (!sticker && url && (!title || !image)) { $('idea-error').textContent = 'Checking for a link preview…'; const preview = await retrieveLinkPreview(url); if (preview) { if(!title)title=preview.title;if(!image)image=preview.image; } if (!title) title = new URL(url).hostname.replace(/^www\./,''); } if (!title) { $('idea-error').textContent = 'Add a title or a link first.'; return; } const fields = Object.fromEntries(['location','category','notes','color'].map(name => [name, form.elements[name].value.trim()])); const provider = url ? new URL(url).hostname : image ? new URL(image).hostname : ''; const libraryIdeaId=item.libraryIdeaId||item.id,updated = { ...item, title, image, url, ...(sticker ? { sticker: title } : {}), ...fields, sourceUrl: url || item.sourceUrl || '', preview: image ? { image, provider } : null, ...(['card','photo','note'].includes(item.type)?{libraryIdeaId}: {}) }; saveBoard({ boardItems: boardItems().map(entry => entry.id === item.id ? updated : entry) }); if(['card','photo','note'].includes(item.type)){savePersonalIdea({...updated,id:libraryIdeaId});state.boardLibrary=[{...updated,id:libraryIdeaId},...state.boardLibrary.filter(idea=>idea.id!==libraryIdeaId)];} $('idea-editor').close(); renderBoard(); }
+function createBoardGroup() {
+  const members = boardItems().filter(item => state.boardSelection.includes(item.id) && item.type !== 'draw' && item.type !== 'group'); if (members.length < 2) return;
+  const left = Math.min(...members.map(item => item.x || 0)) - 24, top = Math.min(...members.map(item => item.y || 0)) - 48;
+  const right = Math.max(...members.map(item => (item.x || 0) + (item.width || 280))) + 24, bottom = Math.max(...members.map(item => (item.y || 0) + (item.height || 240))) + 24;
+  const group = { id: crypto.randomUUID(), type: 'group', title: 'New group', x: left, y: top, width: right - left, height: bottom - top, color: 'lilac', notes: '', memberIds: members.map(item => item.id) };
+  const selectedIds=new Set(members.map(item=>item.id));
+  saveBoard({ boardItems: [...boardItems().filter(item=>!selectedIds.has(item.id)||!item.groupId).map(item => selectedIds.has(item.id)?{...item,groupId:group.id,groupOffset:{x:item.x-left,y:item.y-top}}:item).map(item=>{if(item.type==='group'){item.memberIds=(item.memberIds||[]).filter(id=>!selectedIds.has(id));}return item;}), group] });
+  state.boardSelection = []; state.boardGroupMode = false; $('board-group').setAttribute('aria-pressed', 'false'); $('board-group').textContent = '▧ Group items'; $('board-mode-instructions').textContent = 'Drag to arrange · Long-press an item for options'; renderBoard(); openIdeaEditor(group);
+}
+function fitBoardGroup(group) {
+  const members = boardItems().filter(item => group.memberIds?.includes(item.id)); if (!members.length) return;
+  const left = Math.min(...members.map(item => item.x)) - 24, top = Math.min(...members.map(item => item.y)) - 48;
+  const right = Math.max(...members.map(item => item.x + item.width)), bottom = Math.max(...members.map(item => item.y + item.height));
+  group.x = left; group.y = top; group.width = right - left + 48; group.height = bottom - top + 24;
+  for(const member of members)member.groupOffset={x:member.x-group.x,y:member.y-group.y};
+}
+function deleteBoardObject(id) {
+  const target = boardItems().find(item => item.id === id); if (!target) return;
+  let items = boardItems().filter(item => item.id !== id).map(item => ({ ...item }));
+  if (target.type === 'group') items = items.map(item => { if (item.groupId !== id) return item; const { groupId, groupOffset, ...ungrouped } = item; return ungrouped; });
+  else if (target.groupId) { const group = items.find(item => item.id === target.groupId); if (group) { group.memberIds = (group.memberIds || []).filter(memberId => memberId !== id); if (group.memberIds.length) fitBoardGroup(group); else items = items.filter(item => item.id !== group.id); } }
+  saveBoard({ boardItems: items, boardLinks: boardLinks().filter(link => link.from !== id && link.to !== id) }); $('idea-editor').close(); renderBoard();
+}
+function boardPointerDown(event) {
+  if (event.button !== 0 && event.pointerType !== 'touch') return;
+  if (event.pointerType === 'touch') { boardPointers.set(event.pointerId, { x: event.clientX, y: event.clientY }); if (boardPointers.size >= 2) { const [a, b] = [...boardPointers.values()],rect=$('ideas-canvas').getBoundingClientRect(),cx=(a.x+b.x)/2-rect.left,cy=(a.y+b.y)/2-rect.top; state.boardPointer = { mode: 'pinch', distance: Math.hypot(a.x - b.x, a.y - b.y), scale: state.boardScale, worldX:(cx-state.boardX)/state.boardScale, worldY:(cy-state.boardY)/state.boardScale }; $('ideas-canvas').setPointerCapture(event.pointerId); event.preventDefault(); return; } }
+  if (event.target.closest('button,a,select,input,textarea')) return;
+  const stroke = event.target.closest('.idea-marker-stroke:not(.idea-marker-draft)');
+  if (stroke && !state.boardDrawMode) { const id=stroke.dataset.boardId; state.boardSelection=event.shiftKey?(state.boardSelection.includes(id)?state.boardSelection.filter(value=>value!==id):[...state.boardSelection,id]):[id]; const item=boardItems().find(entry=>entry.id===id); state.boardPointer={id,mode:'draw-move',startX:event.clientX,startY:event.clientY,points:structuredClone(item?.points||[])}; $('ideas-canvas').setPointerCapture(event.pointerId); renderBoard(); event.preventDefault(); return; }
+  const object = event.target.closest('.idea-object');
+  if (state.boardDrawMode) {
+    const bounds = $('ideas-canvas').getBoundingClientRect(), point = { x: (event.clientX - bounds.left - state.boardX) / state.boardScale, y: (event.clientY - bounds.top - state.boardY) / state.boardScale };
+    state.boardDrawing = { pointerId: event.pointerId, points: [point], path: document.createElementNS('http://www.w3.org/2000/svg', 'path') };
+    state.boardDrawing.path.setAttribute('class', 'idea-marker-stroke idea-marker-draft'); state.boardDrawing.path.setAttribute('stroke', boardPalette[state.boardPenColor]||boardPalette.sun);state.boardDrawing.path.setAttribute('stroke-width',String(state.boardPenWidth)); $('ideas-drawings').append(state.boardDrawing.path); $('ideas-canvas').setPointerCapture(event.pointerId); event.preventDefault(); return;
+  }
+  if (object && (state.boardConnect || state.boardGroupMode)) {
+    const id = object.dataset.boardId;
+    if (state.boardConnect) {
+      if (!state.boardSource) { state.boardSource = id; object.classList.add('idea-selected'); $('board-mode-instructions').textContent = 'Now tap the second item to connect'; }
+      else if (id !== state.boardSource) { saveBoard({ boardLinks: [...boardLinks(), { id: crypto.randomUUID(), from: state.boardSource, to: id }] }); state.boardSource = null; state.boardConnect = false; $('board-connect').setAttribute('aria-pressed', 'false'); $('board-connect').textContent = '↗ Connect two'; $('board-mode-instructions').textContent = 'Connected! Tap Connect two to add another link.'; renderBoard(); }
+    } else {
+      state.boardSelection = state.boardSelection.includes(id) ? state.boardSelection.filter(value => value !== id) : [...state.boardSelection, id];
+      $('board-group').textContent = state.boardSelection.length >= 2 ? `Create group (${state.boardSelection.length})` : `Select items (${state.boardSelection.length})`; renderBoard();
+    }
+    return;
+  }
+  if (object) {
+    const id = object.dataset.boardId;
+    if (event.shiftKey) state.boardSelection = state.boardSelection.includes(id) ? state.boardSelection.filter(value => value !== id) : [...state.boardSelection, id];
+    else if (!state.boardSelection.includes(id)) state.boardSelection = [id];
+    const resize = event.target.closest('.idea-resize'), model = boardItems().find(entry => entry.id === id), selected = boardItems().filter(entry => state.boardSelection.includes(entry.id));
+    const moveItems = model?.type === 'group' ? boardItems().filter(entry => entry.type!=='draw' && (model.memberIds?.includes(entry.id) || state.boardSelection.includes(entry.id))) : selected.filter(entry=>entry.type!=='draw');
+    const drag = { id, mode: resize ? 'resize' : 'move', startX: event.clientX, startY: event.clientY, x: parseFloat(object.style.left), y: parseFloat(object.style.top), width: object.offsetWidth, height: object.offsetHeight, memberPositions: moveItems.map(entry => ({ id: entry.id, x: entry.x, y: entry.y })), longPressTimer: null };
+    if (event.pointerType === 'touch' && !resize) drag.longPressTimer = setTimeout(() => { if (state.boardPointer !== drag) return; drag.mode = 'options'; openIdeaEditor(boardItems().find(item => item.id === drag.id)); }, 520);
+    state.boardPointer = drag; event.preventDefault();
+  }
+  else if (event.target === $('ideas-canvas') || event.target === $('ideas-world') || event.target === $('ideas-objects') || event.target === $('ideas-links')) { state.boardPointer = { mode: event.shiftKey || state.boardTool === 'select' ? 'marquee' : 'pan', startX: event.clientX, startY: event.clientY, x: state.boardX, y: state.boardY }; if (state.boardPointer.mode === 'marquee') { const rect = $('ideas-canvas').getBoundingClientRect(); state.boardPointer.localX = event.clientX - rect.left; state.boardPointer.localY = event.clientY - rect.top; const box = $('board-selection-rect'); box.hidden = false; box.style.left = `${state.boardPointer.localX}px`; box.style.top = `${state.boardPointer.localY}px`; box.style.width = '0'; box.style.height = '0'; } else $('ideas-canvas').classList.add('panning'); }
+  if (state.boardPointer) $('ideas-canvas').setPointerCapture(event.pointerId);
+}
+function boardPointerMove(event) { if (event.pointerType === 'touch' && boardPointers.has(event.pointerId)) boardPointers.set(event.pointerId, { x: event.clientX, y: event.clientY }); if (state.boardDrawing?.pointerId === event.pointerId) { const bounds = $('ideas-canvas').getBoundingClientRect(); state.boardDrawing.points.push({ x: (event.clientX - bounds.left - state.boardX) / state.boardScale, y: (event.clientY - bounds.top - state.boardY) / state.boardScale }); state.boardDrawing.path.setAttribute('d', `M ${state.boardDrawing.points.map(point => `${point.x} ${point.y}`).join(' L ')}`); return; } const drag = state.boardPointer; if (!drag) return; if (drag.mode === 'pinch') { const points = [...boardPointers.values()]; if (points.length >= 2) { const distance = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y),rect=$('ideas-canvas').getBoundingClientRect(),cx=(points[0].x+points[1].x)/2-rect.left,cy=(points[0].y+points[1].y)/2-rect.top; state.boardScale = Math.max(.3, Math.min(2.4, drag.scale * distance / Math.max(drag.distance, 1)));state.boardX=cx-drag.worldX*state.boardScale;state.boardY=cy-drag.worldY*state.boardScale;applyBoardTransform(); } return; } const rawX = event.clientX - drag.startX, rawY = event.clientY - drag.startY; if (drag.longPressTimer && Math.hypot(rawX, rawY) > 9) { clearTimeout(drag.longPressTimer); drag.longPressTimer = null; } if (drag.mode === 'options') return; const dx = rawX / state.boardScale, dy = rawY / state.boardScale; if (drag.mode === 'pan') { state.boardX = drag.x + rawX; state.boardY = drag.y + rawY; applyBoardTransform(); return; } if (drag.mode === 'marquee') { const rect = $('ideas-canvas').getBoundingClientRect(), box = $('board-selection-rect'), left = Math.min(drag.localX, event.clientX - rect.left), top = Math.min(drag.localY, event.clientY - rect.top); box.style.left = `${left}px`; box.style.top = `${top}px`; box.style.width = `${Math.abs(rawX)}px`; box.style.height = `${Math.abs(rawY)}px`; return; } if (drag.mode === 'draw-move') { const item=boardItems().find(entry=>entry.id===drag.id); if(item){item.points=drag.points.map(point=>({x:point.x+dx,y:point.y+dy}));renderBoard();} return; } const item = boardItems().find(entry => entry.id === drag.id); if (!item) return; if (drag.mode === 'resize') { item.width = Math.max(190, drag.width + dx); item.height = Math.max(130, drag.height + dy); } else { for (const position of drag.memberPositions) { const member = boardItems().find(entry => entry.id === position.id); if (member) { member.x = position.x + dx; member.y = position.y + dy; } } if (item.type === 'group') { item.x = drag.x + dx; item.y = drag.y + dy; } for (const member of boardItems().filter(entry => entry.groupId)) { const group = boardItems().find(entry => entry.id === member.groupId); if (group && group.id !== item.id && member.id === item.id) fitBoardGroup(group); } } renderBoard(); }
+function boardPointerUp(event) { if (event?.pointerType === 'touch') boardPointers.delete(event.pointerId); if (state.boardDrawing?.pointerId === event?.pointerId) { const stroke = state.boardDrawing; state.boardDrawing = null; if (stroke.points.length > 1) { saveBoard({ boardItems: [...boardItems(), { id: crypto.randomUUID(), type: 'draw', points: stroke.points, color: state.boardPenColor, strokeWidth:state.boardPenWidth }] }); renderBoard(); } else stroke.path.remove(); return; } if (state.boardPointer?.longPressTimer) clearTimeout(state.boardPointer.longPressTimer); if (state.boardPointer?.mode === 'pinch') { const remaining=[...boardPointers.values()];if(remaining.length){state.boardPointer={mode:'pan',startX:remaining[0].x,startY:remaining[0].y,x:state.boardX,y:state.boardY};}else{state.boardPointer=null;persistBoardViewport();}return; } const drag = state.boardPointer; if (drag?.mode === 'marquee' && event) { const rect = $('ideas-canvas').getBoundingClientRect(), x1 = Math.min(drag.localX, event.clientX - rect.left), x2 = Math.max(drag.localX, event.clientX - rect.left), y1 = Math.min(drag.localY, event.clientY - rect.top), y2 = Math.max(drag.localY, event.clientY - rect.top); state.boardSelection = boardItems().filter(item => { if(item.type==='draw'){const xs=item.points.map(point=>state.boardX+point.x*state.boardScale),ys=item.points.map(point=>state.boardY+point.y*state.boardScale);return Math.max(...xs)>=x1&&Math.min(...xs)<=x2&&Math.max(...ys)>=y1&&Math.min(...ys)<=y2;}const left = state.boardX + item.x * state.boardScale, top = state.boardY + item.y * state.boardScale, right = left + item.width * state.boardScale, bottom = top + item.height * state.boardScale; return right >= x1 && left <= x2 && bottom >= y1 && top <= y2; }).map(item => item.id); $('board-selection-rect').hidden = true; renderBoard(); } else if (drag?.mode === 'pan') {if(boardPointers.size) {const remaining=[...boardPointers.values()][0];state.boardPointer={mode:'pan',startX:remaining.x,startY:remaining.y,x:state.boardX,y:state.boardY};}else{state.boardPointer=null;persistBoardViewport();}} else if (drag?.mode === 'draw-move') saveBoard({boardItems:boardItems()}); else if (drag && drag.mode !== 'options') { if (drag.mode === 'move') { const item = boardItems().find(entry => entry.id === drag.id); if (item && item.type !== 'group' && item.type !== 'draw') { const centerX = item.x + item.width / 2, centerY = item.y + item.height / 2; const group = boardItems().filter(entry => entry.type === 'group' && entry.id !== item.id).find(entry => centerX > entry.x && centerX < entry.x + entry.width && centerY > entry.y && centerY < entry.y + entry.height); if (group) { if (item.type === 'group') { for (const member of boardItems()) if (member.groupId === item.id) delete member.groupId; } else item.groupId = group.id; group.memberIds = [...new Set([...(group.memberIds || []), item.id])]; fitBoardGroup(group); } else if (item.groupId) { const old = boardItems().find(entry => entry.id === item.groupId); if (old) { old.memberIds = (old.memberIds || []).filter(id => id !== item.id); fitBoardGroup(old); } delete item.groupId; } } } saveBoard({ boardItems: boardItems() }); } state.boardPointer = null; $('ideas-canvas').classList.remove('panning'); renderBoard(); }
+function boardZoom(factor) { const canvas=$('ideas-canvas'),x=canvas.clientWidth/2,y=canvas.clientHeight/2,worldX=(x-state.boardX)/state.boardScale,worldY=(y-state.boardY)/state.boardScale;state.boardScale = Math.max(.3, Math.min(2.4, state.boardScale * factor));state.boardX=x-worldX*state.boardScale;state.boardY=y-worldY*state.boardScale;applyBoardTransform(); clearTimeout(state.boardViewportTimer);state.boardViewportTimer=setTimeout(persistBoardViewport,350); }
+for (const button of document.querySelectorAll('[data-board-create]')) button.addEventListener('click', () => createBoardItem(button.dataset.boardCreate));
+$('board-sticker').addEventListener('click', createBoardSticker);
+$('board-draw').addEventListener('click', () => { state.boardDrawMode = !state.boardDrawMode; $('board-draw').setAttribute('aria-pressed', String(state.boardDrawMode));setBoardPenControls(state.boardDrawMode&&state.boardView==='canvas'); $('ideas-canvas').classList.toggle('drawing', state.boardDrawMode); $('board-mode-instructions').textContent = state.boardDrawMode ? 'Draw a highlight or circle · Choose color and width' : 'Arrange freely · Long-press an item for options'; });
+$('idea-form').elements.title.required = false;
+$('idea-form').addEventListener('submit', saveIdeaForm);
+$('idea-delete').addEventListener('click', () => deleteBoardObject(state.boardEditing));
+$('board-connect').addEventListener('click', () => { state.boardConnect = !state.boardConnect; state.boardGroupMode = false; state.boardSelection = []; state.boardSource = null; $('board-group').setAttribute('aria-pressed', 'false'); $('board-group').textContent = '▧ Group items'; $('board-connect').setAttribute('aria-pressed', String(state.boardConnect)); $('board-connect').textContent = state.boardConnect ? 'Cancel connect' : '↗ Connect two'; $('ideas-canvas').classList.toggle('connecting', state.boardConnect); $('board-mode-instructions').textContent = state.boardConnect ? 'Tap one item, then tap another' : 'Drag to arrange · Long-press an item for options'; renderBoard(); });
+$('board-group').addEventListener('click', () => { if (state.boardGroupMode && state.boardSelection.length >= 2) { createBoardGroup(); return; } state.boardGroupMode = !state.boardGroupMode; state.boardConnect = false; state.boardSource = null; $('board-connect').setAttribute('aria-pressed', 'false'); $('board-connect').textContent = '↗ Connect two'; state.boardSelection = []; $('board-group').setAttribute('aria-pressed', String(state.boardGroupMode)); $('board-group').textContent = state.boardGroupMode ? 'Select items (0)' : '▧ Group items'; $('board-mode-instructions').textContent = state.boardGroupMode ? 'Tap each item to include it, then create the group' : 'Drag to arrange · Long-press an item for options'; renderBoard(); });
+$('board-zoom-in').addEventListener('click', () => boardZoom(1.15)); $('board-zoom-out').addEventListener('click', () => boardZoom(.87));
+$('board-fit').addEventListener('click', () => { const items=boardItems().filter(item=>item.type!=='draw'); if(!items.length){state.boardScale=1;state.boardX=0;state.boardY=0;}else{const left=Math.min(...items.map(item=>item.x)),top=Math.min(...items.map(item=>item.y)),right=Math.max(...items.map(item=>item.x+item.width)),bottom=Math.max(...items.map(item=>item.y+item.height)),canvas=$('ideas-canvas'),scale=Math.max(.3,Math.min(1.35,(canvas.clientWidth-100)/(right-left),(canvas.clientHeight-100)/(bottom-top)));state.boardScale=scale;state.boardX=(canvas.clientWidth-(right-left)*scale)/2-left*scale;state.boardY=(canvas.clientHeight-(bottom-top)*scale)/2-top*scale;} applyBoardTransform(); persistBoardViewport(); });
+$('board-canvas-view').addEventListener('click',()=>setBoardView('canvas')); $('board-browse-view').addEventListener('click',()=>setBoardView('browse'));
+for(const id of ['board-search','board-category-filter','board-group-filter','board-browse-source']) $(id).addEventListener('input',async()=>{if(id==='board-browse-source'&&$('board-browse-source').value==='library')state.boardLibrary=await loadPersonalIdeas();renderBoardBrowse();});
+$('board-add-link').addEventListener('click',()=>{createBoardItem('card');formFocusUrl();});
+function formFocusUrl(){requestAnimationFrame(()=>{const field=$('idea-form').elements.url;field.focus({preventScroll:true});});}
+const boardActions=$('.ideas-actions');
+function addBoardAction(id,label,afterId){const button=document.createElement('button');button.type='button';button.id=id;button.textContent=label;$(afterId).after(button);return button;}
+const boardSelect=addBoardAction('board-tool-select','Select','board-browse-view'), boardPan=addBoardAction('board-tool-pan','Pan','board-tool-select'), boardDuplicate=addBoardAction('board-duplicate','Duplicate','board-redo'), boardDelete=addBoardAction('board-delete-selected','Delete','board-duplicate');
+const boardPenColor=document.createElement('select');boardPenColor.id='board-pen-color';boardPenColor.setAttribute('aria-label','Pen color');for(const [value,label] of [['sun','Yellow'],['rose','Coral'],['mint','Mint'],['sky','Blue'],['lilac','Lilac']])boardPenColor.add(new Option(label,value));boardPenColor.value='sun';
+const boardPenWidth=document.createElement('select');boardPenWidth.id='board-pen-width';boardPenWidth.setAttribute('aria-label','Pen width');for(const [value,label] of [['6','Fine'],['12','Medium'],['20','Bold']])boardPenWidth.add(new Option(label,value));boardPenWidth.value='12';
+$('board-draw').after(boardPenColor,boardPenWidth);boardPenColor.hidden=boardPenWidth.hidden=true;boardPenColor.addEventListener('change',()=>state.boardPenColor=boardPenColor.value);boardPenWidth.addEventListener('change',()=>state.boardPenWidth=Number(boardPenWidth.value));
+function positionBoardActions(){const mobile=phoneHeaderLayout.matches;const link=$('board-add-link'),place=document.querySelector('[data-board-create="card"]'),note=document.querySelector('[data-board-create="note"]');link.textContent=mobile?'＋ Link':'＋ Add link';link.setAttribute('aria-label','Add link');if(place){place.textContent=mobile?'＋ Place':'＋ Place';place.setAttribute('aria-label','Add place idea');}if(note){note.textContent=mobile?'＋ Note':'＋ Sticky note';note.setAttribute('aria-label','Add sticky note');}}
+positionBoardActions();phoneHeaderLayout.addEventListener('change',positionBoardActions);
+boardSelect.addEventListener('click',()=>{state.boardTool='select';boardSelect.setAttribute('aria-pressed','true');boardPan.setAttribute('aria-pressed','false');$('board-mode-instructions').textContent='Drag to select · Shift-click to add to selection';});
+boardPan.addEventListener('click',()=>{state.boardTool='pan';boardPan.setAttribute('aria-pressed','true');boardSelect.setAttribute('aria-pressed','false');$('board-mode-instructions').textContent='Drag empty space to pan · Drag items to arrange';});
+$('board-undo').addEventListener('click',undoBoard); $('board-redo').addEventListener('click',redoBoard); boardDuplicate.addEventListener('click',duplicateBoardSelection); boardDelete.addEventListener('click',deleteBoardSelection);
+document.addEventListener('keydown',event=>{if(state.workspaceView!=='ideas'||$('idea-editor').open||event.target.closest('input,textarea,select,[contenteditable="true"]'))return;const mod=event.metaKey||event.ctrlKey;if(mod&&event.key.toLowerCase()==='z'){event.preventDefault();event.shiftKey?redoBoard():undoBoard();return;}if(mod&&event.key.toLowerCase()==='y'){event.preventDefault();redoBoard();return;}if(mod&&event.key.toLowerCase()==='d'){event.preventDefault();duplicateBoardSelection();return;}if((event.key==='Delete'||event.key==='Backspace')&&state.boardSelection.length){event.preventDefault();deleteBoardSelection();}});
+$('ideas-canvas').addEventListener('pointerdown', boardPointerDown); $('ideas-canvas').addEventListener('pointermove', boardPointerMove); $('ideas-canvas').addEventListener('pointerup', boardPointerUp); $('ideas-canvas').addEventListener('pointercancel', boardPointerUp);
+$('ideas-canvas').addEventListener('wheel', event => { event.preventDefault(); const rect=$('ideas-canvas').getBoundingClientRect(), px=event.clientX-rect.left,py=event.clientY-rect.top,worldX=(px-state.boardX)/state.boardScale,worldY=(py-state.boardY)/state.boardScale; boardZoom(Math.exp(-event.deltaY*.001));state.boardX=px-worldX*state.boardScale;state.boardY=py-worldY*state.boardScale;applyBoardTransform();clearTimeout(state.boardViewportTimer);state.boardViewportTimer=setTimeout(persistBoardViewport,350); }, { passive: false });
+for (const button of document.querySelectorAll('[data-workspace-view]')) { const art = button.querySelector('svg'); if (art) paintPlaceArt(art, { itinerary: 'list', explore: 'map', transportation: 'plane' }[button.dataset.workspaceView]); }
 installButtonMotion(document);
 installSurfaceMotion(document);
 function setWorkspaceView(view, { keepMobileMap = false, showPlaces = false, remember = true } = {}) {
@@ -1144,10 +1365,12 @@ function setWorkspaceView(view, { keepMobileMap = false, showPlaces = false, rem
   if (view !== 'itinerary') $('trip-masthead').classList.remove('header-scrolled-away');
   setMobileMap(keepMobileMap || (phoneHeaderLayout.matches && view === 'explore' && !showPlaces));
   $('plan-controls').dataset.view = view;
-  $('plan-panel').hidden = view !== 'itinerary';
+  const desktopIdeaBoard = view === 'ideas' && desktopToolbarLayout.matches && !phoneHeaderLayout.matches;
+  $('plan-panel').hidden = view !== 'itinerary' && !desktopIdeaBoard;
   $('discover-panel').hidden = view !== 'explore';
   $('transport-panel').hidden = view !== 'transportation';
-  $('map-column').hidden = view === 'transportation';
+  $('ideas-panel').hidden = view !== 'ideas';
+  $('map-column').hidden = view === 'transportation' || view === 'ideas';
   const selectedNavigation = view;
   for (const button of document.querySelectorAll('[data-workspace-view]')) button.setAttribute('aria-pressed', String(button.dataset.workspaceView === selectedNavigation));
   if (view !== 'transportation' && state.map) requestAnimationFrame(() => google.maps.event.trigger(state.map, 'resize'));
@@ -1156,9 +1379,9 @@ function setWorkspaceView(view, { keepMobileMap = false, showPlaces = false, rem
   else { clearTimeout(state.mapSearchTimer); state.mapSearchVersion++; state.mapAreaKey = null; }
   if (view === 'explore') scheduleAreaSearch();
   else { clearTimeout(state.nearbyTimer); selection.invalidate(); state.nearbyRequest++; state.nearbyAreaKey = null; $('search-map-area').hidden = true; $('nearby-results').setAttribute('aria-busy', 'false'); }
-  const panel = view === 'explore' ? $('discover-panel') : view === 'transportation' ? $('transport-panel') : $('plan-panel');
+  const panel = view === 'explore' ? $('discover-panel') : view === 'transportation' ? $('transport-panel') : view === 'ideas' ? $('ideas-panel') : $('plan-panel');
   if (previousView && previousView !== view) {
-    const order = ['itinerary', 'explore', 'transportation'];
+    const order = ['itinerary', 'explore', 'transportation', 'ideas'];
     const direction = order.indexOf(view) > order.indexOf(previousView) ? 1 : -1;
     playMotion(panel, [
       { opacity: .55, translate: `${direction * 22}px 0` },
@@ -1166,6 +1389,7 @@ function setWorkspaceView(view, { keepMobileMap = false, showPlaces = false, rem
       { opacity: 1, translate: '0 0' },
     ], { duration: 260 });
   }
+  if (view === 'ideas') renderBoard();
 }
 function setMobileMap(show) {
   const button = $('mobile-map-toggle'), controls = $('plan-controls');
@@ -1176,7 +1400,7 @@ function setMobileMap(show) {
   button.setAttribute('aria-label', show ? (state.workspaceView === 'explore' ? 'Search places' : 'Back to day') : 'Show map');
   button.querySelector('use').setAttribute('href', show ? (state.workspaceView === 'explore' ? '#i-search' : '#i-back') : '#i-map');
   button.querySelector('span').textContent = show ? (state.workspaceView === 'explore' ? 'Search places' : 'Back to day') : 'Map';
-  button.hidden = state.workspaceView === 'transportation' || (phoneHeaderLayout.matches && state.workspaceView === 'itinerary' && !show);
+  button.hidden = state.workspaceView === 'transportation' || state.workspaceView === 'ideas' || (phoneHeaderLayout.matches && state.workspaceView === 'itinerary' && !show);
   if (state.map) requestAnimationFrame(() => google.maps.event.trigger(state.map, 'resize'));
   if (changed && matchMedia(phoneMediaQuery).matches) {
     const surface = show ? $('map-column') : $(state.workspaceView === 'explore' ? 'discover-panel' : state.workspaceView === 'transportation' ? 'transport-panel' : 'plan-panel');
@@ -1275,7 +1499,7 @@ function positionPlanToolbar() {
     planToolbar.hidden = state.workspaceView !== 'itinerary'; phoneHost.hidden = true;
   }
   host.hidden = !dock || state.workspaceView !== 'itinerary';
-  mapToggle.hidden = state.workspaceView === 'transportation' || (phone && state.workspaceView === 'itinerary' && $('plan-controls').dataset.mobileSurface !== 'map');
+  mapToggle.hidden = state.workspaceView === 'transportation' || state.workspaceView === 'ideas' || (phone && state.workspaceView === 'itinerary' && $('plan-controls').dataset.mobileSurface !== 'map');
   for (const button of viewToggle.querySelectorAll('button')) button.title = phone ? '' : button.getAttribute('aria-label');
 }
 
@@ -1300,7 +1524,7 @@ const itinerary = createItineraryUI({ state, commit: commitTrip,
   },
   chooseDates: () => { $('edit-date-picker').close(); openCalendar(); $('save-dates').focus({ preventScroll: true }); },
   focusPlace: place => { animateMap(place, 15); document.querySelectorAll('[data-place-id]').forEach(element => element.classList.toggle('selected', element.dataset.placeId === place.placeId)); }, hydratePlace, decoratePlaceIcon, icon });
-enhanceTimePickers(); enhanceDropdowns(); enhanceDisclosures();
+enhanceTimePickers(); enhanceDropdowns(); enhanceDisclosures();setBoardPenControls(false);
 new MutationObserver(records => {
   for (const record of records) for (const added of record.addedNodes) if (added.nodeType === 1 && !added.closest('.gm-style, .day-transition-snapshot')) enhanceDisclosures(added);
 }).observe(document.body, { childList: true, subtree: true });

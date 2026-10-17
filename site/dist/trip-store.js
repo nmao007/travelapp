@@ -3,6 +3,7 @@ import { fixedItem, datesForTrip } from './itinerary-model.js';
 import { isDate } from './domain.js';
 export const STORAGE_KEY = 'trippilot-site-trips-v1';
 const SESSION_KEY = 'trippilot-site-supabase-session-v1';
+const IDEA_LIBRARY_KEY = `${STORAGE_KEY}:personal-ideas`;
 let configPromise;
 let cloudWrites = Promise.resolve();
 
@@ -133,12 +134,35 @@ function clearPendingIfCurrent(entry, userId) {
 async function writeCloudChange(entry, userId) {
   const session = await ensureSession();
   if (!session || session.user.id !== userId) throw new Error('Your session changed before this trip could sync.');
-  if (entry.type === 'delete') {
+  if (entry.type === 'idea-delete') {
+    await restRequest(`planner_ideas?id=eq.${encodeURIComponent(entry.id)}&user_id=eq.${encodeURIComponent(userId)}`, { method: 'DELETE', headers: { Prefer: 'return=minimal' } });
+  } else if (entry.type === 'idea-upsert') {
+    await restRequest('planner_ideas?on_conflict=user_id,id', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify({ user_id: userId, id: entry.id, idea: entry.idea, updated_at: entry.updated_at }) });
+  } else if (entry.type === 'delete') {
     await restRequest(`planner_trips?id=eq.${encodeURIComponent(entry.id)}&user_id=eq.${encodeURIComponent(userId)}`, { method: 'DELETE', headers: { Prefer: 'return=minimal' } });
   } else {
     await restRequest('planner_trips?on_conflict=user_id,id', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify({ user_id: userId, id: entry.id, trip: entry.trip, updated_at: entry.updated_at }) });
   }
   clearPendingIfCurrent(entry, userId);
+  window.dispatchEvent(new CustomEvent('trippilot-cloud-save-ok', { detail: { id: entry.id } }));
+}
+
+function personalIdeaStorageKey() { const account=currentAccount(); return account?`${IDEA_LIBRARY_KEY}:user:${account.id}`:IDEA_LIBRARY_KEY; }
+function readPersonalIdeas() { try { const value=JSON.parse(localStorage.getItem(personalIdeaStorageKey())||'[]');return Array.isArray(value)?value:[]; } catch { return []; } }
+export async function loadPersonalIdeas() {
+  const account=currentAccount();if(!account)return readPersonalIdeas();
+  try { await flushPendingCloudChanges(account.id);const rows=await restRequest('planner_ideas?select=id,idea&order=updated_at.desc');const ideas=Array.isArray(rows)?rows.map(row=>row.idea).filter(idea=>idea&&typeof idea==='object'):[];localStorage.setItem(personalIdeaStorageKey(),JSON.stringify(ideas));return ideas; }
+  catch { return readPersonalIdeas(); }
+}
+export function savePersonalIdea(idea) {
+  if(!idea||typeof idea.id!=='string')return;
+  const content=Object.fromEntries(['id','type','title','sticker','image','url','sourceUrl','preview','location','category','notes','color'].filter(key=>idea[key]!==undefined).map(key=>[key,idea[key]]));
+  const ideas=[content,...readPersonalIdeas().filter(item=>item.id!==content.id)];localStorage.setItem(personalIdeaStorageKey(),JSON.stringify(ideas));
+  const account=currentAccount();if(account){const entry={type:'idea-upsert',id:content.id,idea:content,updated_at:new Date().toISOString(),version:crypto.randomUUID()};enqueuePending(entry,account.id);queueCloudWrite(()=>writeCloudChange(entry,account.id));}
+}
+export function deletePersonalIdea(id) {
+  localStorage.setItem(personalIdeaStorageKey(),JSON.stringify(readPersonalIdeas().filter(idea=>idea.id!==id)));
+  const account=currentAccount();if(account){const entry={type:'idea-delete',id,version:crypto.randomUUID()};enqueuePending(entry,account.id);queueCloudWrite(()=>writeCloudChange(entry,account.id));}
 }
 
 async function flushPendingCloudChanges(userId) {

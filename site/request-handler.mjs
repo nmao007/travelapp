@@ -2,6 +2,8 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, extname } from 'node:path';
 import { createRequire } from 'node:module';
+import { lookup as dnsLookup } from 'node:dns/promises';
+import { isIP } from 'node:net';
 import { createRouteService } from './route-service.mjs';
 import { createFlightService } from './flight-service.mjs';
 import { matchingPhotoPage } from './wiki-photo-match.mjs';
@@ -11,12 +13,42 @@ const root = dirname(fileURLToPath(import.meta.url));
 const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml' };
 const wikiHeaders = { 'user-agent': 'TripPilotLocal/0.1 (local travel planning prototype)' };
 const photoCache = new Map();
+const ideaPreviewCache = new Map();
 const lookupFlight = createFlightService();
 const lookupRoute = createRouteService();
 const require = createRequire(import.meta.url);
 let zoneLookup;
 try { zoneLookup = require('geo-tz').find; } catch { /* Time zones remain editable without the optional lookup. */ }
 const travelData = createTravelDataService({ timezoneForPoint: (lat, lng) => zoneLookup?.(lat, lng)?.[0] });
+
+function publicAddress(address) {
+  if (address.family === 4) { const parts=address.address.split('.').map(Number),[a,b]=parts; return !(a===0||a===10||a===127||a>=224||(a===169&&b===254)||(a===172&&b>=16&&b<=31)||(a===192&&b===168)); }
+  const ip=address.address.toLowerCase(); return !(ip==='::1'||ip==='::'||ip.startsWith('fc')||ip.startsWith('fd')||ip.startsWith('fe8')||ip.startsWith('fe9')||ip.startsWith('fea')||ip.startsWith('feb')||ip.startsWith('::ffff:'));
+}
+async function safePreviewUrl(value) {
+  let url; try { url=new URL(value); } catch { throw Object.assign(new Error('Enter a valid link.'),{status:400}); }
+  if(url.protocol!=='https:'||url.username||url.password||(url.port&&url.port!=='443')||url.hostname==='localhost'||url.hostname.endsWith('.localhost')) throw Object.assign(new Error('Use a public HTTPS link.'),{status:400});
+  const family=isIP(url.hostname); let addresses=[];
+  try { addresses=family?[{address:url.hostname,family}]:await dnsLookup(url.hostname,{all:true,verbatim:true}); } catch { throw Object.assign(new Error('This link could not be reached.'),{status:400}); }
+  if(!addresses.length||addresses.some(address=>!publicAddress(address))) throw Object.assign(new Error('This link is not available for preview.'),{status:400});
+  return url;
+}
+async function fetchIdeaPreview(rawUrl) {
+  let url=await safePreviewUrl(rawUrl);
+  for(let redirects=0;redirects<=3;redirects++){
+    const response=await fetch(url,{headers:{'user-agent':'TripPilotPreview/1.0 (+https://trippilot.app)','accept':'text/html,application/xhtml+xml'},redirect:'manual',signal:AbortSignal.timeout(5000)});
+    if(response.status>=300&&response.status<400){const location=response.headers.get('location');if(!location||redirects===3)break;url=await safePreviewUrl(new URL(location,url).href);continue;}
+    if(!response.ok||!response.headers.get('content-type')?.includes('text/html'))return null;
+    const reader=response.body?.getReader();if(!reader)return null;const chunks=[];let size=0;while(size<512000){const {done,value}=await reader.read();if(done)break;chunks.push(value);size+=value.length;}reader.cancel().catch(()=>{});
+    const html=new TextDecoder().decode(Buffer.concat(chunks.map(chunk=>Buffer.from(chunk))));
+    const extract=(patterns)=>{for(const pattern of patterns){const match=pattern.exec(html);if(match?.[1])return match[1].replace(/&amp;/g,'&').replace(/&quot;/g,'"').replace(/&#39;|&apos;/g,"'").replace(/&lt;/g,'<').replace(/&gt;/g,'>').trim();}return '';};
+    const title=extract([/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)/i,/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title/i,/<title[^>]*>([^<]+)/i]).slice(0,180);
+    const image=extract([/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)/i,/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image/i,/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)/i]);
+    let imageUrl='';try{if(image){const parsed=new URL(image,url);if(parsed.protocol==='https:'){await safePreviewUrl(parsed.href);imageUrl=parsed.href;}}}catch{}
+    return {title,image:imageUrl,site:url.hostname};
+  }
+  return null;
+}
 
 function distanceKm(a, b) {
   const radians = value => value * Math.PI / 180;
@@ -106,6 +138,15 @@ async function localConfig() {
 
 export async function handleRequest(request, response) {
   const pathname = new URL(request.url || '/', 'http://localhost').pathname;
+  if(pathname==='/api/idea-preview'){
+    try{
+      if(request.method!=='GET')throw Object.assign(new Error('Use GET to retrieve a link preview.'),{status:405});
+      const raw=new URL(request.url,'http://localhost').searchParams.get('url')||'';if(raw.length>2048)throw Object.assign(new Error('This link is too long.'),{status:400});
+      const key=raw.trim();let cached=ideaPreviewCache.get(key);if(!cached||cached.expires<Date.now()){const promise=fetchIdeaPreview(key).catch(()=>null);cached={promise,expires:Date.now()+30_000};ideaPreviewCache.set(key,cached);promise.then(()=>{cached.expires=Date.now()+10*60_000;});if(ideaPreviewCache.size>300)ideaPreviewCache.delete(ideaPreviewCache.keys().next().value);}
+      const preview=await cached.promise;response.writeHead(200,{'content-type':'application/json; charset=utf-8','cache-control':'public, max-age=300'});response.end(JSON.stringify({preview}));
+    }catch(error){response.writeHead(error.status||502,{'content-type':'application/json; charset=utf-8','cache-control':'no-store'});response.end(JSON.stringify({error:error.status?error.message:'Preview unavailable.'}));}
+    return;
+  }
   if (pathname === '/api/weather' || pathname === '/api/exchange-rate') {
     try {
       if (request.method !== 'GET') throw Object.assign(new Error('Use GET for travel data.'), { status: 405 });
