@@ -1,7 +1,7 @@
 import { placeArt } from './place-art.js';
 import { phoneMediaQuery } from './phone-devices.js';
 import { tourDraft, tourSummary, tourEndLabel } from './tour-model.js';
-import { playMotion, morphFrom, morphFrames, revealSequence, celebratePlacement } from './motion.js';
+import { playMotion, closeDialogSmooth, morphFrom, morphFrames, revealSequence, celebratePlacement } from './motion.js';
 import { flightDayBlock } from './flight-window.js';
 import { datesForTrip, monthsForTrip, calendarDisplayCells, eventsForDay, fixedItem, mappedPlace, makePlan, makeTransport, upsertTransport, reorderPlan, stepPlan, removeItineraryEvent, restoreItineraryEvent, duplicatePlan } from './itinerary-model.js';
 import { destinationForDay } from './place-model.js';
@@ -112,7 +112,7 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
       persisted = true; editingPlan = item; draft = { ...item }; onDayChange?.(item.day);
       $('plan-error').textContent = ''; renderPlanTools();
       if (close) {
-        $('plan-dialog').close();
+        closeDialogSmooth($('plan-dialog'));
         if (creating) {
           const row = [...$('day-content').querySelectorAll('[data-item-id]')].find(element => element.dataset.itemId === item.id);
           row?.scrollIntoView({ block: 'nearest' }); celebratePlacement(row);
@@ -156,7 +156,7 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
         if (!duplicatingPlan) { savePlanPatch({ day }); return; }
         try {
           const result = duplicatePlan(state.trip, editingPlan.id, day);
-          commit(result.trip); duplicatingPlan = false; $('plan-dialog').close(); chooseDay(day, 'day');
+          commit(result.trip); duplicatingPlan = false; closeDialogSmooth($('plan-dialog')); chooseDay(day, 'day');
           const row = [...$('day-content').querySelectorAll('[data-item-id]')].find(element => element.dataset.itemId === result.copy.id);
           row?.scrollIntoView({ block: 'nearest' }); row?.querySelector('.place-copy')?.focus({ preventScroll: true });
           playMotion(row, [{ opacity: .4, transform: 'translateX(-10px)' }, { opacity: 1, transform: 'translateX(0)' }], { duration: 280 });
@@ -736,8 +736,8 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
   $('explore-day').addEventListener('change', event => { chooseDay(event.target.value); });
   for (const button of document.querySelectorAll('[data-plan-mode]')) button.addEventListener('click', () => { if (matchMedia(phoneMediaQuery).matches) $('trip-menu').hidden = true; chooseDay(state.day === 'ideas' ? datesForTrip(state.trip)[0] || 'ideas' : state.day, button.dataset.planMode); });
   $('back-to-plan').addEventListener('click', () => { if (!closeMobileMap?.()) backToOverview(); });
-  for (const button of document.querySelectorAll('[data-close-dialog]')) button.addEventListener('click', () => button.closest('dialog').close());
-  for (const dialog of document.querySelectorAll('.editor-dialog')) dialog.addEventListener('click', event => { if (event.target === dialog) { const rect = dialog.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) dialog.close(); } });
+  for (const button of document.querySelectorAll('[data-close-dialog]')) button.addEventListener('click', () => closeDialogSmooth(button.closest('dialog')));
+  for (const dialog of document.querySelectorAll('.editor-dialog')) dialog.addEventListener('click', event => { if (event.target === dialog) { const rect = dialog.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) closeDialogSmooth(dialog); } });
   $('plan-done').addEventListener('click', () => savePlanPatch({}, true));
   $('phone-plan-day').addEventListener('change', event => { const button = [...$('plan-day-chips').querySelectorAll('button')].find(button => button.dataset.day === event.target.value); button?.click(); });
   $('phone-plan-more').addEventListener('click', () => { const open = $('plan-dialog').dataset.moreOptions !== 'true'; $('plan-dialog').dataset.moreOptions = String(open); $('phone-plan-more').setAttribute('aria-expanded', String(open)); });
@@ -763,14 +763,14 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
   }
   $('transport-form').addEventListener('submit', event => {
     event.preventDefault();
-    try { const segment = makeTransport(state.trip, Object.fromEntries(new FormData(event.currentTarget)), editingTransport?.id); if (sameFlightDetails(segment, selectedFlight)) segment.flightData = selectedFlight; commit(upsertTransport(state.trip, segment)); chooseDay(segment.departure_date); $('transport-dialog').close(); }
+    try { const segment = makeTransport(state.trip, Object.fromEntries(new FormData(event.currentTarget)), editingTransport?.id); if (sameFlightDetails(segment, selectedFlight)) segment.flightData = selectedFlight; commit(upsertTransport(state.trip, segment)); chooseDay(segment.departure_date); closeDialogSmooth($('transport-dialog')); }
     catch (error) { $('transport-error').textContent = error.message; }
   });
   for (const [id, collection, current] of [['delete-plan', 'items', () => editingPlan], ['delete-transport', 'transport', () => editingTransport]]) {
     $(id).addEventListener('click', event => {
       try {
         const removed = removeItineraryEvent(state.trip, collection, current()?.id);
-        commit(removed.trip); event.currentTarget.closest('dialog').close(); showRemoval(removed.removal);
+        commit(removed.trip); closeDialogSmooth(event.currentTarget.closest('dialog')); showRemoval(removed.removal);
       } catch (error) { $(id === 'delete-plan' ? 'plan-error' : 'transport-error').textContent = error.message; }
     });
   }

@@ -24,6 +24,8 @@ export function closeDialogSmooth(dialog) {
   let resolve;
   const promise = new Promise(done => { resolve = done; });
   const entry = { promise }; closingDialogs.set(dialog, entry);
+  const current = typeof getComputedStyle === 'function' ? getComputedStyle(dialog) : null;
+  const from = { opacity: current?.opacity || 1, transform: current?.transform || 'translateY(0)' };
   dialog.dataset.closing = 'true';
   const externallyClosed = () => finish(false);
   function finish(close) {
@@ -34,7 +36,7 @@ export function closeDialogSmooth(dialog) {
   }
   dialog.addEventListener('close', externallyClosed);
   const animation = playMotion(dialog, [
-    { opacity: 1, transform: 'translateY(0)' },
+    from,
     { opacity: 0, transform: 'translateY(18px)' },
   ], { duration: 160, easing: 'cubic-bezier(.4,0,1,1)', fill: 'forwards' });
   if (animation) animation.finished.then(() => finish(true)).catch(() => finish(true));
@@ -124,6 +126,11 @@ export function celebratePlacement(row) {
 // Opening a menu reveals its choices; replacing search results reveals new rows.
 export function installSurfaceMotion(root) {
   const scheduled = new WeakMap();
+  const dismiss = event => {
+    if (event.defaultPrevented || !event.target.matches?.('dialog')) return;
+    event.preventDefault(); closeDialogSmooth(event.target);
+  };
+  root.addEventListener?.('cancel', dismiss, true);
   const observer = new MutationObserver(records => {
     for (const target of new Set(records.map(record => record.target))) {
       const previous = scheduled.get(target);
@@ -131,10 +138,10 @@ export function installSurfaceMotion(root) {
       scheduled.set(target, requestAnimationFrame(() => {
         scheduled.delete(target);
         if (!target.isConnected || target.hidden || !target.getClientRects().length) return;
-        if (target.matches('dialog') && !target.open) return;
+        if (target.matches('dialog') && (!target.open || target.dataset?.closing === 'true')) return;
         if (target.matches('dialog')) {
-          const body = target.querySelector('.phone-sheet-body,.calendar-scroll-body');
-          if (body) revealSequence([...body.children].filter(child => !child.hidden).slice(0, 5), { step: 18 });
+          // The entire surface is one layer, so its text and background share a clock.
+          playMotion(target, [{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 180 });
         } else {
           playMotion(target, [{ opacity: .2, translate: '0 -5px' }, { opacity: 1, translate: '0 0' }], { duration: 180 });
           revealSequence([...target.children].filter(child => !child.hidden).slice(0, 6), { step: 18 });
@@ -145,7 +152,7 @@ export function installSurfaceMotion(root) {
   for (const surface of root.querySelectorAll('dialog,.trip-menu,.suggestions,#flight-results')) {
     observer.observe(surface, { attributes: true, attributeFilter: ['hidden', 'open'], childList: !surface.matches('dialog') });
   }
-  return () => observer.disconnect();
+  return () => { observer.disconnect(); root.removeEventListener?.('cancel', dismiss, true); };
 }
 
 // Pointer streams can arrive faster than the display. Paint only the newest one.
