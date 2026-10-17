@@ -1,6 +1,7 @@
 import { assertFlightAvailability } from './flight-window.js';
 import { fixedItem, datesForTrip } from './itinerary-model.js';
 import { isDate } from './domain.js';
+import { persistableBoardTrip, preferLocalBoard } from './board-model.js';
 export const STORAGE_KEY = 'trippilot-site-trips-v1';
 const SESSION_KEY = 'trippilot-site-supabase-session-v1';
 const IDEA_LIBRARY_KEY = `${STORAGE_KEY}:personal-ideas`;
@@ -101,7 +102,11 @@ export async function loadCloudTrips() {
   if (!session) return [];
   await flushPendingCloudChanges(session.user.id);
   const rows = await restRequest('planner_trips?select=id,trip&order=updated_at.desc');
-  const trips = Array.isArray(rows) ? rows.map(row => row.trip).filter(isTrip).map(trip => ({ ...trip, stops: tripStops(trip), items: Array.isArray(trip.items) ? trip.items : [] })) : [];
+  const localById = new Map(readTrips().map(trip => [trip.id, trip]));
+  const trips = Array.isArray(rows) ? rows.map(row => row.trip).filter(isTrip).map(trip => {
+    const merged = preferLocalBoard(localById.get(trip.id), trip);
+    return persistableBoardTrip({ ...merged, stops: tripStops(merged), items: Array.isArray(merged.items) ? merged.items : [] });
+  }) : [];
   localStorage.setItem(tripStorageKey(), JSON.stringify(trips));
   return trips;
 }
@@ -279,17 +284,18 @@ export function readTrips(storage = localStorage) {
   try {
     const key = typeof localStorage !== 'undefined' && storage === localStorage ? tripStorageKey() : STORAGE_KEY;
     const value = JSON.parse(storage.getItem(key) || '[]');
-    return Array.isArray(value) ? value.filter(isTrip).map(trip => ({ ...trip, stops: tripStops(trip), items: Array.isArray(trip.items) ? trip.items : [] })) : [];
+    return Array.isArray(value) ? value.filter(isTrip).map(trip => persistableBoardTrip({ ...trip, stops: tripStops(trip), items: Array.isArray(trip.items) ? trip.items : [] })) : [];
   } catch { return []; }
 }
 
 export function saveTrip(trip, storage = localStorage) {
   if (!isTrip(trip)) throw new Error('Choose a destination first.');
   const trips = readTrips(storage);
-  const next = [{ ...trip, stops: tripStops(trip), items: Array.isArray(trip.items) ? trip.items : [] }, ...trips.filter(item => item.id !== trip.id)];
+  const saved = persistableBoardTrip({ ...trip, stops: tripStops(trip), items: Array.isArray(trip.items) ? trip.items : [] });
+  const next = [saved, ...trips.filter(item => item.id !== trip.id)];
   const isBrowserStorage = typeof localStorage !== 'undefined' && storage === localStorage;
   storage.setItem(isBrowserStorage ? tripStorageKey() : STORAGE_KEY, JSON.stringify(next));
-  if (isBrowserStorage) saveTripToCloud(trip);
+  if (isBrowserStorage) saveTripToCloud(saved);
   return next;
 }
 

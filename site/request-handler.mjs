@@ -268,6 +268,7 @@ export async function handleRequest(request, response) {
   assets.set('/place-targets.js', 'place-targets.js');
   assets.set('/travel-essentials.js', 'travel-essentials.js');
   assets.set('/country-currencies.js', 'country-currencies.js');
+  assets.set('/board-model.js', 'board-model.js');
   const asset = assets.get(pathname);
   if (!asset) { response.writeHead(404); response.end('Not found'); return; }
   try {

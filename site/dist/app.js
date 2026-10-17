@@ -10,6 +10,7 @@ import { isTourOperator } from './tour-model.js';
 import { playMotion, closeDialogSmooth, revealSequence, reducedMotion, installButtonMotion, installSurfaceMotion } from './motion.js';
 import { createTripBanner } from './trip-banner.js';
 import { readTrips, saveTrip, deleteTrip, addPlace, removePlace, movePlace, addStop, moveStop, removeStop, tripStops, stopSchedule, datesForStop, setStopDates, tripTitle, renameTrip, currentAccount, createAccount, signIn, signOut, restoreSession, loadCloudTrips, loadPersonalIdeas, savePersonalIdea, deletePersonalIdea } from './trip-store.js';
+import { isPlaced, unplacedItems, persistableBoardTrip, withBoardChange, createBoardObject, placeExistingIdea, assignToFrame, movePlacedItems, suggestedFrame, readBoardViewport, writeBoardViewport, boardSnapshotData, libraryRecord, defaultSize, FRAME_TYPE, BOARD_SCALE_MIN, BOARD_SCALE_MAX } from './board-model.js';
 import { calendarMonth, presetRange } from './date-range.js';
 import { datesForTrip, eventsForDay, mappedPlace, makePlan } from './itinerary-model.js';
 import { createDayRoutes } from './day-routes.js';
@@ -252,7 +253,7 @@ function showWorkspace(place, trip = null) {
   $('trip-title-input').hidden = true; $('edit-trip-title').hidden = false;
   $('place-dialog').close(); $('plan-dialog').close(); $('transport-dialog').close();
   state.selected = place; state.trip = trip ? scheduleUnassigned(trip) : trip;
-  const savedBoardView = state.trip?.boardViewport || {}; state.boardX = Number(savedBoardView.x) || 0; state.boardY = Number(savedBoardView.y) || 0; state.boardScale = Number(savedBoardView.scale) || 1; state.boardHistory = []; state.boardFuture = []; state.boardSnapshot = state.trip ? boardSnapshot() : null; state.boardView = 'canvas'; setBoardView('canvas');
+  const savedBoardView = state.trip ? readBoardViewport(state.trip.id, localStorage) : { x: 0, y: 0, scale: 1 }; state.boardX = savedBoardView.x; state.boardY = savedBoardView.y; state.boardScale = savedBoardView.scale; state.boardHistory = []; state.boardFuture = []; if (state.trip) state.trip = persistableBoardTrip(state.trip); state.boardSnapshot = state.trip ? boardSnapshot() : null; state.boardView = 'canvas'; state.boardInboxOpen = false; setBoardView('canvas');
   state.infoWindow?.close(); state.activePlaceId = null; state.nearbyAreaKey = null; clearTimeout(state.nearbyTimer); $('search-map-area').hidden = true;
   if (trip && state.trip !== trip) { saveTrip(state.trip); trip = state.trip; }
   state.photoRequest++;
@@ -1136,25 +1137,40 @@ function commitTrip(next) {
 const boardPalette = { sun: '#fff0b8', rose: '#ffd9d0', mint: '#d9f3e4', sky: '#dcecff', lilac: '#eee2ff' };
 function boardItems() { return Array.isArray(state.trip?.boardItems) ? state.trip.boardItems : []; }
 function boardLinks() { return Array.isArray(state.trip?.boardLinks) ? state.trip.boardLinks : []; }
-function boardSnapshot() { return JSON.stringify({ boardItems: boardItems(), boardLinks: boardLinks(), boardViewport: state.trip?.boardViewport || { x: state.boardX, y: state.boardY, scale: state.boardScale } }); }
-function saveBoard(next, { history = true } = {}) {
+function boardSnapshot() { return boardSnapshotData(state.trip); }
+function phoneBoard() { return phoneHeaderLayout.matches; }
+function saveBoard(next, { history = true, debounce = false } = {}) {
+  if (!state.trip) return;
   const before = state.boardSnapshot ?? boardSnapshot();
-  state.trip = { ...state.trip, ...next, updatedAt: new Date().toISOString() };
+  state.trip = withBoardChange(state.trip, next);
   if (history) { const after = boardSnapshot(); if (before !== after) { state.boardHistory.push(before); if (state.boardHistory.length > 50) state.boardHistory.shift(); state.boardFuture = []; } }
-  state.boardSnapshot = boardSnapshot(); saveTrip(state.trip); updateRecent();
-  $('board-save-state').textContent = currentAccount() ? 'Saved on this device · syncing…' : 'Saved on this device';
-  clearTimeout(state.boardSaveTimer); state.boardSaveTimer = setTimeout(() => { if (!currentAccount()) $('board-save-state').textContent = 'Saved on this device'; }, 450);
+  state.boardSnapshot = boardSnapshot();
+  $('board-save-state').textContent = currentAccount() ? 'Saved on this device · syncing…' : 'Saving…';
+  const persist = () => {
+    try {
+      saveTrip(state.trip); updateRecent();
+      $('board-save-state').textContent = currentAccount() ? 'Saved on this device · syncing…' : 'Saved on this device';
+      if (!currentAccount()) { clearTimeout(state.boardSaveTimer); state.boardSaveTimer = setTimeout(() => { $('board-save-state').textContent = 'Saved on this device'; }, 450); }
+    } catch {
+      $('board-save-state').textContent = 'Could not save. Your edits are still on this device.';
+      status('trip-status', 'The idea board could not be saved. Your latest change is still on screen.');
+    }
+  };
+  clearTimeout(state.boardSaveTimer);
+  if (debounce) state.boardSaveTimer = setTimeout(persist, 180);
+  else persist();
 }
 function restoreBoardSnapshot(snapshot) {
   if (!state.trip || !snapshot) return;
-  const value = JSON.parse(snapshot); state.trip = { ...state.trip, boardItems: value.boardItems, boardLinks: value.boardLinks, boardViewport: value.boardViewport };
-  const viewport = value.boardViewport || {}; state.boardX = Number(viewport.x) || 0; state.boardY = Number(viewport.y) || 0; state.boardScale = Number(viewport.scale) || 1;
+  const value = JSON.parse(snapshot); state.trip = persistableBoardTrip({ ...state.trip, boardItems: value.boardItems, boardLinks: value.boardLinks });
   saveTrip(state.trip); state.boardSnapshot = boardSnapshot(); updateRecent(); renderBoard();
 }
 function undoBoard() { const previous = state.boardHistory.pop(); if (!previous) return; state.boardFuture.push(boardSnapshot()); restoreBoardSnapshot(previous); }
 function redoBoard() { const next = state.boardFuture.pop(); if (!next) return; state.boardHistory.push(boardSnapshot()); restoreBoardSnapshot(next); }
-function persistBoardViewport() { if (!state.trip) return; saveBoard({ boardViewport: { x: state.boardX, y: state.boardY, scale: state.boardScale } }, { history: false }); }
+function persistBoardViewport() { if (!state.trip) return; writeBoardViewport(state.trip.id, { x: state.boardX, y: state.boardY, scale: state.boardScale }, localStorage); }
 function applyBoardTransform() { $('ideas-world').style.transform = `translate(${state.boardX}px,${state.boardY}px) scale(${state.boardScale})`; }
+function canvasMetrics() { return { viewport: { x: state.boardX, y: state.boardY, scale: state.boardScale }, canvas: { width: $('ideas-canvas').clientWidth, height: $('ideas-canvas').clientHeight } }; }
+function worldPoint(event) { const bounds = $('ideas-canvas').getBoundingClientRect(); return { x: (event.clientX - bounds.left - state.boardX) / state.boardScale, y: (event.clientY - bounds.top - state.boardY) / state.boardScale }; }
 function setBoardView(view) {
   state.boardView = view; const browse = view === 'browse';
   $('board-browse').hidden = !browse; $('ideas-canvas').hidden = browse;
