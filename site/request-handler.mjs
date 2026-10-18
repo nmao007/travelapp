@@ -271,6 +271,7 @@ export async function handleRequest(request, response) {
   assets.set('/board-model.js', 'board-model.js');
   assets.set('/ideas-board.js', 'ideas-board.js');
   assets.set('/ideas-board.css', 'ideas-board.css');
+  assets.set('/desktop.css', 'desktop.css');
   const asset = assets.get(pathname);
   if (!asset) { response.writeHead(404); response.end('Not found'); return; }
   try {

@@ -75,6 +75,13 @@
     #phone-model-menu{border-radius:16px}#phone-model-menu button{border-radius:10px}
     body:has(.stage.phone){background:#f5f5f3}
 
+    /* Desktop preview control belongs with the app chrome, clear of map zoom
+       controls and provider attribution in the map's bottom-right corner. */
+    @media(min-width:901px) and (min-height:501px), (min-width:981px){
+      body:has(.stage:not(.phone)) #switch{top:6px;bottom:auto;left:232px;right:auto;width:32px;height:32px;min-width:32px;min-height:32px;border-radius:11px;box-shadow:none}
+      body:has(.stage:not(.phone)) #switch svg{width:18px;height:18px}
+    }
+
     @supports not (corner-shape:squircle){
       @supports (clip-path:shape(from 0 0,line to 100% 0,line to 100% 100%,close)){
         .stage.phone .device{--frame-corner:var(--phone-body-corner,105px)}

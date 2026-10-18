@@ -40,7 +40,7 @@ export function createTravelEssentials({ state, getDestination, icon }) {
     $('currency-result').textContent = amount === null ? '—' : new Intl.NumberFormat(navigator.language, { style: 'currency', currency: currentRate.quote, maximumFractionDigits: 2 }).format(amount);
   }
   async function loadRate(force = false) {
-    if (!phone.matches || state.workspaceView !== 'transportation') return;
+    if (state.workspaceView !== 'transportation') return;
     const version = ++rateVersion, base = $('currency-base').value, quote = $('currency-quote').value, pair = `${base}:${quote}`;
     currentRate = null; convert(); $('currency-rate').textContent = 'Loading rate…'; $('currency-date').textContent = '';
     let entry = rates.get(pair);
@@ -58,7 +58,7 @@ export function createTravelEssentials({ state, getDestination, icon }) {
   $('currency-amount').addEventListener('input', convert);
   for (const id of ['currency-base', 'currency-quote']) $(id).addEventListener('change', () => { currencyChosen = true; loadRate(); });
   function paint() {
-    const visible = phone.matches && state.workspaceView === 'transportation'; $('travel-essentials').hidden = !visible;
+    const visible = state.workspaceView === 'transportation'; $('travel-essentials').hidden = !visible;
     if (!visible) return;
     const card = $('weather-card'); card.replaceChildren();
     const heading = document.createElement('h3'); heading.textContent = selected?.name || 'Destination'; card.append(heading);
@@ -80,7 +80,7 @@ export function createTravelEssentials({ state, getDestination, icon }) {
     const source = document.createElement('a'); source.className = 'data-source'; source.href = 'https://open-meteo.com/'; source.target = '_blank'; source.rel = 'noopener noreferrer'; source.textContent = 'Open-Meteo · city forecast'; card.append(source);
   }
   function render() {
-    if (!state.trip || !phone.matches || state.workspaceView !== 'transportation') { $('travel-essentials').hidden = true; return; }
+    if (!state.trip || state.workspaceView !== 'transportation') { $('travel-essentials').hidden = true; return; }
     const destination = getDestination();
     if (!Number.isFinite(destination?.latitude) || !Number.isFinite(destination?.longitude)) { current = null; selected = destination; key = null; paint(); return; }
     selected = destination;

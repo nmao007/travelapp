@@ -189,3 +189,17 @@ test('Escape uses the complete dialog exit and removes its shared listener on te
     teardown(); assert.equal(removed, 1);
   } finally { globalThis.matchMedia = previous; if (previousObserver === undefined) delete globalThis.MutationObserver; else globalThis.MutationObserver = previousObserver; }
 });
+
+
+test('list entrances keep text at its final size and cap the stagger for long lists', () => {
+  const previous = globalThis.matchMedia; globalThis.matchMedia = () => ({ matches: false });
+  try {
+    const calls = [];
+    const elements = Array.from({ length: 30 }, () => ({ animate(frames, options) { calls.push({ frames, options }); return { finished: Promise.resolve(), cancel() {} }; } }));
+    revealSequence(elements, { step: 25 });
+    assert.equal(calls.length, 30);
+    assert.ok(calls.every(({ frames }) => frames.length === 2 && frames.every(frame => !/scale/.test(frame.transform))));
+    assert.ok(calls.every(({ options }) => options.delay <= 60 && options.duration <= 240));
+    assert.deepEqual(calls[0].frames.at(-1), { opacity: 1, transform: 'none' });
+  } finally { globalThis.matchMedia = previous; }
+});

@@ -10,7 +10,7 @@ test('Vercel handler serves preview, app, config, and validates API requests', a
     return { status, async text() { return body; }, async json() { return JSON.parse(body); } };
   }
   const base = '';
-    for (const path of ['/', '/app', '/app.js', '/phone-devices.js', '/plan-navigation.js', '/trip-dates.js', '/travel-essentials.js', '/country-currencies.js', '/place-art.js', '/place-targets.js', '/trip-guide.js', '/flight-window.js', '/wallet-model.js', '/wallet-ui.js', '/wallet-export.js', '/expense-rates.js', '/board-model.js', '/ideas-board.js', '/ideas-board.css', '/phone.css']) {
+    for (const path of ['/', '/app', '/app.js', '/phone-devices.js', '/plan-navigation.js', '/trip-dates.js', '/travel-essentials.js', '/country-currencies.js', '/place-art.js', '/place-targets.js', '/trip-guide.js', '/flight-window.js', '/wallet-model.js', '/wallet-ui.js', '/wallet-export.js', '/expense-rates.js', '/board-model.js', '/ideas-board.js', '/ideas-board.css', '/desktop.css', '/phone.css']) {
       const response = await fetch(base + path);
       assert.equal(response.status, 200, path);
       assert.ok((await response.text()).length > 100);

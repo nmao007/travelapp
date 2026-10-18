@@ -14,3 +14,25 @@ export function createPlanNavigation() {
     reset(id) { trip = id; frames = []; },
   };
 }
+
+// Save coordinates, not DOM nodes: updates may replace a list while it is away.
+export function createWorkspacePositions(targets) {
+  let scope = null;
+  const positions = new Map();
+  const sync = id => { if (scope !== id) { scope = id; positions.clear(); } };
+  return {
+    save(id, view) {
+      sync(id);
+      positions.set(view, targets(view).filter(Boolean).map(node => ({ id: node.id, top: node.scrollTop, left: node.scrollLeft })));
+    },
+    restore(id, view) {
+      sync(id);
+      const saved = new Map((positions.get(view) || []).map(position => [position.id, position]));
+      for (const node of targets(view).filter(Boolean)) {
+        const position = saved.get(node.id);
+        if (position) { node.scrollTop = position.top; node.scrollLeft = position.left; }
+      }
+    },
+    reset() { scope = null; positions.clear(); },
+  };
+}

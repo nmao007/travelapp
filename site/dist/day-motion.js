@@ -1,4 +1,4 @@
-import { playMotion, stopMotion, reducedMotion, revealSequence } from './motion.js';
+import { playMotion, stopMotion, reducedMotion } from './motion.js';
 
 // Snapshot only the departing day, keeping the map and scroll containers stable.
 export function createDayMotion(content, host) {
@@ -40,18 +40,17 @@ export function createDayMotion(content, host) {
       return () => {
         if (snapshot) {
           outgoing = snapshot; host.append(snapshot);
-          const animation = playMotion(snapshot, [{ translate: '0 0', opacity: snapshot.style.opacity }, { translate: `${-direction * 24}px 0`, opacity: 0 }], { duration: 160 });
+          const animation = playMotion(snapshot, [{ translate: '0 0', opacity: snapshot.style.opacity }, { translate: `${-direction * 16}px 0`, opacity: 0 }], { duration: 220 });
           const remove = () => { snapshot.remove(); if (outgoing === snapshot) outgoing = null; };
           if (animation) animation.finished.then(remove).catch(remove); else remove();
         }
         incoming = content.querySelector('.selected-day');
         playMotion(incoming, [
-          { translate: `${direction * 28}px 0`, opacity: .35 },
-          { translate: `${-direction * 2}px 0`, opacity: 1, offset: .78 },
+          { translate: `${direction * 18}px 0`, opacity: 0 },
           { translate: '0 0', opacity: 1 },
         ], { duration: 240 });
-        const bounds = content.getBoundingClientRect();
-        revealSequence([...(incoming?.querySelectorAll('.day-place-card,.transport-card,.flight-main-card') || [])].filter(row => row.getBoundingClientRect().top < bounds.bottom).slice(0, 5), {step:12});
+        // Move the whole day as one surface; nested card entrances made text
+        // and cards drift at different speeds during rapid day navigation.
         playMotion(document.querySelector('#phone-day-picker .dropdown-value'), [{opacity:.4,translate:'0 5px'},{opacity:1,translate:'0 0'}], {duration:180});
       };
     },

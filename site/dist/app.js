@@ -15,6 +15,7 @@ import { calendarMonth, presetRange } from './date-range.js';
 import { datesForTrip, eventsForDay, mappedPlace, makePlan } from './itinerary-model.js';
 import { createDayRoutes } from './day-routes.js';
 import { createItineraryUI } from './itinerary-ui.js';
+import { createWorkspacePositions } from './plan-navigation.js';
 import { mapEntries, scheduleUnassigned, googlePlaceRecord, destinationForDay, googlePlaceSummary, googleRatingLabel, mergeGoogleContent, mapLabelPosition } from './place-model.js';
 import { enhanceDropdowns, refreshDropdowns } from './dropdowns.js';
 import { viewportSearchArea, inSearchArea, createSearchAreaTracker } from './explore-model.js';
@@ -46,6 +47,11 @@ let quotaStorage; try { quotaStorage = sessionStorage; } catch { /* Storage is o
 const quotaMemory = createQuotaMemory(quotaStorage);
 const state = { maps: null, places: null, markerClass: null, map: null, mapUnavailable: false, marker: null, stopMarkers: [], placeMarkers: [], suggestionMarkers: [], suggestions: [], selected: null, trip: null, day: 'ideas', animation: 0, config: null, pendingNearby: null, nearbyRequest: 0, photoRequest: 0, calendarRange: { start: null, end: null }, calendarYear: 0, calendarMonth: 0, routeEditing: false, stopFilter: null, planMode: 'list', workspaceView: 'itinerary', nearbyCategory: 'see', detailCooldownUntil: quotaMemory.read('selection-details'), photoCooldownUntil: quotaMemory.read('photo-details'), detailCache: new Map(), imageCache: new Map(), infoWindow: null, activePlaceId: null, discoveryPlace: null, mapSuggestions: [], mapAreaKey: null, mapSearchVersion: 0, mapSearchTimer: null, placeClickVersion: 0, nearbyAreaKey: null, nearbyTimer: null, cameraMoving: false };
 let workspaceTrail = [];
+const workspacePositions = createWorkspacePositions(view => ({
+  itinerary: ['day-content', 'day-tabs'], explore: ['nearby-results'],
+  transportation: ['transport-panel', 'transport-content', 'travel-essentials'], ideas: ['ib-cards'],
+}[view] || []).map($));
+const workspaceScope = () => `${state.trip?.id}:${state.stopFilter}`;
 const tripBanner = createTripBanner({ workspace: $('workspace'), header: $('trip-masthead'), hero: $('destination-hero'), onResize: () => { if (state.map) requestAnimationFrame(() => google.maps.event.trigger(state.map, 'resize')); } });
 const dateLabel = value => new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T12:00:00Z`));
 const dateLong = value => new Intl.DateTimeFormat('en', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T12:00:00Z`));
@@ -151,7 +157,7 @@ $('account-signout').addEventListener('click', async event => {
 });
 
 function showHome({ focus = false } = {}) {
-  workspaceTrail = [];
+  workspaceTrail = []; workspacePositions.reset();
   clearMapSearch(); selection.invalidate();
   itinerary.clearRemoval(); dayRoutes.clear();
   $('trip-title-input').hidden = true; $('edit-trip-title').hidden = false;
@@ -246,7 +252,7 @@ function commitRoute(next, selectedId) {
 }
 
 function showWorkspace(place, trip = null) {
-  workspaceTrail = [];
+  workspaceTrail = []; workspacePositions.reset();
   clearMapSearch(); selection.invalidate();
   if (trip) place = tripStops(trip)[0] || place;
   $('trip-title-input').hidden = true; $('edit-trip-title').hidden = false;
@@ -340,7 +346,8 @@ async function wikimediaImage(place, width, destination = false) {
 const destinationPhoto = destination => displayedPhotos(destination, 1200, true);
 
 async function loadDestinationPhoto() {
-  if (!state.trip || phoneHeaderLayout.matches) return;
+  if (!state.trip || phoneHeaderLayout.matches || getComputedStyle($('hero-gallery')).display === 'none') return;
+  // Hidden covers never request a photo just to fill an invisible header.
   // The first destination supplies one continuous cover, independent of the active stop.
   const gallery = $('hero-gallery'), stops = tripStops(state.trip).slice(0, 1), route = `${state.trip.id}:${stops[0].placeId}`;
   if (gallery.dataset.route === route && gallery.childNodes.length) return;
@@ -1142,6 +1149,7 @@ installButtonMotion(document);
 installSurfaceMotion(document);
 function setWorkspaceView(view, { keepMobileMap = false, showPlaces = false, remember = true } = {}) {
   const previousView = state.workspaceView;
+  if (previousView !== view) workspacePositions.save(workspaceScope(), previousView);
   if (remember && previousView !== view) {
     workspaceTrail.push({ view: previousView, scroll: $(previousView === 'itinerary' ? 'day-content' : previousView === 'explore' ? 'nearby-results' : previousView === 'ideas' ? 'ib-cards' : 'transport-panel').scrollTop });
     if (workspaceTrail.length > 16) workspaceTrail.shift();
@@ -1159,23 +1167,34 @@ function setWorkspaceView(view, { keepMobileMap = false, showPlaces = false, rem
   $('map-column').hidden = view === 'transportation' || view === 'ideas';
   const selectedNavigation = view;
   for (const button of document.querySelectorAll('[data-workspace-view]')) button.setAttribute('aria-pressed', String(button.dataset.workspaceView === selectedNavigation));
-  if (!['transportation', 'ideas'].includes(view) && state.map) requestAnimationFrame(() => google.maps.event.trigger(state.map, 'resize'));
-  renderPlan();
+  // Tab navigation keeps the existing lists, inputs, and map scene alive.
+  // Only a real mode change needs to rebuild the itinerary.
+  const changedMode = $('day-content').dataset.mode !== state.planMode;
+  if (changedMode) renderPlan();
+  else {
+    if (view === 'itinerary' || view === 'explore') drawMarkers();
+    essentials.render(); wallet.render();
+  }
+  if (view === 'ideas') ideasBoard.render();
+  if (previousView !== view && !changedMode) workspacePositions.restore(workspaceScope(), view);
+  if (state.map && !['transportation', 'ideas'].includes(view) && ['transportation', 'ideas'].includes(previousView)) requestAnimationFrame(() => google.maps.event.trigger(state.map, 'resize'));
+
   if (view === 'itinerary') scheduleMapSuggestions();
   else { clearTimeout(state.mapSearchTimer); state.mapSearchVersion++; state.mapAreaKey = null; }
   if (view === 'explore') scheduleAreaSearch();
-  else { clearTimeout(state.nearbyTimer); selection.invalidate(); state.nearbyRequest++; state.nearbyAreaKey = null; $('search-map-area').hidden = true; $('nearby-results').setAttribute('aria-busy', 'false'); }
+  else {
+    clearTimeout(state.nearbyTimer); selection.invalidate(); state.nearbyRequest++;
+    // Completed results stay intact when visiting another tab. An interrupted
+    // request must be retried because its result will deliberately be ignored.
+    if ($('nearby-results').getAttribute('aria-busy') === 'true') state.nearbyAreaKey = null;
+    $('search-map-area').hidden = true; $('nearby-results').setAttribute('aria-busy', 'false');
+  }
   const panel = view === 'explore' ? $('discover-panel') : view === 'transportation' ? $('transport-panel') : view === 'ideas' ? $('ideas-panel') : $('plan-panel');
   if (previousView && previousView !== view) {
-    const order = ['itinerary', 'explore', 'transportation', 'ideas'];
-    const direction = order.indexOf(view) > order.indexOf(previousView) ? 1 : -1;
-    playMotion(panel, [
-      { opacity: .55, translate: `${direction * 22}px 0` },
-      { opacity: 1, translate: `${-direction * 2}px 0`, offset: .78 },
-      { opacity: 1, translate: '0 0' },
-    ], { duration: 260 });
+    // A short fade keeps the map and header anchored; sideways movement made
+    // the change between map and full-width tabs feel like a layout jump.
+    playMotion(panel, [{ opacity: .45 }, { opacity: 1 }], { duration: 150 });
   }
-  if (view === 'ideas') ideasBoard.render();
 }
 function setMobileMap(show) {
   const button = $('mobile-map-toggle'), controls = $('plan-controls');
@@ -1187,7 +1206,7 @@ function setMobileMap(show) {
   button.querySelector('use').setAttribute('href', show ? (state.workspaceView === 'explore' ? '#i-search' : '#i-back') : '#i-map');
   button.querySelector('span').textContent = show ? (state.workspaceView === 'explore' ? 'Search places' : 'Back to day') : 'Map';
   button.hidden = state.workspaceView === 'transportation' || state.workspaceView === 'ideas' || (phoneHeaderLayout.matches && state.workspaceView === 'itinerary' && !show);
-  if (state.map) requestAnimationFrame(() => google.maps.event.trigger(state.map, 'resize'));
+  if (changed && state.map) requestAnimationFrame(() => google.maps.event.trigger(state.map, 'resize'));
   if (changed && matchMedia(phoneMediaQuery).matches) {
     const surface = show ? $('map-column') : $(state.workspaceView === 'explore' ? 'discover-panel' : state.workspaceView === 'transportation' ? 'transport-panel' : 'plan-panel');
     playMotion(surface, [{ opacity: .55, translate: '0 8px' }, { opacity: 1, translate: '0 0' }], { duration: 230 });
@@ -1242,12 +1261,14 @@ const dayRoutes = createDayRoutes({ state, commit: commitTrip, icon, editPlan: i
 const essentials = createTravelEssentials({ state, getDestination: () => state.selected || state.trip, icon });
 const wallet = createWallet({ state, commit: commitTrip, icon });
 const planToolbar = document.querySelector('.plan-toolbar');
+const routeBar = $('route-bar'), routeAnchor = document.createComment('Trip destination navigation'); routeBar.before(routeAnchor);
+const workspaceNav = document.querySelector('.workspace-nav'), navAnchor = document.createComment('Phone workspace navigation'); workspaceNav.before(navAnchor);
 const toolbarAnchor = document.createComment('Phone plan controls');
 planToolbar.before(toolbarAnchor);
 const mapToggle = $('mobile-map-toggle');
 const mapToggleAnchor = document.createComment('Discover map control');
 mapToggle.before(mapToggleAnchor);
-const desktopToolbarLayout = matchMedia('(min-width:901px)');
+const desktopToolbarLayout = matchMedia('(min-width:901px) and (min-height:501px), (min-width:981px)');
 const backPlan = $('back-to-plan'), viewToggle = document.querySelector('.itinerary-toggle'), addPlan = $('add-plan'), editDates = $('edit-dates');
 const dateAnchor = document.createComment('Desktop trip dates'); editDates.before(dateAnchor);
 const backAnchor = document.createComment('Desktop back'); backPlan.before(backAnchor);
@@ -1255,18 +1276,35 @@ const toggleAnchor = document.createComment('Desktop view switch'); viewToggle.b
 const addAnchor = document.createComment('Desktop add'); addPlan.before(addAnchor);
 const exploreDayLabel = $('explore-day').closest('label'), exploreDayAnchor = document.createComment('Desktop explore day'); exploreDayLabel.before(exploreDayAnchor);
 $('back-button').innerHTML = icon('back');
+// Avoid disconnecting/reconnecting the same controls on every itinerary edit.
+// Keeping their DOM position also keeps focus, popovers, and animation layers stable.
+const beforeAnchor = (anchor, element) => { if (element.nextSibling !== anchor) anchor.before(element); };
 function positionPlanToolbar() {
-  const phone = phoneHeaderLayout.matches, dock = desktopToolbarLayout.matches && !phone;
+  const phone = phoneHeaderLayout.matches;
   const host = $('workspace-tools'), phoneHost = $('phone-plan-tools');
+  const desktop = !phone && desktopToolbarLayout.matches;
+  if (desktop) {
+    const topbar = document.querySelector('.topbar');
+    if (workspaceNav.parentElement !== topbar) topbar.insertBefore(workspaceNav, topbar.querySelector('.account-actions'));
+    if (host.parentElement !== $('destination-hero')) $('destination-hero').append(host);
+  } else {
+    beforeAnchor(navAnchor, workspaceNav);
+    if (host.parentElement !== workspaceNav) workspaceNav.append(host);
+  }
+  const destinationHost = desktop ? host : null;
+  if (destinationHost) { if (destinationHost.firstChild !== routeBar) destinationHost.prepend(routeBar); }
+  else beforeAnchor(routeAnchor, routeBar);
+  const category = $('phone-place-category');
+  if (category.value !== state.nearbyCategory) { category.value = state.nearbyCategory; refreshDropdowns(category); }
   const day = phone && state.workspaceView === 'itinerary' && state.planMode === 'day';
   const calendar = phone && state.workspaceView === 'itinerary' && state.planMode === 'calendar';
   if (phone) {
-    $('phone-discover-options').prepend(exploreDayLabel);
-    $('phone-place-category').value = state.nearbyCategory; refreshDropdowns($('phone-place-category'));
-    $('phone-leading').append($('back-button'), backPlan);
-    phoneHost.append(addPlan);
-    $('phone-view-switch').append(viewToggle);
-    mapToggleAnchor.before(mapToggle);
+    const discoverOptions = $('phone-discover-options'), leading = $('phone-leading'), switchHost = $('phone-view-switch');
+    if (discoverOptions.firstChild !== exploreDayLabel) discoverOptions.prepend(exploreDayLabel);
+    if (backPlan.parentElement !== leading || $('back-button').nextSibling !== backPlan) leading.append($('back-button'), backPlan);
+    if (addPlan.parentElement !== phoneHost) phoneHost.append(addPlan);
+    if (viewToggle.parentElement !== switchHost) switchHost.append(viewToggle);
+    beforeAnchor(mapToggleAnchor, mapToggle);
     planToolbar.hidden = true;
     $('back-button').hidden = day || calendar;
     const previousView = workspaceTrail.at(-1)?.view || 'itinerary';
@@ -1276,15 +1314,15 @@ function positionPlanToolbar() {
     phoneHost.hidden = state.workspaceView !== 'itinerary';
     viewToggle.hidden = day || calendar || state.workspaceView !== 'itinerary';
   } else {
-    exploreDayAnchor.before(exploreDayLabel);
-    backAnchor.before(backPlan); toggleAnchor.before(viewToggle); addAnchor.before(addPlan); dateAnchor.before(editDates);
-    $('destination-hero').append($('back-button'));
+    beforeAnchor(exploreDayAnchor, exploreDayLabel);
+    beforeAnchor(backAnchor, backPlan); beforeAnchor(toggleAnchor, viewToggle); beforeAnchor(addAnchor, addPlan); beforeAnchor(dateAnchor, editDates);
+    if ($('back-button').parentElement !== $('destination-hero')) $('destination-hero').append($('back-button'));
     $('back-button').hidden = true; $('phone-day-picker').hidden = true;
-    mapToggleAnchor.before(mapToggle);
-    if (dock) host.append(planToolbar); else toolbarAnchor.before(planToolbar);
+    beforeAnchor(mapToggleAnchor, mapToggle);
+    beforeAnchor(toolbarAnchor, planToolbar);
     planToolbar.hidden = state.workspaceView !== 'itinerary'; phoneHost.hidden = true;
   }
-  host.hidden = !dock || state.workspaceView !== 'itinerary';
+  host.hidden = !destinationHost;
   mapToggle.hidden = state.workspaceView === 'transportation' || state.workspaceView === 'ideas' || (phone && state.workspaceView === 'itinerary' && $('plan-controls').dataset.mobileSurface !== 'map');
   for (const button of viewToggle.querySelectorAll('button')) button.title = phone ? '' : button.getAttribute('aria-label');
 }
@@ -1316,8 +1354,7 @@ new MutationObserver(records => {
 }).observe(document.body, { childList: true, subtree: true });
 for (const button of document.querySelectorAll('[data-workspace-view]')) button.addEventListener('click', () => {
   const view = button.dataset.workspaceView;
-  if (view === 'itinerary' && state.workspaceView === view && state.planMode !== 'list') { setMobileMap(false); itinerary.showOverview(); return; }
-  setWorkspaceView(view);
+  if (state.workspaceView !== view) setWorkspaceView(view);
 });
 for (const leg of ['departure', 'arrival']) {
   $(`${leg}-search`).addEventListener('input', event => { delete event.target.dataset.placeId; });

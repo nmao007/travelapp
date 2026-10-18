@@ -60,10 +60,9 @@ export function morphFrom(element, source, options = {}) {
 }
 export function revealSequence(elements, { delay = 0, step = 24 } = {}) {
   for (const [index, element] of [...elements].entries()) playMotion(element, [
-    { opacity: .55, transform: 'translateY(12px) scale(.985)' },
-    { opacity: 1, transform: 'translateY(-2px) scale(1.002)', offset: .78 },
+    { opacity: 0, transform: 'translateY(7px)' },
     { opacity: 1, transform: 'none' },
-  ], { duration: 260, delay: delay + Math.min(index * step, 100), fill: 'backwards' });
+  ], { duration: 220, delay: delay + Math.min(index * step, 60), fill: 'backwards' });
 }
 
 // Animate the glyph, never the hit area: scrolling and dragging stay stable.

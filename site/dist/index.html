@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="/ui.css">
   <link rel="stylesheet" href="/phone.css">
   <link rel="stylesheet" href="/ideas-board.css">
+  <link rel="stylesheet" href="/desktop.css">
   <script type="module" src="/app.js"></script>
 </head>
 <body>
@@ -131,7 +132,7 @@
         <div class="trip-menu" id="trip-menu" hidden><button id="phone-rename" class="phone-only" type="button"><svg class="icon" aria-hidden="true"><use href="#i-edit"/></svg>Rename trip</button><button id="phone-account" class="phone-only" type="button">Account</button><button id="mobile-add-stop" type="button"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg>Add destination</button><button id="menu-photo-credits" type="button" hidden><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="1"/><circle cx="8" cy="9" r="1.5"/><path d="m3 17 5-5 4 4 4-6 5 7"/></svg>Photo credits</button><button id="save-trip-guide" type="button"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></svg>Save offline itinerary</button><button id="export-calendar" type="button"><svg class="icon" aria-hidden="true"><use href="#i-calendar"/></svg> Export to calendar</button><button id="delete-trip" type="button">Delete trip</button></div>
         <div class="route-bar" id="route-bar"><div class="route-list" id="route-list" aria-label="Trip destinations"></div><div class="mobile-stop-picker"><select id="mobile-stop-selector" aria-label="Choose a destination"></select></div><div id="phone-view-switch" class="phone-only"></div></div>
         </div>
-        <nav class="workspace-nav" aria-label="Trip navigation"><button type="button" data-workspace-view="itinerary" aria-pressed="true"><svg class="icon"><use href="#i-list"/></svg>Plan</button><button type="button" data-workspace-view="transportation" aria-pressed="false"><svg class="icon"><use href="#i-plane"/></svg>Travel</button><button type="button" data-workspace-view="explore" aria-pressed="false"><svg class="icon"><use href="#i-map"/></svg><span>Discover</span></button><button type="button" data-workspace-view="ideas" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-board"/></svg><span>Ideas</span></button><div id="workspace-tools" class="workspace-tools" hidden></div></nav>
+        <nav class="workspace-nav" aria-label="Trip navigation"><button type="button" data-workspace-view="itinerary" aria-pressed="true"><svg class="icon"><use href="#i-list"/></svg>Plan</button><button type="button" data-workspace-view="transportation" aria-pressed="false"><svg class="icon"><use href="#i-plane"/></svg>Travel</button><button type="button" data-workspace-view="explore" aria-pressed="false"><svg class="icon"><use href="#i-map"/></svg><span>Explore</span></button><button type="button" data-workspace-view="ideas" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-board"/></svg><span>Ideas</span></button><div id="workspace-tools" class="workspace-tools" hidden></div></nav>
         <div class="trip-body" id="plan-controls" data-view="itinerary" data-mobile-surface="content">
           <section class="ib-panel" id="ideas-panel" aria-label="Idea board" hidden>
             <header class="ib-header"><div class="ib-heading"><h2>Ideas</h2><span id="ib-count"></span><span id="board-save-state" role="status" aria-live="polite">Saved</span></div><div class="ib-header-actions"><div class="ib-view-switch" role="group" aria-label="Ideas view"><button type="button" id="ib-gallery" aria-label="Card view" aria-pressed="true"><svg class="icon"><use href="#i-board"/></svg></button><button type="button" id="ib-canvas" aria-label="Canvas view" aria-pressed="false"><svg class="icon"><use href="#i-frame"/></svg></button></div><button type="button" id="ib-tools" class="ib-icon" aria-label="Board tools"><svg class="icon"><use href="#i-more"/></svg></button><button type="button" id="ib-add" class="ib-add" aria-label="Add idea"><svg class="icon"><use href="#i-plus"/></svg><span>Add idea</span></button></div></header>
@@ -145,15 +146,15 @@
           <section class="plan-panel" id="plan-panel" aria-label="Itinerary">
             <div class="plan-toolbar">
               <button id="back-to-plan" class="back-to-plan" type="button" aria-label="Back to all days" hidden><svg class="icon" aria-hidden="true"><use href="#i-back"/></svg><span>All days</span></button>
-              <div class="itinerary-toggle" role="group" aria-label="Plan view"><button type="button" data-plan-mode="list" aria-label="Show timeline" title="Show timeline" hidden><svg class="icon" aria-hidden="true"><use href="#i-list"/></svg><span class="plan-view-label">Timeline view</span></button><button type="button" data-plan-mode="calendar" aria-label="Show calendar" title="Show calendar"><svg class="icon" aria-hidden="true"><use href="#i-calendar"/></svg><span class="plan-view-label">Calendar</span></button></div>
-              <span id="place-count" hidden></span><button type="button" id="add-plan" class="small-action" aria-label="Add a plan"><svg class="icon"><use href="#i-plus"/></svg></button>
+              <div class="itinerary-toggle" role="group" aria-label="Plan view"><button type="button" data-plan-mode="list" aria-label="Show timeline" title="Show timeline" hidden><svg class="icon" aria-hidden="true"><use href="#i-list"/></svg><span class="plan-view-label">Timeline</span></button><button type="button" data-plan-mode="calendar" aria-label="Show calendar" title="Show calendar"><svg class="icon" aria-hidden="true"><use href="#i-calendar"/></svg><span class="plan-view-label">Calendar</span></button></div>
+              <span id="place-count" hidden></span><button type="button" id="add-plan" class="small-action" aria-label="Add a plan"><svg class="icon"><use href="#i-plus"/></svg><span class="desktop-control-label" hidden>Add plan</span></button>
             </div>
             <div class="day-tabs" id="day-tabs" role="tablist" aria-label="Trip days"></div>
             <div class="day-content" id="day-content"></div>
           </section>
-          <section class="discover-panel" id="discover-panel" aria-label="Discover places" hidden>
+          <section class="discover-panel" id="discover-panel" aria-label="Explore places" hidden>
             <div class="panel-heading"><span id="add-to-day-label" hidden></span></div>
-            <label class="explore-day"><span class="explore-day-label">Add to</span><select hidden id="explore-day" aria-label="Day for discovered places"></select></label>
+            <label class="explore-day"><span class="explore-day-label">Add to</span><select hidden id="explore-day" aria-label="Day to add places"></select></label>
             <div id="phone-discover-options" class="phone-only"><select id="phone-place-category" aria-label="Type of place"><option value="see">Sights</option><option value="eat">Food</option><option value="stay">Hotels</option><option value="nature">Outdoors</option><option value="culture">Culture</option><option value="tour">Tours</option></select></div>
             <div class="nearby-filters" role="group" aria-label="Nearby places"><button type="button" data-nearby="see">Sights</button><button type="button" data-nearby="eat">Food</button><button type="button" data-nearby="stay">Hotels</button><button type="button" data-nearby="nature">Outdoors</button><button type="button" data-nearby="culture">Culture</button><button type="button" data-nearby="tour"><svg class="icon"><use href="#i-guide"/></svg>Tours</button></div>
             <div class="add-block"><label class="sr-only" for="place-search">Search for a place</label><div class="search-field place-search"><svg class="icon"><use href="#i-search"/></svg><input id="place-search" type="search" role="combobox" aria-autocomplete="list" aria-controls="place-suggestions" aria-expanded="false" autocomplete="off" placeholder="Find a place" spellcheck="false"></div><div class="suggestions" id="place-suggestions" role="listbox" hidden></div></div>
@@ -161,7 +162,7 @@
 
           </section>
           <section class="transport-panel" id="transport-panel" aria-label="Transportation" hidden>
-            <div class="panel-heading"><div class="section-label">Flights &amp; trains</div><button type="button" id="add-transport" class="small-action" aria-label="Add flight or train"><svg class="icon"><use href="#i-plus"/></svg></button></div><div id="transport-content"></div>
+            <div class="panel-heading"><div class="section-label">Flights &amp; trains</div><button type="button" id="add-transport" class="small-action" aria-label="Add flight or train"><svg class="icon"><use href="#i-plus"/></svg><span class="desktop-control-label" hidden>Add travel</span></button></div><div id="transport-content"></div>
             <section id="trip-wallet" class="trip-wallet" aria-label="Trip spending" hidden></section>
             <div id="travel-essentials" class="travel-essentials" hidden>
               <article id="weather-card" class="weather-card" aria-label="Destination weather"></article>
