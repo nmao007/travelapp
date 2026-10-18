@@ -375,3 +375,24 @@ body .time-picker input.time-number{padding:0 2px;min-height:44px;border:0!impor
   .wallet-launcher{gap:10px;padding:10px 12px}.wallet-launcher-copy strong{font-size:15px}.wallet-launcher-amount{font-size:16px}
 }
 @media(max-width:580px){.workspace-nav{grid-template-columns:repeat(4,minmax(0,1fr))}.workspace-nav>button{font-size:12px}}
+
+/* Place names read as headings. A dedicated pencil enters rename mode. */
+body .plan-name-heading{display:flex;align-items:flex-start;gap:8px;min-width:0}
+body .plan-name-heading #plan-name-display{flex:1;min-width:0;margin:0;padding:6px 0;font:650 26px/1.22 var(--body-font);letter-spacing:-.7px;color:#30343b;overflow-wrap:anywhere}
+body .plan-name-heading #edit-plan-name{flex:none;width:44px;min-width:44px;height:44px;min-height:44px;padding:11px;border:0;background:transparent;--phone-control-bg:transparent;--phone-control-ink:#858a94;color:#858a94}
+body .plan-name-heading #edit-plan-name .icon{width:20px;height:20px}
+body .plan-sheet .plan-name-heading textarea#plan-name{flex:1;min-width:0;min-height:44px;max-height:180px;margin:0;padding:6px 0;border:0!important;border-radius:0!important;background:transparent;font-size:26px;line-height:32px;font-weight:650;letter-spacing:-.7px;outline:0!important;box-shadow:none!important}
+body .plan-sheet .plan-name-heading textarea#plan-name:is(:focus,:focus-visible){border:0!important;background:transparent;outline:0!important;box-shadow:none!important}
+body .plan-name-heading [hidden]{display:none!important}
+@media(max-width:580px), (max-width:980px) and (max-height:500px){
+  body #plan-dialog .phone-sheet-heading{padding:16px 60px 16px 20px}
+  body .plan-name-heading #plan-name-display{font-size:25px;line-height:31px}
+  body .plan-sheet .plan-name-heading textarea#plan-name{font-size:25px;line-height:31px}
+}
+@media(max-width:580px), (max-width:980px) and (max-height:500px){
+  .plan-sheet .place-details,.plan-sheet .place-details p{font-size:15px;line-height:1.5}
+  .plan-sheet .place-category,.plan-sheet .detail-rating{font-size:14px;line-height:1.5}
+  .plan-sheet .place-hours summary{font-size:15px;min-height:44px}
+  .plan-sheet .place-links .detail-chip{font-size:14px;min-height:44px}
+  #place-dialog-title{font-size:25px;line-height:31px;letter-spacing:-.7px}
+}

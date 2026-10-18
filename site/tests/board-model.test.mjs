@@ -101,3 +101,10 @@ test('personal library records keep identity without canvas coordinates', () => 
   assert.equal(record.title, 'Cafe');
 });
 
+
+test('frame placement starts inside the frame instead of colliding with the frame itself', () => {
+  const frame = { id: 'f', type: 'group', placed: true, x: 100, y: 100, width: 650, height: 500, memberIds: [] };
+  const idea = createBoardObject('card', { items: [frame], selectedIds: ['f'], canvas: { width: 800, height: 600 } });
+  assert.equal(idea.groupId, 'f');
+  assert.equal(idea.x, 128); assert.equal(idea.y, 156);
+});

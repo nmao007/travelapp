@@ -191,14 +191,25 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
 
   function fitPlanName() {
     const field = $('plan-name');
+    $('plan-name-display').textContent = field.value || 'New plan';
+    if (field.hidden) return;
     field.style.height = 'auto';
     field.style.height = `${Math.min(160, Math.max(52, field.scrollHeight + 2))}px`;
+  }
+
+  function setNameEditing(editing) {
+    $('plan-name-heading').dataset.editing = String(editing);
+    $('plan-name').hidden = !editing; $('plan-name-display').hidden = editing;
+    $('edit-plan-name').setAttribute('aria-label', editing ? 'Finish editing name' : 'Edit name');
+    $('edit-plan-name').setAttribute('aria-expanded', String(editing));
+    $('edit-plan-name').innerHTML = icon(editing ? 'check' : 'edit');
+    fitPlanName();
   }
 
   function openTour(operator) {
     if (!datesForTrip(state.trip).length) { chooseDates(); return; }
     openPlan(); draft = { ...draft, ...tourDraft(operator) };
-    $('plan-name').value = draft.name; fitPlanName(); renderPlanTools();
+    $('plan-name').value = draft.name; setNameEditing(false); renderPlanTools();
     hydratePlace($('tour-operator-links'), operator, { contactOnly: true });
     $('plan-done').textContent = 'Add tour'; $('plan-done').focus({ preventScroll: true });
   }
@@ -224,7 +235,7 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
     if (item?.kind === 'Tour' && item.tour) hydratePlace(operatorLinks, { placeId: item.tour.operatorPlaceId, name: item.tour.operatorName, latitude: item.tour.operatorLatitude, longitude: item.tour.operatorLongitude }, { contactOnly: true });
     if (item?.placeId) hydratePlace(details, item.kind === 'Tour' ? { ...item, name: item.tour?.meetingName || item.name } : item);
     $('plan-done').textContent = item ? 'Done' : 'Add plan';
-    $('plan-dialog').showModal(); fitPlanName();
+    $('plan-dialog').showModal(); setNameEditing(!item);
     $('plan-dialog').querySelector('.phone-sheet-body').scrollTop = 0;
     if (!item) $('plan-name').focus(); else $('plan-done').focus({ preventScroll: true });
   }
@@ -742,10 +753,17 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
   $('phone-plan-day').addEventListener('change', event => { const button = [...$('plan-day-chips').querySelectorAll('button')].find(button => button.dataset.day === event.target.value); button?.click(); });
   $('phone-plan-more').addEventListener('click', () => { const open = $('plan-dialog').dataset.moreOptions !== 'true'; $('plan-dialog').dataset.moreOptions = String(open); $('phone-plan-more').setAttribute('aria-expanded', String(open)); });
   $('duplicate-plan').addEventListener('click', () => { if (!duplicatingPlan && $('plan-error').textContent) return; duplicatingPlan = !duplicatingPlan; $('plan-error').textContent = ''; renderPlanTools(); if (duplicatingPlan) { const target = matchMedia(phoneMediaQuery).matches ? $('phone-plan-day').closest('.coded-dropdown')?.querySelector('.dropdown-trigger') : $('plan-day-chips').querySelector('button:not(:disabled)'); target?.focus({ preventScroll: true }); } });
+  $('edit-plan-name').addEventListener('click', () => {
+    const editing = $('plan-name').hidden;
+    if (!editing && !$('plan-name').value.trim()) { $('plan-name').focus(); return; }
+    setNameEditing(editing);
+    if (editing) { $('plan-name').focus({ preventScroll: true }); $('plan-name').select(); }
+    else { savePlanPatch(); $('edit-plan-name').focus({ preventScroll: true }); }
+  });
   $('plan-name').addEventListener('input', fitPlanName);
   document.fonts?.ready.then(() => { if ($('plan-dialog').open) fitPlanName(); });
   window.addEventListener('resize', () => { if ($('plan-dialog').open) fitPlanName(); });
-  $('plan-name').addEventListener('keydown', event => { if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); $('plan-done').focus(); } });
+  $('plan-name').addEventListener('keydown', event => { if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); if (!$('plan-name').value.trim()) return; setNameEditing(false); savePlanPatch(); $('edit-plan-name').focus({ preventScroll: true }); } });
   $('plan-name').addEventListener('change', () => savePlanPatch());
   for (const [button, panel] of [['plan-time-button', 'plan-time-controls'], ['plan-note-button', 'plan-note-wrap']]) $(button).setAttribute('aria-controls', panel);
   $('plan-time-button').addEventListener('click', () => { const open = !panelIsOpen($('plan-time-controls')); $('plan-time-button').setAttribute('aria-expanded', String(open)); setPanelOpen($('plan-time-controls'), open, { onComplete: () => { if (open) revealPhoneSection($('plan-time-controls')); } }); });

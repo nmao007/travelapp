@@ -12,7 +12,7 @@ const lisbon = { id: 'a', placeId: 'google-place-a', name: 'Lisbon', latitude: 3
 test('a selected real place is saved and reopened without duplication', () => {
   const storage = memory();
   saveTrip(lisbon, storage);
-  assert.deepEqual(readTrips(storage), [{ ...lisbon, stops: tripStops(lisbon), items: [] }]);
+  assert.deepEqual(readTrips(storage), [{ ...lisbon, stops: tripStops(lisbon), items: [], boardItems: [], boardLinks: [] }]);
   saveTrip({ ...lisbon, startDate: '2026-10-10', endDate: '2026-10-13' }, storage);
   assert.equal(readTrips(storage).length, 1);
   assert.equal(readTrips(storage)[0].startDate, '2026-10-10');
@@ -24,7 +24,7 @@ test('invalid or corrupt local records cannot become trips', () => {
   storage.setItem(STORAGE_KEY, '{broken');
   assert.deepEqual(readTrips(storage), []);
   storage.setItem(STORAGE_KEY, JSON.stringify([{ name: 'Imaginary' }, lisbon]));
-  assert.deepEqual(readTrips(storage), [{ ...lisbon, stops: tripStops(lisbon), items: [] }]);
+  assert.deepEqual(readTrips(storage), [{ ...lisbon, stops: tripStops(lisbon), items: [], boardItems: [], boardLinks: [] }]);
 });
 
 test('a multi-stop route can be edited without losing its places', () => {

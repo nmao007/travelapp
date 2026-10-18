@@ -24,7 +24,7 @@ export function setPanelOpen(element, open, { animate = true, onComplete = () =>
 export function enhanceDisclosures(root = document) {
   const candidates = [...(root.matches?.('details') ? [root] : []), ...root.querySelectorAll('details')];
   for (const details of candidates) {
-    if (disclosures.has(details)) continue;
+    if (disclosures.has(details) || details.hasAttribute?.('data-native-disclosure')) continue;
     const summary = [...details.children].find(child => child.tagName === 'SUMMARY'); if (!summary) continue;
     const body = document.createElement('div'); body.className = 'disclosure-body'; body.id = `disclosure-${crypto.randomUUID()}`;
     for (const child of [...details.childNodes]) if (child !== summary) body.append(child);

@@ -1,7 +1,7 @@
 export const CONTENT_TYPES = ['card', 'photo', 'note'];
 export const FRAME_TYPE = 'group';
 export const VIEWPORT_STORAGE_KEY = 'trippilot-site-board-view-v1';
-export const BOARD_SCALE_MIN = 0.3;
+export const BOARD_SCALE_MIN = 0.08;
 export const BOARD_SCALE_MAX = 2.4;
 const palette = ['sun', 'rose', 'mint', 'sky', 'lilac'];
 
@@ -161,7 +161,7 @@ export function suggestedFrame(items, { selectedIds = [], point = null } = {}) {
 
 export function placementInFrame(frame, size, existing) {
   const origin = { x: frame.x + 28, y: frame.y + 56 };
-  return avoidOverlap(origin, existing.filter(item => item.groupId === frame.id || item.id === frame.id), size);
+  return avoidOverlap(origin, existing.filter(item => item.groupId === frame.id), size);
 }
 
 export function viewportPlacement({ viewport, canvas, items = [], selectedIds = [], size, type }) {
@@ -298,4 +298,78 @@ export function boardSnapshotData(trip) {
 
 export function libraryRecord(item) {
   return ideaContent({ ...item, id: item.libraryIdeaId || item.id });
+}
+
+// Board operations are immutable so cancel, undo and cloud revisions stay reliable.
+export function removeBoardObjects(items, links, ids) {
+  const removed = new Set(ids);
+  const remaining = items.filter(item => !removed.has(item.id)).map(item => {
+    const next = structuredClone(item);
+    if (removed.has(next.groupId)) { delete next.groupId; delete next.groupOffset; }
+    if (next.memberIds) next.memberIds = next.memberIds.filter(id => !removed.has(id));
+    return next;
+  });
+  return { boardItems: remaining, boardLinks: normalizeBoardLinks(links, remaining) };
+}
+
+export function sendIdeasToInbox(items, ids) {
+  const selected = new Set(ids);
+  return items.map(item => {
+    if (item.memberIds) return { ...item, memberIds: item.memberIds.filter(id => !selected.has(id)) };
+    if (!selected.has(item.id) || !isContentIdea(item)) return item;
+    const { x, y, groupId, groupOffset, ...content } = item;
+    return { ...content, placed: false };
+  });
+}
+
+export function duplicateBoardObjects(items, links, ids, uuid = () => crypto.randomUUID()) {
+  const selected = new Set(ids);
+  for (const frame of items.filter(item => selected.has(item.id) && item.type === FRAME_TYPE)) {
+    for (const id of frame.memberIds || []) selected.add(id);
+  }
+  const mapping = new Map(items.filter(item => selected.has(item.id)).map(item => [item.id, uuid()]));
+  const copies = items.filter(item => selected.has(item.id)).map(item => {
+    const copy = structuredClone(item); copy.id = mapping.get(item.id);
+    if (isPlaced(copy)) { copy.x += 32; copy.y += 32; }
+    if (copy.type === 'draw') copy.points = copy.points.map(point => ({ x: point.x + 32, y: point.y + 32 }));
+    if (copy.groupId && mapping.has(copy.groupId)) copy.groupId = mapping.get(copy.groupId);
+    else { delete copy.groupId; delete copy.groupOffset; }
+    if (copy.memberIds) copy.memberIds = copy.memberIds.filter(id => mapping.has(id)).map(id => mapping.get(id));
+    return copy;
+  });
+  const connections = links.filter(link => mapping.has(link.from) && mapping.has(link.to)).map(link => ({ ...link, id: uuid(), from: mapping.get(link.from), to: mapping.get(link.to) }));
+  return { boardItems: [...items, ...copies], boardLinks: [...links, ...connections], selectedIds: copies.map(item => item.id) };
+}
+
+export function boardObjectBounds(item) {
+  if (item.type === 'draw' && item.points?.length) {
+    const xs = item.points.map(point => point.x), ys = item.points.map(point => point.y);
+    return { x: Math.min(...xs), y: Math.min(...ys), width: Math.max(1, Math.max(...xs) - Math.min(...xs)), height: Math.max(1, Math.max(...ys) - Math.min(...ys)) };
+  }
+  return { x: item.x, y: item.y, width: item.width, height: item.height };
+}
+
+export function fittedBoardViewport(items, canvas) {
+  const boxes = items.filter(isPlaced).map(boardObjectBounds).filter(box => Object.values(box).every(Number.isFinite));
+  if (!boxes.length || !canvas.width || !canvas.height) return { x: 0, y: 0, scale: 1 };
+  const left = Math.min(...boxes.map(box => box.x)), top = Math.min(...boxes.map(box => box.y));
+  const width = Math.max(...boxes.map(box => box.x + box.width)) - left, height = Math.max(...boxes.map(box => box.y + box.height)) - top;
+  const scale = Math.min(1.2, Math.max(0.08, Math.min((canvas.width - 48) / Math.max(1, width), (canvas.height - 48) / Math.max(1, height))));
+  return { scale, x: (canvas.width - width * scale) / 2 - left * scale, y: (canvas.height - height * scale) / 2 - top * scale };
+}
+
+export function ideaWebURL(value, label = 'Link') {
+  const text = String(value || '').trim(); if (!text) return '';
+  let url; try { url = new URL(/^[a-z][a-z\d+.-]*:/i.test(text) ? text : `https://${text}`); } catch { throw new Error(`${label} needs a valid website address.`); }
+  if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password || !url.hostname.includes('.')) throw new Error(`${label} needs a public web address.`);
+  if (text.length > 2000) throw new Error(`${label} is too long.`);
+  return url.href;
+}
+
+export function editedBoardIdea(item, input) {
+  const title = String(input.title || '').trim(), notes = String(input.notes || '').trim(), location = String(input.location || '').trim();
+  if (!title || title.length > 120) throw new Error('Add a title up to 120 characters.');
+  if (notes.length > 2000 || location.length > 200) throw new Error('Shorten the notes or location.');
+  const url = ideaWebURL(input.url), image = ideaWebURL(input.image, 'Image');
+  return { ...item, title, notes, location, url, image, sourceUrl: url, category: input.category || 'Activity', color: palette.includes(input.color) ? input.color : 'sun', ...(item.type === 'sticker' ? { sticker: title } : {}) };
 }
