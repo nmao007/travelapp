@@ -695,3 +695,22 @@ body .time-picker:focus-within{border-color:#c85b2a;background:#fff;box-shadow:i
   .route-order-dialog{inset:auto 0 var(--keyboard-rise,0px);margin:0;width:100%;max-width:none;max-height:calc(var(--visual-height,100dvh) - var(--safe-top) - 16px);padding:20px 16px calc(16px + var(--sheet-safe-bottom));border:0;border-radius:36px 36px 0 0}
   .route-order-dialog .editor-actions>.primary-action{flex:1;justify-content:center;--phone-control-bg:#f36b32;--phone-control-ink:#fff;color:#fff}.route-order-dialog .editor-actions>.quiet-action{min-height:46px;padding:8px 12px;font-size:14px}
 }
+
+/* Keep route ordering beside the stays it changes, inside trip dates. */
+#edit-date-picker .date-stops-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;margin:2px 0}
+#edit-date-picker .date-stops-heading h3{margin:0;font-size:13px;line-height:20px;color:#666;font-weight:600}
+#edit-date-picker #dates-reorder-stops{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;padding:0 8px;font-size:13px;font-weight:600;background:transparent;color:#b94d22;--phone-control-bg:transparent;--phone-control-ink:#b94d22}
+#dates-reorder-stops .icon{width:16px;height:16px}
+
+/* A sliding selection surface and small content cues; touch targets stay still. */
+#trip-date-mode{position:relative;isolation:isolate}
+#trip-date-mode::before{content:'';box-sizing:border-box;position:absolute;inset:3px auto 3px 3px;width:calc((100% - 9px)/2);background:#fff;border:1px solid #edeef1;border-radius:16px;corner-shape:squircle;pointer-events:none;transition:transform .24s cubic-bezier(.18,.9,.24,1)}
+#trip-date-mode[data-mode=range]::before{transform:translateX(calc(100% + 3px))}
+#trip-date-mode button{position:relative;z-index:1;background:transparent!important;--phone-control-bg:transparent;--phone-control-ink:#666}
+#trip-date-mode button[aria-pressed=true]{--phone-control-ink:#b94d22}
+#date-summary strong,.calendar-day-number{display:inline-block}
+.route-order-row{transition:background-color .2s ease}
+.route-order-row[data-moved=true]{background:#fff3eb}
+.route-order-number{height:30px;border-radius:13px;corner-shape:squircle;transition:background-color .2s ease,color .2s ease}
+.route-order-row[data-moved=true] .route-order-number{background:#ffdfcb;color:#a8441e}
+@media(prefers-reduced-motion:reduce){#trip-date-mode::before,.route-order-row,.route-order-number{transition:none!important}}

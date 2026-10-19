@@ -11,7 +11,7 @@ export function calendarStopOnDay(trip, day, entries = calendarStops(trip)) {
 export function renderCalendarStops(container, entries, { onEdit, rangeLabel, icon }) {
   container.replaceChildren(); container.hidden = entries.length < 2;
   for (const entry of entries) {
-    const button = document.createElement('button'); button.type = 'button'; button.className = 'calendar-stop-row';
+    const button = document.createElement('button'); button.type = 'button'; button.className = 'calendar-stop-row'; button.dataset.stopId = entry.stop.placeId;
     button.style.setProperty('--stop-color', entry.color);
     button.setAttribute('aria-label', `Edit ${entry.stop.name} stop dates, ${rangeLabel(entry)}`);
     const index = document.createElement('span'); index.className = 'calendar-stop-index'; index.textContent = String(entry.index + 1);

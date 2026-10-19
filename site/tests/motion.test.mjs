@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { playMotion, stopMotion, closeDialogSmooth, morphFrames, morphFrom, revealSequence, celebratePlacement, installButtonMotion, installSurfaceMotion, createFrameScheduler, animateContentChange, createPopoverMotion } from '../dist/motion.js';
+import { playMotion, stopMotion, closeDialogSmooth, morphFrames, morphFrom, revealSequence, celebratePlacement, installButtonMotion, installSurfaceMotion, createFrameScheduler, animateContentChange, createPopoverMotion, captureLayout, animateLayoutChange } from '../dist/motion.js';
 
 test('reduced motion skips both shared-element movement and staggered entrances', () => {
   const previous = globalThis.matchMedia;
@@ -236,5 +236,39 @@ test('content changes use bounded movement and never scale text or change layout
     assert.equal(calls[0].frames[0].transform,'translateX(8px)');
     assert.equal(calls[1].frames[0].transform,'translateX(-8px)');
     assert.ok(calls.every(({frames})=>frames.every(frame=>!('height' in frame)&&!('width' in frame)&&!frame.transform.includes('scale'))));
+  } finally {globalThis.matchMedia=previous;}
+});
+
+
+test('interrupted stop swaps continue from visible positions and batch all layout reads before animation writes', () => {
+  const previous = globalThis.matchMedia; globalThis.matchMedia = () => ({ matches:false });
+  try {
+    const work=[], frames=[];
+    const row = name => ({name,top:0,offset:0,getBoundingClientRect(){work.push(`read:${name}`);return {left:0,top:this.top+this.offset};},animate(value){work.push(`animate:${name}`);frames.push([name,value]);this.offset=Number(/,(-?[\d.]+)px/.exec(value[0].transform)?.[1]||0);return {finished:new Promise(()=>{}),cancel:()=>{this.offset=0;}};}});
+    const a=row('a'),b=row('b'); b.top=80;
+    const initial=captureLayout([a,b]);a.top=80;b.top=0;
+    animateLayoutChange([a,b],initial);
+    a.offset=-30;b.offset=30; // Midway through the first swap.
+    const visible=captureLayout([a,b]);a.top=0;b.top=80;work.length=0;
+    animateLayoutChange([a,b],visible);
+    assert.deepEqual(frames.at(-2)[1][0],{transform:'translate(0px,50px)'});
+    assert.deepEqual(frames.at(-1)[1][0],{transform:'translate(0px,-50px)'});
+    assert.deepEqual(work,['read:a','read:b','animate:a','animate:b']);
+    assert.deepEqual(frames.at(-1)[1].at(-1),{transform:'translate(0,0)'});
+    const calls=frames.length;animateLayoutChange([a,b],new Map());assert.equal(frames.length,calls);
+  } finally {globalThis.matchMedia=previous;}
+});
+
+test('switching to reduced motion releases an in-flight swap without measuring or starting another animation', () => {
+  const previous = globalThis.matchMedia; let reduced=false;
+  globalThis.matchMedia = () => ({matches:reduced});
+  try {
+    let cancels=0,animations=0;
+    const row={getBoundingClientRect(){assert.fail('Reduced motion must not measure layout');},animate(){animations++;return{finished:new Promise(()=>{}),cancel(){cancels++;}};}};
+    playMotion(row,[{transform:'translateY(60px)'},{transform:'none'}]);
+    reduced=true;
+    const snapshot=captureLayout([row]);assert.equal(snapshot.size,0);
+    animateLayoutChange([row],snapshot);
+    assert.equal(cancels,1);assert.equal(animations,1);
   } finally {globalThis.matchMedia=previous;}
 });

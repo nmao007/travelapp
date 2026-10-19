@@ -23,6 +23,29 @@ export function animateContentChange(element, { direction = 0, distance = 7, dur
   ], { duration, easing: 'cubic-bezier(.16,1,.3,1)' });
 }
 
+// Capture the visible position, including an interrupted move. Cancel every
+// previous transform before measuring the new layout, then batch the writes.
+export function captureLayout(elements) {
+  if (reducedMotion()) return new Map();
+  return new Map([...elements].map(element => [element, element.getBoundingClientRect()]));
+}
+export function animateLayoutChange(elements, previous, { duration = 260 } = {}) {
+  const rows = [...elements];
+  rows.forEach(stopMotion);
+  if (reducedMotion()) return;
+  const changes = rows.map(element => {
+    const before = previous.get(element), after = element.getBoundingClientRect();
+    return { element, x: before ? before.left - after.left : 0, y: before ? before.top - after.top : 0 };
+  });
+  for (const { element, x, y } of changes) {
+    if (Math.abs(x) < .5 && Math.abs(y) < .5) continue;
+    playMotion(element, [
+      { transform: `translate(${x}px,${y}px)` },
+      { transform: 'translate(0,0)' },
+    ], { duration, easing: 'cubic-bezier(.18,.9,.24,1)' });
+  }
+}
+
 // A closing popover can be reopened immediately without its old completion
 // hiding the new one. Its hit area is disabled only for the short exit.
 export function createPopoverMotion(surface, hide) {
@@ -174,7 +197,7 @@ export function installSurfaceMotion(root) {
         if (target.matches('dialog') && (!target.open || target.dataset?.closing === 'true')) return;
         if (target.matches('dialog')) {
           // The entire surface is one layer, so its text and background share a clock.
-          playMotion(target, [{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 180 });
+          playMotion(target, [{ opacity: 0, transform: 'translateY(22px)' }, { opacity: 1, transform: 'translateY(-1px)', offset: .82 }, { opacity: 1, transform: 'translateY(0)' }], { duration: 240, easing: 'cubic-bezier(.16,1,.3,1)' });
         } else {
           playMotion(target, [{ opacity: .2, translate: '0 -5px' }, { opacity: 1, translate: '0 0' }], { duration: 180 });
           revealSequence([...target.children].filter(child => !child.hidden).slice(0, 6), { step: 18 });
