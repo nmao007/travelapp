@@ -132,7 +132,7 @@
   .recommendation-photo{width:82px;height:86px}.recommendation-copy{margin:0;gap:6px}.recommendation-copy strong{font-size:16px;line-height:1.25}
   .recommendation-meta{font-size:12px;gap:3px}.recommendation-add{position:static;min-height:44px;width:44px;height:44px}
   #transport-content{display:block}.transport-card{padding:16px}.transport-card-legs{gap:14px}.transport-leg>strong{font-size:26px}
-  .trip-status:not(:empty){position:fixed;bottom:calc(var(--phone-nav) + var(--safe-bottom) + 68px);left:16px;right:16px;transform:none;max-width:none;z-index:50;margin:0;padding:12px;background:white;box-shadow:var(--popover-shadow)}
+  .trip-status:not(:empty){position:fixed;bottom:calc(var(--phone-nav) + var(--safe-bottom) + 12px);left:16px;right:16px;transform:none;max-width:none;z-index:50;margin:0;padding:12px;background:white;box-shadow:var(--popover-shadow)}
   .editor-dialog,.day-preview{position:fixed;inset:auto 0 var(--keyboard-rise,0px)!important;margin:0;width:100%;max-width:100%;max-height:calc(var(--visual-height,100dvh) - var(--safe-top) - 12px);padding:20px 20px calc(20px + var(--safe-bottom));border:0;border-top:3px solid var(--accent);box-shadow:0 -12px 48px #20201f22;overscroll-behavior:contain;animation:phone-sheet .3s cubic-bezier(.2,.8,.2,1) both}
   .destination-picker[open]{width:100%;height:min(520px,calc(var(--visual-height,100dvh) - var(--safe-top) - 12px));max-height:calc(var(--visual-height,100dvh) - var(--safe-top) - 12px);padding:16px 16px calc(16px + var(--safe-bottom));overflow:hidden}
   .destination-picker .editor-heading{margin-bottom:12px}.destination-picker .editor-heading h2{font-size:24px}

@@ -58,7 +58,10 @@ const dateLabel = value => new Intl.DateTimeFormat('en', { month: 'short', day: 
 const dateLong = value => new Intl.DateTimeFormat('en', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T12:00:00Z`));
 const tripDateLabel = trip => trip.startDate && trip.endDate ? `${dateLabel(trip.startDate)} – ${dateLabel(trip.endDate)}` : 'Add dates';
 const coordinates = place => ({ lat: place.latitude, lng: place.longitude });
-const notices = new Map(['home-status', 'trip-status'].map(id => [id, createTransientNotice($(id), { onHide: () => { $(id).textContent = ''; } })]));
+const notices = new Map(['home-status', 'trip-status'].map(id => [id, createTransientNotice($(id), {
+  duration: id === 'trip-status' ? 3500 : 5000, pauseOnHover: false, pauseOnFocus: false,
+  onHide: () => { $(id).textContent = ''; },
+})]));
 const status = (id, text = '') => { if (!text) { notices.get(id).clear(); return; } $(id).textContent = text; notices.get(id).show(); };
 window.addEventListener('trippilot-cloud-save-ok', event => { if(state.trip?.id===event.detail?.id) $('board-save-state').textContent='Synced'; });
 window.addEventListener('trippilot-cloud-save-error', event => { if(state.workspaceView==='ideas') $('board-save-state').textContent='Sync paused · saved on this device'; });

@@ -52,3 +52,27 @@ test('Undo uses a longer lifetime, extends on interaction and clears without wai
   assert.equal(f.timers.has(old), false); assert.equal(f.timers.size, 1);
   f.notice.clear(); assert.equal(f.element.hidden, true); assert.equal(f.timers.size, 0);
 });
+
+test('informational notices expire on schedule without hover or focus keeping them alive', () => {
+  const f = fixture({ duration:3500,pauseOnHover:false,pauseOnFocus:false });
+  f.notice.show();
+  assert.equal(f.handlers.has('pointerenter'),false);
+  assert.equal(f.handlers.has('focusin'),false);
+  assert.equal([...f.timers.values()][0].delay,3500);
+  f.expire(); assert.equal(f.element.hidden,true); assert.equal(f.hides(),1);
+});
+
+test('touch contact cannot pause a notice indefinitely', () => {
+  const f=fixture(); f.notice.show();
+  const timer=[...f.timers.keys()][0];
+  f.handlers.get('pointerenter')({pointerType:'touch'});
+  assert.equal([...f.timers.keys()][0],timer);
+  f.expire(); assert.equal(f.element.hidden,true);
+});
+
+test('clearing a hovered notice cannot leave its next message permanently paused', () => {
+  const f=fixture(); f.notice.show();
+  f.handlers.get('pointerenter')({pointerType:'mouse'}); assert.equal(f.timers.size,0);
+  f.notice.clear(); f.notice.show(); assert.equal(f.timers.size,1);
+  f.expire(); assert.equal(f.element.hidden,true);
+});

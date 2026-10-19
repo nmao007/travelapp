@@ -131,6 +131,7 @@ button:active:not(:disabled){filter:none}
 .calendar-stop-row{border-radius:4px;background:var(--soft);min-height:52px;padding:10px}.date-picker .calendar-stop-list{margin-top:12px}.date-picker .calendar-actions{padding-top:10px;border:0}.date-picker #save-dates{width:100%;min-height:44px;justify-content:center;gap:8px;font-size:14px}
 .stop-selection{border:0;border-radius:4px;background:var(--tint)}
 .trip-status,.removal-notice{border-radius:4px;box-shadow:var(--popover-shadow);border:1px solid var(--line)}
+.trip-status{color:var(--ink);pointer-events:none;border-radius:18px;corner-shape:squircle}
 @media(min-width:581px) and (max-width:900px){.workspace>.trip-body{display:grid;grid-template-columns:minmax(330px,1.25fr) minmax(220px,1fr);gap:12px}.workspace .trip-title-wrap{right:190px}.workspace .hero-top .route-add span{display:none}}
 @media(max-width:580px), (max-width:980px) and (max-height:500px){
   :root{--phone-nav:56px;--phone-header:44px}

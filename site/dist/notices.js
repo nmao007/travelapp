@@ -2,12 +2,12 @@ import { playMotion, stopMotion } from './motion.js';
 
 // Versions prevent a finishing exit or an old timeout from dismissing a newer
 // message. Timers pause while someone is interacting with the notification.
-export function createTransientNotice(element, { duration = 7000, onHide = () => {}, pauseOnFocus = true, animate = playMotion, stop = stopMotion, setTimer = setTimeout, clearTimer = clearTimeout } = {}) {
+export function createTransientNotice(element, { duration = 7000, onHide = () => {}, pauseOnFocus = true, pauseOnHover = true, animate = playMotion, stop = stopMotion, setTimer = setTimeout, clearTimer = clearTimeout } = {}) {
   let timer = null, version = 0, hovered = false, focused = false, visible = false;
   function cancelTimer() { if (timer !== null) clearTimer(timer); timer = null; }
   function finish(current) {
     if (current !== version) return;
-    visible = false; element.hidden = true; stop(element); onHide();
+    visible = false; hovered = false; focused = false; element.hidden = true; stop(element); onHide();
   }
   function dismiss() {
     cancelTimer(); if (!visible) return;
@@ -29,8 +29,10 @@ export function createTransientNotice(element, { duration = 7000, onHide = () =>
     schedule();
   }
   function clear() { cancelTimer(); stop(element); finish(++version); }
-  element.addEventListener('pointerenter', () => { hovered = true; cancelTimer(); });
-  element.addEventListener('pointerleave', () => { hovered = false; schedule(); });
+  if (pauseOnHover) {
+    element.addEventListener('pointerenter', event => { if (event?.pointerType === 'touch') return; hovered = true; cancelTimer(); });
+    element.addEventListener('pointerleave', event => { if (event?.pointerType === 'touch') return; hovered = false; schedule(); });
+  }
   if (pauseOnFocus) {
     element.addEventListener('focusin', () => { focused = true; cancelTimer(); });
     element.addEventListener('focusout', event => { focused = element.contains(event.relatedTarget); schedule(); });
