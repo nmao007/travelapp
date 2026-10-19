@@ -234,3 +234,6 @@
 @media(min-width:901px) and (min-height:501px), (min-width:981px){
   #edit-date-picker[open]{height:fit-content}#edit-date-picker>.calendar-scroll-body{flex:0 1 auto}
 }
+@media(min-width:901px) and (min-height:501px), (min-width:981px){
+  .timeline-row:has(.timeline-schedule){padding-right:0!important}.timeline-row>.timeline-schedule{grid-column:3;grid-row:1;align-self:center}
+}

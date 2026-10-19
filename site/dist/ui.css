@@ -666,3 +666,32 @@ button:active:not(:disabled)>.icon{scale:.9}
 @media(prefers-reduced-motion:reduce){
   :where(.day-tab,.itinerary-toggle button,.dropdown-option,.discovery-days button,.trip-date-mode button,.route-mode,.ib-view-switch button,.primary-action,.calendar-actions button,.recommendation-add){transition:none!important}
 }
+
+/* Keep every overview clock on the same baseline, with its fixed-time cue. */
+.timeline-schedule{display:inline-flex;align-items:center;justify-content:flex-end;gap:6px;order:3;flex:none;margin-left:auto;white-space:nowrap}
+.workspace #day-content.day-content :is(.timeline-time,.flight-arrival-time){font-size:12px;line-height:18px;font-weight:500;letter-spacing:0;color:#626262;font-variant-numeric:tabular-nums;white-space:nowrap}
+.workspace #day-content .timeline-schedule>.timeline-time{position:static;order:0;width:auto;margin:0;padding:0}
+.workspace #day-content .timeline-schedule>.fixed-indicator{position:static;display:inline-flex;align-items:center;justify-content:center;order:0;flex:none;margin:0;padding:0;color:#999}
+.timeline-schedule>.fixed-indicator>.icon{width:12px;height:12px}
+
+/* The composite clock is one continuous field; keep its dropdown unclipped. */
+body .time-picker{border-radius:16px;corner-shape:squircle;clip-path:none;background:#fafbfc;border-color:#dfe2e7}
+body .time-picker:focus-within{border-color:#c85b2a;background:#fff;box-shadow:inset 0 0 0 1px #c85b2a}
+
+/* Route editing is a preview, with comfortable one-tap ordering controls. */
+.route-order-dialog{width:440px;max-width:calc(100vw - 32px);max-height:calc(100dvh - 40px);padding:22px;border-radius:28px;corner-shape:squircle}
+.route-order-dialog[open]{display:flex;flex-direction:column;gap:16px;overflow:hidden}
+.route-order-dialog .editor-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0;flex:none}
+.route-order-dialog h2{margin:0;font-size:23px;line-height:30px;letter-spacing:-.5px}
+#route-order-hint,#route-order-flights{margin:0;font-size:13px;line-height:19px;color:#737373;flex:none}
+#route-order-flights{padding:10px 12px;border-radius:16px;corner-shape:squircle;background:#fff5ed;color:#956044}
+#route-order-list{list-style:none;padding:0;margin:0;overflow-y:auto;overscroll-behavior:contain;min-height:0;display:flex;flex-direction:column;gap:8px}
+.route-order-row{display:flex;align-items:center;gap:12px;padding:12px;background:#f7f7f9;border-radius:22px;corner-shape:squircle;flex:none;min-width:0}
+.route-order-number{display:grid;place-items:center;width:30px;flex:none;font-size:15px;font-weight:600;color:#b85a30}
+.route-order-copy{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}.route-order-copy strong{font-size:16px;line-height:21px;font-weight:600;overflow-wrap:anywhere}.route-order-copy>span{font-size:13px;line-height:18px;color:#737373}
+.route-order-controls{display:flex;gap:4px;flex:none}.route-order-controls button{display:grid;place-items:center;width:44px;min-width:44px;height:44px;min-height:44px;padding:0;background:#fff;color:#555;border:0;border-radius:18px!important;corner-shape:squircle;--phone-control-bg:#fff;--phone-control-ink:#555}.route-order-controls button:disabled{opacity:.25}.route-order-controls .icon{width:18px;height:18px}.route-order-controls [data-step="-1"] .icon{rotate:180deg}
+.route-order-dialog .editor-actions{display:flex;align-items:center;justify-content:flex-end;gap:12px;padding-top:12px;margin:0;border-top:1px solid #eee;flex:none}.route-order-dialog .primary-action{min-height:46px;padding:10px 18px;font-size:15px}.route-order-dialog .primary-action:disabled{opacity:.4}.route-order-dialog .editor-error{margin:0;font-size:13px;line-height:19px;flex:none}.route-order-dialog .editor-error:empty{display:none}
+@media(max-width:580px), (max-width:980px) and (max-height:500px){
+  .route-order-dialog{inset:auto 0 var(--keyboard-rise,0px);margin:0;width:100%;max-width:none;max-height:calc(var(--visual-height,100dvh) - var(--safe-top) - 16px);padding:20px 16px calc(16px + var(--sheet-safe-bottom));border:0;border-radius:36px 36px 0 0}
+  .route-order-dialog .editor-actions>.primary-action{flex:1;justify-content:center;--phone-control-bg:#f36b32;--phone-control-ink:#fff;color:#fff}.route-order-dialog .editor-actions>.quiet-action{min-height:46px;padding:8px 12px;font-size:14px}
+}

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { STORAGE_KEY, readTrips, saveTrip, deleteTrip, addPlace, movePlace, removePlace, addStop, moveStop, removeStop, tripStops, stopSchedule, stopForDay, datesForStop, setStopDates, tripTitle, renameTrip } from '../dist/trip-store.js';
+import { STORAGE_KEY, readTrips, saveTrip, deleteTrip, addPlace, movePlace, removePlace, addStop, moveStop, reorderStops, removeStop, tripStops, stopSchedule, stopForDay, stopForPlan, datesForStop, setStopDates, tripTitle, renameTrip } from '../dist/trip-store.js';
 
 function memory() {
   const values = new Map();
@@ -126,10 +126,12 @@ test('stop editing rejects reversed ranges, outside dates, and overlap across th
   assert.equal(stopForDay({...explicit, stops: [explicit.stops[0], {...explicit.stops[1], date: '2026-10-05'}]}, '2026-10-04'), null);
 });
 
-test('route reordering retains chronological date slots and all itinerary records', () => {
+test('route reordering moves stay durations and plans while keeping booked transportation intact', () => {
   const trip = datedRoute(), next = moveStop(trip, 1, -1);
-  assert.deepEqual(stopSchedule(next).map(entry => [entry.stop.name, entry.start, entry.end]), [['Porto', '2026-10-01', '2026-10-04'], ['Lisbon', '2026-10-04', '2026-10-08']]);
-  assert.equal(next.items, trip.items); assert.equal(next.transport, trip.transport);
+  assert.deepEqual(stopSchedule(next).map(entry => [entry.stop.name, entry.start, entry.end]), [['Porto', '2026-10-01', '2026-10-05'], ['Lisbon', '2026-10-05', '2026-10-08']]);
+  assert.equal(next.items[0].day, '2026-10-07');
+  assert.equal(next.items[0].booked, true); assert.deepEqual(next.transport, trip.transport);
+  assert.equal(trip.items[0].day, '2026-10-03');
 });
 
 test('unscheduled added destinations do not take ownership of existing days', () => {
@@ -170,4 +172,49 @@ test('stop dates establish an undated trip and reject invalid or excessive range
   assert.throws(() => setStopDates(dated, lisbon.placeId, '2027-01-05', '2027-01-04', { extendTrip: true }), /Departure/);
   assert.throws(() => setStopDates(dated, lisbon.placeId, '2027-02-30', '2027-03-01', { extendTrip: true }), /Choose arrival/);
   assert.throws(() => setStopDates(dated, lisbon.placeId, '2028-01-01', '2028-01-02', { extendTrip: true }), /one year/);
+});
+
+
+test('reordering unequal stays keeps activities, manual day order, gaps and ideas', () => {
+  const trip = { ...lisbon, startDate:'2026-12-28', endDate:'2027-01-08', stops:[
+    {...lisbon,date:'2026-12-28',endDate:'2026-12-30'},
+    {placeId:'porto',name:'Porto',latitude:41,longitude:-8,date:'2027-01-01',endDate:'2027-01-04'},
+    {placeId:'coimbra',name:'Coimbra',latitude:40,longitude:-8,date:'2027-01-05',endDate:'2027-01-08'}
+  ],items:[{id:'a',name:'Dinner',day:'2026-12-29',time:'19:00',reference:'Ticket'}, {id:'b',name:'Museum',day:'2027-01-03'}, {id:'idea',name:'Someday',day:'ideas'}, {id:'gap',name:'Transit day',day:'2026-12-31'}],dayOrder:{'2026-12-29':['plan:a'],'2027-01-03':['plan:b'],'2026-12-31':['plan:gap']},transport:[{id:'booked',service_id:'AB 1',departure_date:'2026-12-28',arrival_date:'2026-12-28'}, {id:'old-draft',draft:true,leg:'transfer',fromPlaceId:lisbon.placeId,toPlaceId:'porto'}] };
+  const next = reorderStops(trip, ['coimbra','porto',lisbon.placeId]);
+  assert.deepEqual(stopSchedule(next).map(({start,end})=>[start,end]), [['2026-12-28','2026-12-31'],['2027-01-02','2027-01-05'],['2027-01-06','2027-01-08']]);
+  assert.deepEqual(next.items.map(item=>item.day), ['2027-01-07','2027-01-04','ideas','2026-12-31']);
+  assert.equal(next.items[0].reference,'Ticket');
+  assert.deepEqual(next.dayOrder, {'2027-01-07':['plan:a'],'2027-01-04':['plan:b'],'2026-12-31':['plan:gap']});
+  assert.deepEqual(next.transport,[trip.transport[0]]);
+  const storage=memory();saveTrip(next,storage);assert.equal(readTrips(storage)[0].stops[0].name,'Coimbra');
+  assert.equal(trip.items[0].day,'2026-12-29');
+});
+
+test('route changes are atomic when a moved plan overlaps a flight', () => {
+  const trip={...datedRoute(),timeZone:'UTC',items:[{id:'x',name:'Museum',day:'2026-10-03',time:'12:00'}],transport:[{id:'flight',mode:'Flight',service_id:'AB 2',departure_date:'2026-10-07',departure_time:'10:00',departure_time_zone:'UTC',arrival_date:'2026-10-07',arrival_time:'15:00',arrival_time_zone:'UTC'}]};
+  assert.throws(()=>reorderStops(trip,['porto',lisbon.placeId]), /overlaps flight/);
+  assert.equal(trip.stops[0].name,'Lisbon');assert.equal(trip.items[0].day,'2026-10-03');
+});
+
+test('route order validates membership and does not guess dates for partially scheduled stops', () => {
+  const trip=datedRoute();
+  assert.throws(()=>reorderStops(trip,['porto','porto']), /each stop once/);
+  assert.throws(()=>reorderStops(trip,['porto','unknown']), /each stop once/);
+  assert.equal(reorderStops(trip,tripStops(trip).map(stop=>stop.placeId)),trip);
+  const partial=addStop(trip,{placeId:'third',name:'Third',latitude:0,longitude:0});
+  assert.throws(()=>reorderStops(partial,['third','porto',lisbon.placeId]),/Set dates/);
+  assert.equal(moveStop(trip,9,-1),trip);
+});
+
+
+test('shared transfer days keep activity ownership through repeated route changes', () => {
+  const trip={...datedRoute(),items:[{id:'last',name:'Porto dinner',day:'2026-10-08',time:'19:00'}, {id:'first',name:'Lisbon lunch',day:'2026-10-02'}]};
+  const swapped=reorderStops(trip,['porto',lisbon.placeId]);
+  assert.equal(swapped.items[0].day,'2026-10-05');
+  assert.equal(stopForDay(swapped,'2026-10-05').placeId,lisbon.placeId);
+  assert.equal(stopForPlan(swapped,swapped.items[0]).placeId,'porto');
+  const restored=reorderStops(swapped,[lisbon.placeId,'porto']);
+  assert.deepEqual(restored.items.map(item=>item.day),trip.items.map(item=>item.day));
+  assert.equal(stopForPlan(restored,{...restored.items[0],day:'2026-10-02'}).placeId,lisbon.placeId);
 });

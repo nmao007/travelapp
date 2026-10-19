@@ -10,7 +10,7 @@ import { createPlaceSearch, createPlaceDetails, placeSearchGroups, mixedMapPlace
 import { isTourOperator } from './tour-model.js';
 import { playMotion, closeDialogSmooth, revealSequence, reducedMotion, installButtonMotion, installSurfaceMotion, animateContentChange } from './motion.js';
 import { createTripBanner } from './trip-banner.js';
-import { readTrips, saveTrip, deleteTrip, addPlace, removePlace, movePlace, addStop, moveStop, removeStop, tripStops, stopSchedule, datesForStop, setStopDates, tripTitle, renameTrip, currentAccount, createAccount, signIn, signOut, restoreSession, loadCloudTrips } from './trip-store.js';
+import { readTrips, saveTrip, deleteTrip, addPlace, removePlace, movePlace, addStop, reorderStops, removeStop, tripStops, stopSchedule, datesForStop, setStopDates, tripTitle, renameTrip, currentAccount, createAccount, signIn, signOut, restoreSession, loadCloudTrips } from './trip-store.js';
 import { createIdeasBoard } from './ideas-board.js';
 import { calendarMonth, presetRange } from './date-range.js';
 import { datesForTrip, eventsForDay, mappedPlace, makePlan } from './itinerary-model.js';
@@ -197,6 +197,7 @@ function renderRoute() {
   const list = $('route-list'), scroll = list.scrollLeft;
   const focusedStop = list.contains(document.activeElement) ? document.activeElement.dataset.stopId : null;
   $('route-bar').dataset.stopCount = String(entries.length);
+  $('menu-reorder-stops').hidden = entries.length < 2;
   $('destination-hero').dataset.stopCount = String(entries.length);
   list.replaceChildren(); list.hidden = entries.length < 2;
   for (const entry of entries) {
@@ -1427,8 +1428,7 @@ function renderStopDraft(place, existing = false) {
   updateStopDateFields();
   $('stop-route-actions').hidden = !existing; $('change-stop-place').hidden = existing;
   $('back-to-trip-calendar').hidden = !existing;
-  const index = entries.findIndex(item => item.stop.placeId === place.placeId);
-  $('stop-earlier').disabled = index <= 0; $('stop-later').disabled = index >= entries.length - 1;
+  $('reorder-stop-route').hidden = entries.length < 2;
   $('remove-stop').disabled = entries.length < 2;
   revealSequence($('stop-date-panel').children, { step: 45 });
   $('stop-arrival').focus({ preventScroll: true });
@@ -1504,10 +1504,76 @@ function returnToTripCalendar(saved = false) {
   }
 }
 $('back-to-trip-calendar').addEventListener('click', () => returnToTripCalendar());
-for (const [id, direction] of [['stop-earlier', -1], ['stop-later', 1]]) $(id).addEventListener('click', () => {
-  const index = tripStops(state.trip).findIndex(stop => stop.placeId === editingStopId);
-  commitRoute(moveStop(state.trip, index, direction), editingStopId);
-  renderStopDraft(tripStops(state.trip).find(stop => stop.placeId === editingStopId), true);
+let routeOrderBase = null, routeOrderDraft = [], routeOrderPreview = null;
+function renderRouteOrder(focusId = null, direction = 0) {
+  const list = $('route-order-list');
+  const previous = new Map([...list.children].map(row => [row.dataset.stopId, row.getBoundingClientRect().top]));
+  const entries = stopSchedule(routeOrderPreview);
+  for (const [index, entry] of entries.entries()) {
+    const id = entry.stop.placeId;
+    let row = [...list.children].find(row => row.dataset.stopId === id);
+    if (!row) {
+      row = document.createElement('li'); row.className = 'route-order-row'; row.dataset.stopId = id;
+      row.innerHTML = '<span class="route-order-number" aria-hidden="true"></span><span class="route-order-copy"><strong></strong><span></span></span><span class="route-order-controls"></span>';
+      for (const step of [-1, 1]) {
+        const button = document.createElement('button'); button.type = 'button'; button.dataset.step = String(step);
+        button.innerHTML = icon('chevron');
+        button.addEventListener('click', () => {
+          const from = routeOrderDraft.indexOf(id), to = from + step;
+          if (to < 0 || to >= routeOrderDraft.length) return;
+          const order = [...routeOrderDraft]; [order[from], order[to]] = [order[to], order[from]];
+          try {
+            const preview = reorderStops(routeOrderBase, order);
+            routeOrderDraft = order; routeOrderPreview = preview; $('route-order-error').textContent = '';
+            renderRouteOrder(id, step);
+            $('route-order-status').textContent = `${entry.stop.name}, stop ${to + 1} of ${order.length}.`;
+          } catch (error) { $('route-order-error').textContent = error.message; }
+        });
+        row.querySelector('.route-order-controls').append(button);
+      }
+    }
+    row.querySelector('.route-order-number').textContent = index + 1;
+    row.querySelector('strong').textContent = entry.stop.name;
+    row.querySelector('.route-order-copy>span').textContent = stopRangeLabel(entry);
+    for (const button of row.querySelectorAll('button')) {
+      const step = Number(button.dataset.step);
+      button.disabled = index + step < 0 || index + step >= entries.length;
+      button.setAttribute('aria-label', `Move ${entry.stop.name} ${step < 0 ? 'earlier' : 'later'}`);
+    }
+    list.append(row);
+  }
+  for (const row of list.children) {
+    const before = previous.get(row.dataset.stopId), delta = before === undefined ? 0 : before - row.getBoundingClientRect().top;
+    if (delta) playMotion(row, [{ transform: `translateY(${delta}px)` }, { transform: 'translateY(0)' }], { duration: 180 });
+  }
+  $('save-route-order').disabled = routeOrderPreview === routeOrderBase;
+  if (focusId) {
+    const row = [...list.children].find(row => row.dataset.stopId === focusId);
+    const button = row.querySelector(`[data-step="${direction}"]`);
+    (button.disabled ? row.querySelector('button:not(:disabled)') : button)?.focus({ preventScroll: true });
+  }
+}
+function openRouteOrder() {
+  if (!state.trip || tripStops(state.trip).length < 2) return;
+  routeOrderBase = state.trip; routeOrderPreview = state.trip;
+  routeOrderDraft = tripStops(state.trip).map(stop => stop.placeId);
+  $('route-order-list').replaceChildren(); $('route-order-error').textContent = ''; $('route-order-status').textContent = '';
+  $('route-order-flights').hidden = !(state.trip.transport || []).some(segment => !segment.draft);
+  $('trip-menu').hidden = true;
+  renderRouteOrder(); $('route-order-dialog').showModal();
+}
+$('menu-reorder-stops').addEventListener('click', openRouteOrder);
+$('reorder-stop-route').addEventListener('click', async () => { await closeDialogSmooth($('route-search')); openRouteOrder(); });
+for (const id of ['close-route-order', 'cancel-route-order']) $(id).addEventListener('click', () => closeDialogSmooth($('route-order-dialog')));
+$('save-route-order').addEventListener('click', async () => {
+  if (!routeOrderPreview || routeOrderPreview === routeOrderBase) return;
+  if (state.trip !== routeOrderBase) { $('route-order-error').textContent = 'The trip changed. Close and reopen to review the latest route.'; return; }
+  const selected = state.stopFilter;
+  if (commitRoute(routeOrderPreview, selected)) {
+    workspaceTrail = []; workspacePositions.reset(); itinerary.showOverview();
+    await closeDialogSmooth($('route-order-dialog'));
+    status('trip-status', 'Route updated · plans moved with your stops');
+  }
 });
 $('remove-stop').addEventListener('click', () => {
   const removedId = editingStopId, stop = tripStops(state.trip).find(stop => stop.placeId === removedId);

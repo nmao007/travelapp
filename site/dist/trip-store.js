@@ -1,6 +1,7 @@
 import { assertFlightAvailability } from './flight-window.js';
 import { fixedItem, datesForTrip } from './itinerary-model.js';
-import { isDate } from './domain.js';
+import { isDate, activityInstant } from './domain.js';
+import { dateOffset, offsetDate } from './trip-dates.js';
 import { persistableBoardTrip, preferLocalBoard } from './board-model.js';
 export const STORAGE_KEY = 'trippilot-site-trips-v1';
 const SESSION_KEY = 'trippilot-site-supabase-session-v1';
@@ -220,6 +221,13 @@ export function stopForDay(trip, day, stops = tripStops(trip)) {
     .sort((a, b) => b.start.localeCompare(a.start) || b.index - a.index)[0]?.stop || null;
 }
 
+// A transfer day may belong to two stays. Remember an activity's destination
+// after route edits so moving back and forth never reassigns it to its neighbor.
+export function stopForPlan(trip, item) {
+  const assigned = item.routeStopId && stopSchedule(trip).find(entry => entry.stop.placeId === item.routeStopId && isDate(item.day) && entry.start <= item.day && entry.end >= item.day);
+  return assigned?.stop || stopForDay(trip, item.day);
+}
+
 export function datesForStop(trip, placeId) {
   const entry = stopSchedule(trip).find(entry => entry.stop.placeId === placeId);
   return entry?.start ? datesForTrip(trip).filter(day => day >= entry.start && day <= entry.end) : [];
@@ -263,13 +271,51 @@ export function addStop(trip, stop) {
   return withStops(trip, [...stops, stop]);
 }
 
+// Rebuild a route from each stay's own duration, rather than swapping city
+// names into someone else's dates. Build and validate before persisting anything.
+export function reorderStops(trip, order) {
+  const stops = tripStops(trip), ids = stops.map(stop => stop.placeId);
+  if (!Array.isArray(order) || order.length !== ids.length || new Set(order).size !== ids.length || order.some(id => !ids.includes(id))) throw new Error('Include each stop once.');
+  if (order.every((id, index) => id === ids[index])) return trip;
+  const entries = stopSchedule(trip), byId = new Map(entries.map(entry => [entry.stop.placeId, entry]));
+  if (entries.every(entry => !entry.start)) return withStops(trip, order.map(id => byId.get(id).stop));
+  if (entries.some(entry => !entry.start || !entry.end || entry.end < entry.start)) throw new Error('Set dates for every stop before changing the route.');
+  const gaps = entries.slice(1).map((entry, index) => dateOffset(entries[index].end, entry.start));
+  if (gaps.some(gap => gap < 0)) throw new Error('Resolve overlapping stop dates before changing the route.');
+  let cursor = entries[0].start;
+  const moved = order.map((id, index) => {
+    const entry = byId.get(id), date = cursor, endDate = offsetDate(date, dateOffset(entry.start, entry.end));
+    cursor = offsetDate(endDate, gaps[index] || 0);
+    return { ...entry.stop, date, endDate };
+  });
+  const offsets = new Map(moved.map(stop => [stop.placeId, dateOffset(byId.get(stop.placeId).start, stop.date)]));
+  const items = (trip.items || []).map(item => {
+    const owner = stopForPlan(trip, item);
+    return owner ? { ...item, day: offsetDate(item.day, offsets.get(owner.placeId)), routeStopId: owner.placeId, ...(item.timeZone || owner.timeZone || trip.timeZone ? { timeZone: item.timeZone || owner.timeZone || trip.timeZone } : {}) } : item;
+  });
+  const itemDays = new Map(items.map(item => [`plan:${item.id}`, item.day]));
+  const dayOrder = {};
+  for (const [day, keys] of Object.entries(trip.dayOrder || {})) for (const key of keys) {
+    const target = itemDays.get(key) || day;
+    const bucket = dayOrder[target] ||= [];
+    if (!bucket.includes(key)) bucket.push(key);
+  }
+  const next = { ...withStops(trip, moved), items, ...(trip.dayOrder ? { dayOrder } : {}) };
+  for (const item of items) {
+    if (isDate(item.day) && item.time && activityInstant({ date: item.day, time: item.time, time_zone: item.timeZone || stopForDay(next, item.day)?.timeZone || next.timeZone || 'UTC' }) === null) throw new Error(`Adjust the time for ${item.name} before moving it across a clock change.`);
+    assertFlightAvailability(next, item);
+  }
+  // Booked journeys are real reservations. Keep them intact; obsolete generated
+  // connection prompts will be rebuilt for the new neighboring destinations.
+  if (trip.transport) next.transport = trip.transport.filter(segment => !segment.draft || !['transfer', 'arrival', 'home'].includes(segment.leg));
+  return next;
+}
+
 export function moveStop(trip, index, direction) {
-  const stops = tripStops(trip);
-  const target = index + direction;
-  if (index < 0 || target < 0 || target >= stops.length) return trip;
-  const slots = stops.map(stop => ({ date: stop.date, endDate: stop.endDate }));
-  [stops[index], stops[target]] = [stops[target], stops[index]];
-  return withStops(trip, stops.map((stop, position) => ({ ...stop, ...slots[position] })));
+  const order = tripStops(trip).map(stop => stop.placeId), target = index + direction;
+  if (!Number.isInteger(index) || !Number.isInteger(target) || index < 0 || index >= order.length || target < 0 || target >= order.length) return trip;
+  [order[index], order[target]] = [order[target], order[index]];
+  return reorderStops(trip, order);
 }
 
 export function removeStop(trip, placeId) {

@@ -5,7 +5,7 @@ import { playMotion, closeDialogSmooth, morphFrom, morphFrames, celebratePlaceme
 import { flightDayBlock } from './flight-window.js';
 import { datesForTrip, monthsForTrip, calendarDisplayCells, eventsForDay, fixedItem, mappedPlace, makePlan, makeTransport, upsertTransport, reorderPlan, stepPlan, removeItineraryEvent, restoreItineraryEvent, duplicatePlan } from './itinerary-model.js';
 import { destinationForDay } from './place-model.js';
-import { tripStops, datesForStop, stopSchedule } from './trip-store.js';
+import { tripStops, datesForStop, stopSchedule, stopForPlan } from './trip-store.js';
 import { normalizeFlightNumber, sameFlightDetails } from './flight-model.js';
 import { createPlanningDrag, capturePlanningLayout, animatePlanningLayout } from './planning-drag.js';
 import { refreshDropdowns } from './dropdowns.js';
@@ -355,10 +355,18 @@ export function createItineraryUI({ state, commit, explore, requestAdd, chooseDa
       if (item.time) schedule.append(node('span', 'day-card-time', formatClock(item.time)));
       if (fixedItem(item)) schedule.append(node('span', 'day-card-booked', item.booked ? 'Reserved' : 'Fixed time'));
       row.append(schedule);
-    } else if (!detailed && item.time) head.append(node('span', 'timeline-time', formatClock(item.time)));
+    }
+    if (!detailed && (item.time || fixedItem(item))) {
+      const schedule = node('span', 'timeline-schedule');
+      if (fixedItem(item)) {
+        const lock = node('span', 'fixed-indicator'); lock.innerHTML = icon(item.booked ? 'check' : 'lock');
+        lock.setAttribute('aria-label', item.booked ? 'Reserved' : 'Fixed time'); schedule.append(lock);
+      }
+      if (item.time) { const clock = node('time', 'timeline-time', formatClock(item.time)); clock.dateTime = item.time; schedule.append(clock); }
+      head.append(schedule);
+    }
     head.append(marker, copy);
-    if (fixedItem(item) && !detailed) { const lock = node('span', 'fixed-indicator'); lock.innerHTML = icon(item.booked ? 'check' : 'lock'); lock.setAttribute('aria-label', item.booked ? 'Reserved' : 'Fixed time'); head.append(lock); }
-    else if (!fixedItem(item) && detailed && !matchMedia(phoneMediaQuery).matches) {
+    if (!fixedItem(item) && detailed && !matchMedia(phoneMediaQuery).matches) {
       const controls = node('div', 'day-reorder'); controls.setAttribute('role', 'group'); controls.setAttribute('aria-label', `Reorder ${item.name}`);
       for (const direction of ['up', 'down']) {
         const button = action('', () => moveDayPlan(item, direction), 'day-reorder-button');
@@ -500,7 +508,7 @@ export function createItineraryUI({ state, commit, explore, requestAdd, chooseDa
     heading.append(marker, headingMain);
     section.append(heading);
     for (const segment of boundarySegments) section.append(transportDraftCard(segment));
-    const events = eventsForDay(state.trip, day);
+    const events = stopEvents(day);
     if (selected) headingMain.append(node('span', 'day-plan-count', `${events.length} ${events.length === 1 ? 'plan' : 'plans'}`));
     if (tripStops(state.trip).length > 1) {
       const stop = destinationForDay(state.trip, tripStops(state.trip), day);
@@ -553,6 +561,8 @@ export function createItineraryUI({ state, commit, explore, requestAdd, chooseDa
     return stop?.start || null;
   }
 
+  const stopEvents = day => eventsForDay(state.trip, day).filter(event => !state.stopFilter || event.kind !== 'activity' || stopForPlan(state.trip, event.item)?.placeId === state.stopFilter);
+
   function render() {
     if (pendingRemoval && pendingRemoval.tripId !== state.trip?.id) clearRemoval();
     if (!state.trip) return;
@@ -560,8 +570,8 @@ export function createItineraryUI({ state, commit, explore, requestAdd, chooseDa
     if (!days.includes(state.day)) state.day = days[0] || 'ideas';
     $('phone-trip-range').textContent = allDays.length ? `${format(allDays[0], { month: 'short', day: 'numeric' })} – ${format(allDays.at(-1), allDays[0].slice(0, 7) === allDays.at(-1).slice(0, 7) ? { day: 'numeric' } : { month: 'short', day: 'numeric' })}` : 'Dates not set';
     dayOptions($('phone-day-select'), state.day);
-    const dayDestination = destinationForDay(state.trip, tripStops(state.trip), state.day);
-    const dayCount = eventsForDay(state.trip, state.day).length;
+    const dayDestination = tripStops(state.trip).find(stop => stop.placeId === state.stopFilter) || destinationForDay(state.trip, tripStops(state.trip), state.day);
+    const dayCount = stopEvents(state.day).length;
     $('phone-day-context').textContent = `${dayDestination?.name || state.trip.name} · ${dayCount} ${dayCount === 1 ? 'plan' : 'plans'}`;
     onModeChange?.(state.planMode);
     const showBothModes = matchMedia('(min-width:901px) and (min-height:501px), (min-width:981px)').matches;
@@ -645,7 +655,7 @@ export function createItineraryUI({ state, commit, explore, requestAdd, chooseDa
         if (!display) { const blank = node('span', 'calendar-blank'); blank.setAttribute('aria-hidden', 'true'); grid.append(blank); continue; }
         const { date } = display; const inTrip = display.inTrip && days.includes(date);
         if (!inTrip) { const outside = node('div', `itinerary-cell outside-trip${date === today ? ' today' : ''}`); outside.dataset.day = date; if (date === today) outside.setAttribute('aria-current', 'date'); outside.append(node('span', 'calendar-outside-date', String(Number(date.slice(-2))))); grid.append(outside); continue; }
-        const events = eventsForDay(state.trip, date);
+        const events = stopEvents(date);
         const cell = action('', () => { chooseDay(date, compactCalendar ? 'calendar' : 'day'); if (compactCalendar) $('day-content').querySelector(`.itinerary-cell[data-day="${date}"]`)?.focus({ preventScroll: true }); }, `itinerary-cell${state.day === date ? ' active-day' : ''}${date === today ? ' today' : ''}`); cell.dataset.day = date; if (date === today) cell.setAttribute('aria-current', 'date'); cell.setAttribute('aria-label', `${compactCalendar ? 'Show plans for' : 'Open'} ${format(date)}, ${events.length} ${events.length === 1 ? 'plan' : 'plans'}`); if (compactCalendar) cell.setAttribute('aria-pressed', String(state.day === date));
         const heading = node('div', 'calendar-cell-head');
         const dateNumber = node('span', 'calendar-date-button', String(Number(date.slice(-2)))); heading.append(dateNumber);
@@ -672,7 +682,7 @@ export function createItineraryUI({ state, commit, explore, requestAdd, chooseDa
       }
       section.append(grid);
       if (compactCalendar) {
-        const agendaDay = state.day, events = eventsForDay(state.trip, agendaDay);
+        const agendaDay = state.day, events = stopEvents(agendaDay);
         const agenda = node('section', 'calendar-agenda'); agenda.dataset.day = agendaDay; agenda.setAttribute('aria-label', `Plans for ${format(agendaDay)}`);
         const heading = node('div', 'agenda-heading');
         const open = action(format(agendaDay), () => chooseDay(agendaDay, 'day'), 'agenda-open'); open.insertAdjacentHTML('beforeend', icon('arrow'));
