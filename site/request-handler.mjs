@@ -257,6 +257,7 @@ export async function handleRequest(request, response) {
   assets.set('/expansion.js', 'expansion.js');
   assets.set('/day-motion.js', 'day-motion.js');
   assets.set('/plan-navigation.js', 'plan-navigation.js');
+  assets.set('/place-planning.js', 'place-planning.js');
   assets.set('/trip-dates.js', 'trip-dates.js');
   assets.set('/phone-devices.js', 'phone-devices.js');
   assets.set('/mobile.css', 'mobile.css');

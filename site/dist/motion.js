@@ -15,6 +15,40 @@ export function playMotion(element, frames, options = {}) {
   return animation;
 }
 
+// One layer per transition keeps text, icons, and backgrounds on the same clock.
+export function animateContentChange(element, { direction = 0, distance = 7, duration = 200 } = {}) {
+  return playMotion(element, [
+    { opacity: .35, transform: direction ? `translateX(${Math.sign(direction) * distance}px)` : `translateY(${distance}px)` },
+    { opacity: 1, transform: 'none' },
+  ], { duration, easing: 'cubic-bezier(.16,1,.3,1)' });
+}
+
+// A closing popover can be reopened immediately without its old completion
+// hiding the new one. Its hit area is disabled only for the short exit.
+export function createPopoverMotion(surface, hide) {
+  let version = 0;
+  return {
+    open() {
+      version++; surface.inert = false;
+      animateContentChange(surface, { distance: 4, duration: 170 });
+    },
+    close() {
+      const ticket = ++version;
+      surface.inert = true;
+      const current = typeof getComputedStyle === 'function' ? getComputedStyle(surface) : null;
+      const animation = playMotion(surface, [
+        { opacity: current?.opacity || 1, transform: current?.transform || 'none' },
+        { opacity: 0, transform: 'translateY(-3px)' },
+      ], { duration: 110, easing: 'cubic-bezier(.4,0,1,1)', fill: 'forwards' });
+      const finish = () => {
+        if (ticket !== version) return;
+        version++; hide(); stopMotion(surface); surface.inert = false;
+      };
+      if (animation) animation.finished.then(finish).catch(finish); else finish();
+    },
+  };
+}
+
 const closingDialogs = new WeakMap();
 // Keep the open dialog's layout and modal focus until its exit has finished.
 export function closeDialogSmooth(dialog) {

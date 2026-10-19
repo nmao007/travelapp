@@ -21,7 +21,7 @@ const format = (date, options = { weekday: 'short', month: 'short', day: 'numeri
 const node = (tag, className, text) => { const element = document.createElement(tag); if (className) element.className = className; if (text !== undefined) element.textContent = text; return element; };
 const action = (label, callback, className = 'quiet-action') => { const button = node('button', className, label); button.type = 'button'; button.addEventListener('click', callback); return button; };
 
-export function createItineraryUI({ state, commit, explore, chooseDates, focusPlace, hydratePlace, decoratePlaceIcon, onDayChange, onModeChange, onRendered, editStopDates, editTripDates, closeMobileMap, icon }) {
+export function createItineraryUI({ state, commit, explore, requestAdd, chooseDates, focusPlace, hydratePlace, decoratePlaceIcon, onDayChange, onModeChange, onRendered, editStopDates, editTripDates, closeMobileMap, icon }) {
   const dayMotion = createDayMotion($('day-content'), $('plan-panel'));
   function revealPhoneSection(section) {
     if (!matchMedia(phoneMediaQuery).matches || section.hidden || !section.closest('dialog')?.open) return;
@@ -66,7 +66,7 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
   }
   function showOverview() { navigation.reset(state.trip?.id); state.planMode = 'list'; render(); }
   const findPlaces = day => { chooseDay(day); explore(); };
-  const addDayPlan = day => { state.day = day; onDayChange?.(day); openPlan(); };
+  const addDayPlan = day => { state.day = day; onDayChange?.(day); requestAdd(); };
   const placeSymbol = item => {
     const holder = node('span'); holder.innerHTML = icon('pin');
     const svg = holder.firstElementChild; decoratePlaceIcon(svg, item); return svg;
@@ -385,8 +385,10 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
       row.append(detail);
       if (item.notes) row.append(node('p', 'day-card-note', item.notes));
       if (item.reference) row.append(node('p', 'booking-reference', `Confirmation · ${item.reference}`));
-      row.append(node('div', 'day-card-links'));
-      if (reorderControls) { const footer = node('div', 'day-card-footer'); footer.append(reorderControls); row.append(footer); }
+      const footer = node('div', 'day-card-footer');
+      footer.append(node('div', 'day-card-links'));
+      if (reorderControls) footer.append(reorderControls);
+      row.append(footer);
       hydratePlace(detail, item.kind === 'Tour' ? { ...item, name: item.tour?.meetingName || item.name } : item, { daySummary: true });
     }
     if (!fixedItem(item)) {
@@ -562,7 +564,11 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
     const dayCount = eventsForDay(state.trip, state.day).length;
     $('phone-day-context').textContent = `${dayDestination?.name || state.trip.name} · ${dayCount} ${dayCount === 1 ? 'plan' : 'plans'}`;
     onModeChange?.(state.planMode);
-    for (const button of document.querySelectorAll('[data-plan-mode]')) button.hidden = button.dataset.planMode === state.planMode;
+    const showBothModes = matchMedia('(min-width:901px) and (min-height:501px), (min-width:981px)').matches;
+    for (const button of document.querySelectorAll('[data-plan-mode]')) {
+      button.hidden = !showBothModes && button.dataset.planMode === state.planMode;
+      button.setAttribute('aria-pressed', String(button.dataset.planMode === state.planMode));
+    }
     const phoneOutsidePlan = matchMedia(phoneMediaQuery).matches && state.workspaceView !== 'itinerary';
     const phoneCalendarOverview = matchMedia(phoneMediaQuery).matches && state.planMode === 'calendar';
     $('back-to-plan').hidden = (state.planMode !== 'day' && !phoneCalendarOverview) || phoneOutsidePlan;
@@ -593,7 +599,7 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
     $('place-count').textContent = `${count} ${count === 1 ? 'plan' : 'plans'}`;
     const content = $('day-content'); const previousMode = content.dataset.mode;
     const previousScroll = content.scrollTop;
-    const animateDay = dayMotion.prepare({ trip: state.trip.id, mode: state.planMode, day: state.day });
+    const animateDay = dayMotion.prepare({ trip: state.trip.id, mode: state.planMode, day: state.day, month: displayedMonth });
     content.replaceChildren(); content.dataset.mode = state.planMode;
 
     if (!allDays.length) { content.append(action('Choose your dates', chooseDates, 'open-day')); for (const item of state.trip.items || []) content.append(planRow(item)); }
@@ -737,7 +743,7 @@ export function createItineraryUI({ state, commit, explore, chooseDates, focusPl
       const visibleDay = [...content.querySelectorAll('section[data-day]')].find(section => section.getBoundingClientRect().bottom > top + 20);
       if (visibleDay) { state.day = visibleDay.dataset.day; onDayChange?.(state.day); }
     }
-    openPlan();
+    requestAdd();
   }); $('add-transport').addEventListener('click', () => openTransport());
   $('phone-day-select').addEventListener('change', event => chooseDay(event.target.value, 'day'));
   $('explore-day').addEventListener('change', event => { chooseDay(event.target.value); });

@@ -123,7 +123,7 @@
   .day-place-card>.day-card-links{grid-column:1/-1;padding-left:48px;margin-top:3px}.day-card-links .day-place-actions{display:flex;align-items:center;flex-wrap:wrap;gap:4px 16px}.day-card-links .day-place-link{display:inline-flex;align-items:center;gap:6px;min-height:44px;font-size:13px;font-weight:550;color:#c34e1f;text-decoration:none}.day-card-links:has(.day-place-actions:empty){display:none}
   .workspace #day-content .day-place-card>.mobile-drag-handle{position:absolute;right:2px;top:8px;transform:none;margin:0;width:44px;height:48px}
   .workspace #day-content .day-place-card:has(.day-card-schedule)>.mobile-drag-handle{top:38px}
-  .day-place-card>.day-card-footer{display:none}
+  .day-place-card>.day-card-footer{position:static;display:flex;grid-column:1/-1;grid-row:auto;margin:8px 0 0!important;padding:0;min-height:0}.day-card-footer>.day-reorder{display:none}.day-card-footer>.day-card-links{padding:0;margin:0}.day-card-footer:has(.day-card-links:empty){display:none}
   .selected-day>.transport-card{border:1px solid #e9eaed;border-radius:22px;padding:14px;margin:0 0 12px;background:#fff;box-shadow:none}
   .selected-day .transport-card-heading{font-size:16px;gap:8px}.selected-day .transport-card-legs{gap:16px;margin-top:10px}.selected-day .transport-leg strong{font-size:20px}.selected-day .transport-leg small{font-size:12px;line-height:18px}
   .day-route-bar{display:flex;align-items:center;flex-wrap:nowrap;gap:8px;min-height:48px;padding:0;margin:0 0 2px;border:0;border-radius:0;background:#fff}
@@ -324,10 +324,16 @@
   #edit-date-picker::backdrop{transition:opacity .16s ease}
   #edit-date-picker[data-closing=true]::backdrop{opacity:0}
   #edit-date-picker .calendar-grid button[data-stop-id]{box-shadow:none!important}
-  #edit-date-picker .calendar-grid button[data-stop-number]::after{content:attr(data-stop-number);position:absolute;top:2px;right:2px;display:grid;place-items:center;width:12px;height:12px;border-radius:3px;background:#eceef2;color:#626977;font-size:9px;font-weight:650;line-height:12px;pointer-events:none}
-  #edit-date-picker .calendar-grid button.selected::after{background:#ffffffd9;color:#a94f2c}
-  #edit-date-picker .calendar-stop-index{background:#eceef2!important;color:#626977!important}
-  #edit-date-picker .calendar-stop-row{border-color:transparent!important}
+  #edit-date-picker .calendar-grid button[data-stop-number]::after{content:none}
+  #edit-date-picker .calendar-scroll-body{padding-right:6px;scrollbar-width:thin;scrollbar-color:#ddd transparent}
+  #edit-date-picker .calendar-stop-index{display:none}
+  #edit-date-picker .calendar-stop-list{gap:0;margin:0}
+  #edit-date-picker .calendar-stop-row{min-height:56px;padding:9px 0;background:#fff;--phone-control-bg:#fff;border:0;border-bottom:1px solid #eee;border-radius:0!important;gap:12px;box-shadow:none}
+  #edit-date-picker .calendar-stop-row:last-child{border-bottom:0}
+  #edit-date-picker .calendar-stop-copy{flex:1;flex-direction:row;align-items:center;justify-content:space-between;flex-wrap:nowrap;gap:12px;min-width:0}
+  #edit-date-picker .calendar-stop-copy strong{font-size:14px;line-height:20px;font-weight:550;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#333}
+  #edit-date-picker .calendar-stop-copy>span{font-size:13px;line-height:20px;color:#777;white-space:nowrap}
+  #edit-date-picker .calendar-stop-row>.icon{width:16px;height:16px;color:#999}
 }
 
 @media(max-width:580px), (max-width:980px) and (max-height:500px){

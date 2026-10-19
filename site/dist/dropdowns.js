@@ -1,5 +1,5 @@
 import { dropdownBounds } from './phone-devices.js';
-import { playMotion } from './motion.js';
+import { createPopoverMotion } from './motion.js';
 
 export const timeZoneLabel = value => String(value || '').replaceAll('_', ' ').replaceAll('/', ' / ');
 const controls = new WeakMap();
@@ -34,6 +34,10 @@ function enhance(source) {
   const menu = document.createElement('div'); menu.className = 'dropdown-menu'; menu.id = `dropdown-${crypto.randomUUID()}`;
   menu.setAttribute('popover', 'manual'); menu.setAttribute('role', 'listbox'); menu.hidden = true;
   let options = [], visible = [], index = -1, opened = false, selecting = false, typed = '', typingTimer;
+  const motion = createPopoverMotion(menu, () => {
+    if (menu.hidePopover && menu.matches(':popover-open')) menu.hidePopover();
+    menu.hidden = true;
+  });
   if (!editable) {
     trigger.type = 'button'; trigger.className = 'dropdown-trigger'; trigger.id = `${menu.id}-trigger`;
     trigger.innerHTML = `<span class="dropdown-value"></span>${symbols('chevron')}`;
@@ -72,7 +76,7 @@ function enhance(source) {
   }
   function close(focus = false) {
     if (!opened) return;
-    opened = false; if (menu.hidePopover && menu.matches(':popover-open')) menu.hidePopover(); menu.hidden = true;
+    opened = false; motion.close();
     trigger.setAttribute('aria-expanded', 'false'); trigger.removeAttribute('aria-activedescendant');
     if (active === controller) active = null;
     if (focus) trigger.focus({ preventScroll: true });
@@ -121,7 +125,7 @@ function enhance(source) {
     if (active && active !== controller) active.close(); readOptions(); opened = true; active = controller;
     menu.hidden = false; if (menu.showPopover && !menu.matches(':popover-open')) menu.showPopover();
     trigger.setAttribute('aria-expanded', 'true'); render(query);
-    if (!wasOpen) playMotion(menu, [{ opacity: .2, translate: '0 -4px' }, { opacity: 1, translate: '0 0' }], { duration: 180 });
+    if (!wasOpen) motion.open();
   }
   const controller = { source, host, menu, sync, close, positionMenu }; controls.set(source, controller);
   trigger.addEventListener('click', event => { if (!editable) { event.preventDefault(); opened ? close() : open(); } else if (!opened) open(); });

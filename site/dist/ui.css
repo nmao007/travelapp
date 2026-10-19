@@ -300,10 +300,10 @@ button:active:not(:disabled){filter:none}
 .calendar-grid button.range-edge{background:var(--accent);color:#fff}
 .calendar-grid button.in-range{background:var(--soft);color:var(--ink)}
 .day-tabs .day-tab[aria-selected=true],.nearby-filters button.active{background:var(--soft)!important;color:var(--ink)}
-.planning-gap{border:1px dashed #999b96;background:#f1f2ef;border-radius:4px}
+.planning-gap{border:1px dashed #f1ae8d;background:#fff6ef;border-radius:20px;corner-shape:squircle}
 .planning-gap:after{display:none}
-.drag-ghost{border-color:#bfc1bb;border-radius:4px;box-shadow:0 10px 30px #00000022}
-.drop-target{background:#f1f2ef!important;outline:1px dashed #999b96!important}
+.drag-ghost{border-color:#f1c9b5;border-radius:20px;corner-shape:squircle;box-shadow:0 8px 24px #492b1918;color:var(--ink)}
+.drop-target{background:#fff2eb!important;outline:1px dashed #e88c60!important;outline-offset:-3px;border-radius:18px!important;corner-shape:squircle}
 .day-place-card{border:0;border-bottom:1px solid var(--line);border-radius:0;background:transparent;padding:10px 0}
 .day-card-disclosure>summary{min-height:32px}
 .day-card-footer{min-height:32px}
@@ -395,7 +395,9 @@ button:focus-visible{outline:2px solid #555751;outline-offset:2px}
 
 /* Shared surfaces use one rhythm; only the layout changes with the device. */
 .suggestions,.dropdown-menu,.trip-menu{border:1px solid var(--line);border-radius:16px;box-shadow:0 12px 36px #20283814;padding:6px}
-.dropdown-option,.suggestion{border-radius:10px;min-height:44px}
+.dropdown-option,.suggestion{border-radius:16px;corner-shape:squircle;min-height:44px}
+.dropdown-menu{border-radius:22px;corner-shape:squircle;background:#fff}
+.dropdown-option:is(:hover,.highlighted,[aria-selected=true]){background:#fff2eb;color:#b94d22}
 .dropdown-trigger,input,textarea{transition:border-color .18s,background .18s,box-shadow .18s}
 .primary-action:hover{background:var(--accent-hover)}
 /* Native display/overlay transitions can detach the background before text.
@@ -632,3 +634,34 @@ button:active:not(:disabled)>.icon{scale:.9}
 
 /* Give the Idea Board the same squircle geometry as the rest of the prototype. */
 @media(max-width:580px){#board-add-link{order:1}[data-board-create="card"]{order:2}[data-board-create="note"]{order:3}[data-board-create="photo"]{order:4}#board-sticker{order:5}#board-tool-select{order:6}#board-tool-pan{order:7}#board-undo{order:8}#board-redo{order:9}#board-duplicate{order:10}#board-delete-selected{order:11}#board-connect{order:12}#board-group{order:13}#board-draw{order:14}#board-pen-color{order:15}#board-pen-width{order:16}#board-zoom-out{order:17}#board-zoom-in{order:18}#board-fit{order:19}}
+
+/* Place search and scheduling share one compact flow. */
+.add-place-dialog{width:480px;max-width:calc(100vw - 32px);max-height:calc(100dvh - 48px);padding:22px;overflow-y:auto;border-radius:28px;corner-shape:squircle}
+.add-place-dialog .editor-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px}.add-place-dialog h2{font-size:23px;line-height:30px;margin:0;letter-spacing:-.5px}
+.add-place-dialog .search-field{height:50px}.add-place-dialog .suggestions{position:static;max-height:300px;margin-top:8px;overflow-y:auto;box-shadow:none}.add-place-dialog .suggestion{min-height:62px}.add-place-dialog .suggestion-copy strong{font-size:15px}.add-place-dialog .suggestion-copy small{font-size:12px}
+#add-place-status{font-size:13px;color:var(--muted);margin:10px 0}#add-place-status:empty{display:none}
+.add-place-options{display:flex;gap:10px;margin-top:16px}.add-place-options button{display:flex;align-items:center;justify-content:center;gap:8px;flex:1;min-height:44px;background:#f5f6f8;color:#555;font-size:14px}.add-place-options .icon{width:18px;height:18px}
+.explore-return{display:inline-flex;align-items:center;gap:7px;min-height:36px;padding:0;background:transparent;color:var(--muted);font-size:13px}.explore-return .icon{width:16px;height:16px}
+.discovery-days{margin-top:18px}.discovery-days h3{font-size:14px;font-weight:600;margin:0 0 10px}.discovery-days .sheet-day-chips{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(82px,1fr));max-height:176px;overflow-y:auto;gap:6px;margin:0;padding:0 2px 2px;white-space:normal}
+.discovery-days .sheet-day-chips button{min-height:40px;justify-content:center;margin:0;padding:4px 6px;font-size:13px;border:0;background:#f5f6f8;border-radius:16px!important;corner-shape:squircle;color:#555}.discovery-days .sheet-day-chips button[aria-pressed=true]{background:#fff2eb;color:#b94d22}.discovery-days .sheet-day-chips button.already-planned{background:#fafafa;color:#999;opacity:1}
+#place-dialog-status{font-size:13px;color:var(--action);margin:10px 0 0}#place-dialog-status:empty{display:none}#discovery-done{min-height:44px;font-size:14px;padding:0 10px;color:#666}
+.map-entry-actions>.map-choose-days,.map-entry-actions>.map-external-icon{display:grid;place-items:center;width:36px;min-width:36px;height:36px;min-height:36px;max-width:36px;padding:0;font-size:0;background:#f5f6f8;color:#666;border-radius:15px!important;corner-shape:squircle}.map-entry-actions>.map-choose-days .icon,.map-entry-actions>.map-external-icon .icon{width:17px;height:17px}.map-entry-actions>button:first-child{min-height:36px;padding:0 10px;font-size:13px;flex:1;white-space:normal}
+.trip-date-mode{display:flex;gap:3px;padding:3px;background:#f5f6f8;border-radius:16px;corner-shape:squircle;margin-bottom:10px}.trip-date-mode button{flex:1;min-height:36px;padding:0 8px;background:transparent;color:#666;font-size:13px}.trip-date-mode button[aria-pressed=true]{background:white;color:#b94d22}.date-mode-hint{font-size:12px;line-height:18px;color:#777;margin:0 0 12px}
+#edit-date-picker .date-stop-disclosure>h3{font-size:13px;line-height:20px;margin:10px 0 8px;color:#666;font-weight:600}#edit-date-picker .date-summary button:disabled{opacity:1;color:#666}#edit-date-picker .calendar-scroll-body{min-height:0;overflow-y:auto}.date-stop-disclosure .calendar-stop-list{max-height:140px;overflow-y:auto}
+@media(max-width:900px){.discovery-days .sheet-day-chips button{min-height:44px}.add-place-dialog{inset:auto 0 var(--keyboard-rise,0px);margin:0;width:100%;max-width:none;max-height:calc(var(--visual-height,100dvh) - var(--safe-top) - 16px);padding:20px 20px calc(20px + var(--sheet-safe-bottom));border-radius:36px 36px 0 0}.add-place-options{flex-wrap:wrap}.add-place-options button{font-size:14px}.trip-date-mode button{min-height:42px}}
+#edit-date-picker #save-dates{color:#fff;--phone-control-ink:#fff;--phone-control-bg:#f36b32}#edit-date-picker .editor-heading h2{flex:1;min-width:0}#calendar-back{flex:none}
+#place-dialog .discovery-days{margin:0 0 18px;padding-bottom:16px;border-bottom:1px solid #eee}
+.gm-style .map-entry-actions>.map-external-icon,.gm-style .map-entry-actions>.map-choose-days{display:grid!important;flex:0 0 36px;place-items:center;padding:0!important;min-width:36px;max-width:36px;width:36px;height:40px;min-height:40px;border-radius:16px!important;corner-shape:squircle;background:#f5f6f8}.gm-style .map-entry-actions>button:first-child{flex:1 1 auto;min-width:0;width:auto;max-width:none;color:#fff}
+.gm-style .map-entry-actions:has(.map-choose-days){grid-template-columns:minmax(0,1fr) 36px 36px}
+@media(max-width:900px){.gm-style .map-entry-actions:has(.map-choose-days){grid-template-columns:minmax(0,1fr) 44px 44px}.gm-style .map-entry-actions>.map-external-icon,.gm-style .map-entry-actions>.map-choose-days{width:44px;min-width:44px;max-width:44px;height:44px;min-height:44px}}
+
+/* Feedback stays inside each control; hit areas and map geometry never move. */
+:where(.day-tab,.itinerary-toggle button,.dropdown-option,.discovery-days button,.trip-date-mode button,.route-mode,.ib-view-switch button){transition:background-color .15s ease,color .15s ease,border-color .15s ease}
+:where(.primary-action,.calendar-actions button,.recommendation-add){transition:background-color .15s ease,color .15s ease,opacity .15s ease}
+@media(hover:hover) and (pointer:fine){
+  .day-card-links .day-place-link:hover{background:#ffe6d8}
+  .explore-return:hover,#discovery-done:hover{color:#b94d22}
+}
+@media(prefers-reduced-motion:reduce){
+  :where(.day-tab,.itinerary-toggle button,.dropdown-option,.discovery-days button,.trip-date-mode button,.route-mode,.ib-view-switch button,.primary-action,.calendar-actions button,.recommendation-add){transition:none!important}
+}

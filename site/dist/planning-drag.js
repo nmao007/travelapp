@@ -114,7 +114,10 @@ export function createPlanningDrag({ root, tabs, getTrip, commit, onDrop }) {
       const gap = document.createElement('div'); gap.className = 'planning-gap'; gap.setAttribute('aria-hidden', 'true');
       gap.style.height = `${rect.height}px`; gap.style.minHeight = '0'; gap.style.marginTop = style.marginTop; gap.style.marginBottom = style.marginBottom;
       const ghost = document.createElement('div'); ghost.className = 'drag-ghost'; ghost.setAttribute('aria-hidden', 'true');
-      ghost.style.width = `${Math.min(400, rect.width)}px`; ghost.append(row.firstElementChild.cloneNode(true)); document.body.append(ghost);
+      ghost.style.width = `${Math.min(400, rect.width)}px`;
+      // Detailed cards may begin with a schedule. Keep the actual place and icon
+      // in the floating preview rather than cloning only its time label.
+      ghost.append((row.querySelector('.day-card-heading,.timeline-row') || row.firstElementChild).cloneNode(true)); document.body.append(ghost);
       drag = { id, row, gap, ghost, day: row.closest('[data-day]').dataset.day, beforeId: null, target: null, offsetX: Math.min(Math.min(400, rect.width) - 12, pending.x - rect.left), offsetY: Math.min(ghost.getBoundingClientRect().height - 12, pending.y - rect.top) };
       // The source row is hidden while its placeholder moves. Capture on the
       // persistent scroll surface so hiding the row cannot cancel the gesture.

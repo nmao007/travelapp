@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { playMotion, stopMotion, closeDialogSmooth, morphFrames, morphFrom, revealSequence, celebratePlacement, installButtonMotion, installSurfaceMotion, createFrameScheduler } from '../dist/motion.js';
+import { playMotion, stopMotion, closeDialogSmooth, morphFrames, morphFrom, revealSequence, celebratePlacement, installButtonMotion, installSurfaceMotion, createFrameScheduler, animateContentChange, createPopoverMotion } from '../dist/motion.js';
 
 test('reduced motion skips both shared-element movement and staggered entrances', () => {
   const previous = globalThis.matchMedia;
@@ -202,4 +202,39 @@ test('list entrances keep text at its final size and cap the stagger for long li
     assert.ok(calls.every(({ options }) => options.delay <= 60 && options.duration <= 240));
     assert.deepEqual(calls[0].frames.at(-1), { opacity: 1, transform: 'none' });
   } finally { globalThis.matchMedia = previous; }
+});
+
+test('a reopened popover cannot be hidden by its previous exit animation', async () => {
+  const previous = globalThis.matchMedia; globalThis.matchMedia = () => ({ matches:false });
+  try {
+    let finish, hidden = 0, cancelled = 0;
+    const surface = { inert:false, animate(frames, options) { return {finished: options.fill ? new Promise(resolve=>{finish=resolve;}) : Promise.resolve(),cancel(){cancelled++;}}; } };
+    const motion = createPopoverMotion(surface,()=>{hidden++;});
+    motion.close(); assert.equal(surface.inert,true);
+    motion.open(); assert.equal(surface.inert,false);
+    finish(); await Promise.resolve(); assert.equal(hidden,0); assert.ok(cancelled>0);
+    motion.close(); finish(); await Promise.resolve(); assert.equal(hidden,1); assert.equal(surface.inert,false);
+  } finally { globalThis.matchMedia=previous; }
+});
+
+test('reduced motion hides popovers immediately and skips content movement', () => {
+  const previous=globalThis.matchMedia; globalThis.matchMedia=()=>({matches:true});
+  try {
+    let hidden=0; const surface={inert:false,animate(){assert.fail('Reduced motion must not animate');}};
+    const motion=createPopoverMotion(surface,()=>hidden++);
+    motion.open(); motion.close(); assert.equal(hidden,1); assert.equal(surface.inert,false);
+    assert.equal(animateContentChange(surface),null);
+  } finally {globalThis.matchMedia=previous;}
+});
+
+test('content changes use bounded movement and never scale text or change layout dimensions', () => {
+  const previous=globalThis.matchMedia; globalThis.matchMedia=()=>({matches:false});
+  try {
+    const calls=[]; const surface={animate(frames,options){calls.push({frames,options});return {finished:Promise.resolve(),cancel(){}};}};
+    animateContentChange(surface,{direction:42,distance:8});
+    animateContentChange(surface,{direction:-42,distance:8});
+    assert.equal(calls[0].frames[0].transform,'translateX(8px)');
+    assert.equal(calls[1].frames[0].transform,'translateX(-8px)');
+    assert.ok(calls.every(({frames})=>frames.every(frame=>!('height' in frame)&&!('width' in frame)&&!frame.transform.includes('scale'))));
+  } finally {globalThis.matchMedia=previous;}
 });

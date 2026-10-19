@@ -1,4 +1,4 @@
-import { playMotion, stopMotion, reducedMotion } from './motion.js';
+import { playMotion, stopMotion, reducedMotion, animateContentChange } from './motion.js';
 
 // Snapshot only the departing day, keeping the map and scroll containers stable.
 export function createDayMotion(content, host) {
@@ -34,7 +34,12 @@ export function createDayMotion(content, host) {
         snapshot.append(copy);
       }
       clear(); displayed = { ...next };
-      if (!changed) return () => {};
+      if (!changed) return () => {
+        if (!previous || previous.trip !== next.trip) return;
+        if (previous.mode !== next.mode) animateContentChange(content.firstElementChild);
+        else if (next.mode === 'calendar' && previous.month && next.month && previous.month !== next.month) animateContentChange(content.querySelector('.itinerary-month'), { direction: next.month > previous.month ? 1 : -1 });
+        else if (next.mode === 'calendar' && previous.day !== next.day) animateContentChange(content.querySelector('.calendar-agenda'), { distance: 5, duration: 180 });
+      };
       content.scrollTop = 0;
       const direction = next.day > previous.day ? 1 : -1;
       return () => {

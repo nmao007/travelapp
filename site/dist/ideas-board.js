@@ -3,7 +3,7 @@ import { loadPersonalIdeas, savePersonalIdea, deletePersonalIdea, currentAccount
 import { datesForTrip, makePlan } from './itinerary-model.js';
 import { flightDayBlock } from './flight-window.js';
 import { placeArt } from './place-art.js';
-import { closeDialogSmooth, createFrameScheduler } from './motion.js';
+import { closeDialogSmooth, createFrameScheduler, animateContentChange, revealSequence, reducedMotion } from './motion.js';
 import { enhanceDropdowns, refreshDropdowns } from './dropdowns.js';
 
 const $ = id => document.getElementById(id);
@@ -58,7 +58,7 @@ export function createIdeasBoard({ state, persist, addPlan, icon }) {
   }
   function storeViewport() { try { writeBoardViewport(tripId, viewport, localStorage); } catch { /* Board content is independent of device view settings. */ } }
   function transform() { world.style.transform = `translate(${viewport.x}px,${viewport.y}px) scale(${viewport.scale})`; $('ib-fit').textContent = `${Math.round(viewport.scale * 100)}%`; }
-  function setView(next) { frame.cancel(); gesture = null; view = next; selection = []; lastContent = ''; render(); if (view === 'canvas') requestAnimationFrame(transform); }
+  function setView(next) { if (view === next) return; frame.cancel(); gesture = null; view = next; selection = []; lastContent = ''; render(); if (view === 'canvas') requestAnimationFrame(transform); animateContentChange($(view === 'canvas' ? 'ib-canvas-wrap' : 'ib-cards'), { distance: 5, duration: 190 }); }
   function center(item) {
     if (!isPlaced(item)) { place(item); return; }
     view = 'canvas'; selection = [item.id]; lastContent = ''; render();
@@ -118,6 +118,7 @@ export function createIdeasBoard({ state, persist, addPlan, icon }) {
     const copy = createBoardObject(item.type, { destination: 'inbox', extras: { ...libraryRecord(item), id: crypto.randomUUID(), libraryIdeaId: item.id } });
     if (save({ boardItems: [...items(), copy] })) notice('Saved to this trip');
   }
+  let galleryFrame = 0;
   function renderGallery() {
     const grid = $('ib-cards'), source = $('ib-source').value, query = $('ib-search').value.trim().toLowerCase(), category = $('ib-category').value;
     let list = (source === 'library' ? library : items()).filter(isContentIdea).filter(item => source !== 'inbox' || !isPlaced(item));
@@ -131,6 +132,13 @@ export function createIdeasBoard({ state, persist, addPlan, icon }) {
       if (source !== 'library' && !query && !category) { const add = button('Save your first idea', 'plus', () => create('card'), 'ib-empty-add'); add.append(document.createTextNode('Add an idea')); empty.append(add); }
       grid.append(empty);
     }
+    cancelAnimationFrame(galleryFrame);
+    if (!reducedMotion()) galleryFrame = requestAnimationFrame(() => {
+      if (root.hidden || grid.hidden || !grid.isConnected) return;
+      const bounds = grid.getBoundingClientRect();
+      const visible = [...grid.children].slice(0, 8).filter(card => card.getBoundingClientRect().top < bounds.bottom);
+      revealSequence(visible, { step: 16 });
+    });
   }
   function drawLines(data = items()) {
     const svg = $('ib-lines'); svg.replaceChildren();
