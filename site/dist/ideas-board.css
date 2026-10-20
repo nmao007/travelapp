@@ -145,6 +145,19 @@
 }
 .ib-dialog .ib-form-body>*{flex-shrink:0}
 .ib-dialog .editor-actions .quiet-action{min-width:44px}
+/* Keep the editor's three actions on one readable, thumb-sized row. */
+#idea-editor .editor-actions{display:grid;grid-template-columns:48px minmax(0,1fr) auto;gap:8px;padding-top:12px;align-items:center}
+#idea-editor .editor-actions>button{min-width:0;min-height:48px;margin:0;border:0;border-radius:18px!important;corner-shape:squircle;white-space:nowrap;font-size:14px;line-height:20px;font-weight:600;gap:7px;padding:12px 8px}
+#idea-editor .editor-actions>.quiet-action{background:transparent;color:#53565e;--phone-control-bg:transparent;--phone-control-ink:#53565e;--phone-pressed:#f2f3f5;text-align:center}
+#idea-editor .editor-actions #idea-delete{width:48px;padding:0;color:#c0483b;--phone-control-ink:#c0483b;--phone-pressed:#fff0ed}
+#idea-editor .editor-actions .icon{display:block;width:20px;height:20px;flex:none}
+#idea-editor .editor-actions>.primary-action{padding:12px 18px;font-size:15px;background:#f36b32;--phone-control-bg:#f36b32;--phone-control-ink:#fff}
+#idea-editor .editor-actions:has(#ib-placement[hidden])>.primary-action{grid-column:2/-1}
+#idea-editor .editor-actions:has(#idea-delete[hidden])>.primary-action{grid-column:1/-1}
+@media(hover:hover) and (pointer:fine){
+  #idea-editor .editor-actions>.quiet-action:hover{background:#f2f3f5}
+  #idea-editor .editor-actions #idea-delete:hover{background:#fff0ed}
+}
 /* Quick save first; optional organization stays out of the way. */
 #ib-quick-fields,.ib-extra-fields{display:flex;flex-direction:column;gap:14px;min-width:0}
 .ib-dialog #ib-notes-field{position:relative}.ib-optional{position:absolute;right:0;top:0;font-size:11px;color:#9296a0;font-weight:400}

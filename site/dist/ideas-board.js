@@ -264,7 +264,8 @@ export function createIdeasBoard({ state, persist, addPlan, icon }) {
     form.elements.frame.replaceChildren(new Option('No frame', ''), ...frames.map(frame => new Option(frame.title || 'Frame', frame.id)));
     form.elements.frame.value = item.groupId || ''; $('ib-frame-field').hidden = !content || !frames.length;
     $('idea-delete').hidden = fresh; $('ib-placement').hidden = fresh || !content;
-    $('ib-placement').textContent = isPlaced(item) ? 'Move to inbox' : 'Place on canvas';
+    $('ib-placement').querySelector('span').textContent = isPlaced(item) ? 'Move to inbox' : 'Place on canvas';
+    $('ib-placement').querySelector('use').setAttribute('href', isPlaced(item) ? '#i-inbox' : '#i-board');
     $('idea-error').textContent = ''; renderColors(item.color || 'sun');
     refreshDropdowns(form.elements.category); refreshDropdowns(form.elements.frame);
     configureQuickFields(draft.kind);
