@@ -260,6 +260,8 @@ export async function handleRequest(request, response) {
   assets.set('/place-planning.js', 'place-planning.js');
   assets.set('/trip-dates.js', 'trip-dates.js');
   assets.set('/phone-devices.js', 'phone-devices.js');
+  assets.set('/phone-hardware.js', 'phone-hardware.js');
+  assets.set('/phone-hardware-data.js', 'phone-hardware-data.js');
   assets.set('/mobile.css', 'mobile.css');
   assets.set('/ui.css', 'ui.css');
   assets.set('/phone.css', 'phone.css');
@@ -271,6 +273,7 @@ export async function handleRequest(request, response) {
   assets.set('/country-currencies.js', 'country-currencies.js');
   assets.set('/board-model.js', 'board-model.js');
   assets.set('/ideas-board.js', 'ideas-board.js');
+  assets.set('/board-touch.js', 'board-touch.js');
   assets.set('/ideas-board.css', 'ideas-board.css');
   assets.set('/desktop.css', 'desktop.css');
   const asset = assets.get(pathname);

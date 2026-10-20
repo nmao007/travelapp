@@ -1,5 +1,5 @@
 // Logical display sizes from Apple's Human Interface Guidelines / Layout.
-// The hardware drawing is illustrative except for the traced iPhone 16 shell.
+// Hardware geometry is separate: see phone-hardware.js for measured models.
 const device = (id, name, width, height, cutout = 'island') => ({ id, name, width, height, cutout, safeTop: cutout === 'notch' ? 47 : 62, safeBottom: 34 });
 export const phoneDevices = [
   device('iphone13mini', 'iPhone 13 mini', 375, 812, 'notch'),

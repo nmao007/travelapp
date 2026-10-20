@@ -112,3 +112,10 @@ test('a delayed animation frame cannot skip a large distance during momentum', (
   const top = p.pane.scrollTop; p.frame(250);
   assert.ok(p.pane.scrollTop > top && p.pane.scrollTop - top < 47);
 });
+
+test('the phone preview leaves Ideas canvas gestures to its hold-and-pan controller', () => {
+  const p = preview();
+  p.pane.closest = selector => selector.includes('.ib-canvas') ? p.pane : null;
+  p.emit('pointerdown'); p.emit('pointermove',100,100,100); p.frame(); p.emit('pointerup',100,100);
+  assert.equal(p.pane.scrollTop,200); assert.equal(p.pending(),0);
+});

@@ -4,6 +4,8 @@ import { datesForTrip, makePlan } from './itinerary-model.js';
 import { flightDayBlock } from './flight-window.js';
 import { placeArt } from './place-art.js';
 import { closeDialogSmooth, createFrameScheduler, animateContentChange, revealSequence, reducedMotion } from './motion.js';
+import { createBoardTouch } from './board-touch.js';
+import { phoneMediaQuery } from './phone-devices.js';
 import { enhanceDropdowns, refreshDropdowns } from './dropdowns.js';
 
 const $ = id => document.getElementById(id);
@@ -18,6 +20,25 @@ export function createIdeasBoard({ state, persist, addPlan, icon }) {
   let selection = [], history = [], future = [], draft = null, scheduling = null, connection = null;
   let library = [], libraryTicket = 0, libraryLoading = false, gesture = null, lastContent = '', viewportTimer, noticeTimer, saving = false;
   const pointers = new Map(), cards = new Map();
+  const phone = () => matchMedia(phoneMediaQuery).matches;
+  const finger = event => event.pointerType === 'touch' || (event.pointerType === 'mouse' && phone());
+  let suppressBoardClick = false;
+  function selectItem(item, multi = false) {
+    selection = multi ? selection.includes(item.id) ? selection.filter(id => id !== item.id) : [...selection, item.id] : [item.id];
+    syncSelection();
+  }
+  const touch = createBoardTouch({
+    onPending(g, pending) { cards.get(g.item.id)?.classList.toggle('ib-hold-pending', pending); },
+    onHold(g, point) {
+      if (gesture !== g || root.hidden || view !== 'canvas') return;
+      if (!selection.includes(g.item.id)) selectItem(g.item, tool === 'select');
+      g.mode = 'move'; g.ids = [...selection]; g.origin = { x: point.x, y: point.y };
+      surface.classList.add('ib-dragging'); cards.get(g.item.id)?.classList.add('ib-lifted');
+      suppressBoardClick = true;
+    },
+    onPan(g, position) { if (gesture !== g) return; g.mode = 'pan'; suppressBoardClick = true; frame.schedule(position); },
+    onTap(g) { if (viewport.scale < .55 && phone() && tool !== 'select') center(g.item); else selectItem(g.item, tool === 'select'); },
+  });
   const items = () => state.trip?.boardItems || [], links = () => state.trip?.boardLinks || [];
   const button = (label, symbol, handler, cls = 'ib-icon') => {
     const b = el('button', cls); b.type = 'button'; b.setAttribute('aria-label', label); b.title = label;
@@ -52,17 +73,18 @@ export function createIdeasBoard({ state, persist, addPlan, icon }) {
     refreshDropdowns($('ib-source')); refreshDropdowns($('ib-category'));
   }
   function close() {
+    touch.cancel(); surface.classList.remove('ib-dragging');
     frame.cancel(); if (gesture?.path) gesture.path.remove(); if (gesture?.original) { paint(gesture.original); drawLines(gesture.original); } gesture = null; pointers.clear(); lastContent = '';
     for (const dialog of document.querySelectorAll('.ib-dialog[open]')) dialog.close();
     clearTimeout(viewportTimer); if (tripId) storeViewport();
   }
   function storeViewport() { try { writeBoardViewport(tripId, viewport, localStorage); } catch { /* Board content is independent of device view settings. */ } }
   function transform() { world.style.transform = `translate(${viewport.x}px,${viewport.y}px) scale(${viewport.scale})`; $('ib-fit').textContent = `${Math.round(viewport.scale * 100)}%`; }
-  function setView(next) { if (view === next) return; frame.cancel(); gesture = null; view = next; selection = []; lastContent = ''; render(); if (view === 'canvas') requestAnimationFrame(transform); animateContentChange($(view === 'canvas' ? 'ib-canvas-wrap' : 'ib-cards'), { distance: 5, duration: 190 }); }
+  function setView(next) { if (view === next) return; touch.cancel(); frame.cancel(); gesture = null; pointers.clear(); view = next; selection = []; lastContent = ''; render(); if (view === 'canvas') requestAnimationFrame(transform); animateContentChange($(view === 'canvas' ? 'ib-canvas-wrap' : 'ib-cards'), { distance: 5, duration: 190 }); }
   function center(item) {
     if (!isPlaced(item)) { place(item); return; }
     view = 'canvas'; selection = [item.id]; lastContent = ''; render();
-    const box = boardObjectBounds(item); viewport.scale = Math.min(1, viewport.scale);
+    const box = boardObjectBounds(item); viewport.scale = phone() ? Math.max(.75, Math.min(1, viewport.scale)) : Math.min(1, viewport.scale);
     viewport.x = surface.clientWidth / 2 - (box.x + box.width / 2) * viewport.scale;
     viewport.y = surface.clientHeight / 2 - (box.y + box.height / 2) * viewport.scale; transform(); storeViewport();
   }
@@ -86,7 +108,7 @@ export function createIdeasBoard({ state, persist, addPlan, icon }) {
     const card = el('article', `ib-card ib-type-${item.type} ib-color-${colors[item.color] ? item.color : 'sun'}${canvas ? ' ib-object' : ''}`); card.dataset.boardId = item.id;
     const image = itemImage(item, 'ib-card-image'); if (image) card.append(image);
     const body = el('div', 'ib-card-body'), head = el('div', 'ib-card-head');
-    const title = el('button', 'ib-card-title', item.title || 'Untitled idea'); title.type = 'button'; title.addEventListener('click', () => personal ? addLibraryIdea(item) : edit(item));
+    const title = el('button', 'ib-card-title', item.title || 'Untitled idea'); title.type = 'button'; title.addEventListener('click', () => { if (canvas && phone()) return; personal ? addLibraryIdea(item) : edit(item); });
     const editButton = button(personal ? `Add ${item.title} to this trip` : `Edit ${item.title || 'idea'}`, personal ? 'plus' : 'more', () => personal ? addLibraryIdea(item) : edit(item));
     head.append(title, editButton); body.append(head);
     if (!image && item.type !== 'note') { const symbol = el('span', 'ib-card-art'); symbol.innerHTML = art(item); body.prepend(symbol); }
@@ -101,11 +123,15 @@ export function createIdeasBoard({ state, persist, addPlan, icon }) {
       const add = button('Add to trip', 'plus', () => addLibraryIdea(item), 'ib-card-add'); add.append(document.createTextNode('Add to trip')); footer.append(add);
       footer.append(button(`Remove ${item.title} from library`, 'trash', () => { deletePersonalIdea(item.id); library = library.filter(entry => entry.id !== item.id); lastContent = ''; render(); notice('Removed from library', () => { savePersonalIdea(item); library.unshift(item); lastContent = ''; render(); }); }));
     } else {
-      footer.append(button(`Add ${item.title || 'idea'} to a day`, 'calendar', () => schedule(item)));
+      const scheduleButton = button(`Add ${item.title || 'idea'} to a day`, 'calendar', () => schedule(item));
+      if (!canvas) scheduleButton.append(el('span', 'phone-only ib-schedule-label', 'Add to day'));
+      footer.append(scheduleButton);
       if (!canvas) footer.append(button(isPlaced(item) ? `Find ${item.title} on canvas` : `Place ${item.title} on canvas`, 'frame', () => center(item)));
       if (item.url) { try { const url = ideaWebURL(item.url); if (url) { const link = el('a', 'ib-icon'); link.href = url; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.setAttribute('aria-label', `Open link for ${item.title}`); link.innerHTML = icon('external'); footer.append(link); } } catch { /* An old malformed URL must not become executable. */ } }
     }
-    body.append(footer); card.append(body); return card;
+    body.append(footer); card.append(body);
+    if (!canvas) card.addEventListener('click', event => { if (phone() && !event.target.closest('button,a')) personal ? addLibraryIdea(item) : edit(item); });
+    return card;
   }
   async function loadLibrary() {
     const ticket = ++libraryTicket; libraryLoading = true; lastContent = ''; render();
@@ -149,7 +175,8 @@ export function createIdeasBoard({ state, persist, addPlan, icon }) {
       for (const [key, value] of Object.entries({ x1: a.x + a.width / 2, y1: a.y + a.height / 2, x2: b.x + b.width / 2, y2: b.y + b.height / 2 })) line.setAttribute(key, String(value));
       line.setAttribute('class', 'ib-line'); line.setAttribute('tabindex', '0'); line.setAttribute('role', 'button'); line.setAttribute('aria-label', link.label || 'Edit connection');
       const openLink = () => { connection = link.id; $('ib-connection-label').value = link.label || ''; open($('ib-connection-dialog'), $('ib-connection-label')); };
-      line.addEventListener('click', openLink); line.addEventListener('keydown', event => { if (event.key === 'Enter') openLink(); }); svg.append(line);
+      line.addEventListener('click', openLink); line.addEventListener('keydown', event => { if (event.key === 'Enter') openLink(); });
+      const hit = line.cloneNode(false); hit.setAttribute('class', 'ib-line-hit'); hit.removeAttribute('tabindex'); hit.removeAttribute('role'); hit.setAttribute('aria-hidden', 'true'); hit.addEventListener('click', openLink); svg.append(hit, line);
       if (link.label) { const text = document.createElementNS(ns, 'text'); text.setAttribute('x', String((a.x + a.width / 2 + b.x + b.width / 2) / 2)); text.setAttribute('y', String((a.y + a.height / 2 + b.y + b.height / 2) / 2 - 10)); text.textContent = link.label; svg.append(text); }
     }
   }
@@ -157,24 +184,26 @@ export function createIdeasBoard({ state, persist, addPlan, icon }) {
     const objects = $('ib-objects'), drawings = $('ib-drawings'); objects.replaceChildren(); drawings.replaceChildren(); cards.clear();
     for (const item of items().filter(isPlaced)) {
       if (item.type === 'draw') {
-        const path = document.createElementNS(ns, 'path'); path.dataset.boardId = item.id; path.setAttribute('d', pathData(item.points)); path.setAttribute('stroke', colors[item.color] || colors.sun); path.setAttribute('stroke-width', String(item.strokeWidth || 12)); path.setAttribute('class', 'ib-stroke'); drawings.append(path); cards.set(item.id, path); continue;
+        const path = document.createElementNS(ns, 'path'); path.dataset.boardId = item.id; path.setAttribute('d', pathData(item.points)); path.setAttribute('stroke', colors[item.color] || colors.sun); path.setAttribute('stroke-width', String(item.strokeWidth || 12)); path.setAttribute('class', 'ib-stroke');
+        const hit = path.cloneNode(false); hit.setAttribute('class', 'ib-stroke-hit'); hit.setAttribute('aria-hidden', 'true'); drawings.append(hit, path); cards.set(item.id, path); continue;
       }
       let card;
       if (item.type === 'group') { card = el('article', `ib-object ib-frame ib-color-${item.color || 'sky'}`); card.dataset.boardId = item.id; card.append(el('strong', 'ib-frame-title', item.title || 'New frame'), button(`Edit frame ${item.title || ''}`, 'more', () => edit(item))); }
       else if (item.type === 'sticker') { card = el('article', 'ib-object ib-sticker', item.sticker || item.title || '✨'); card.dataset.boardId = item.id; card.append(button('Edit sticker', 'more', () => edit(item))); }
       else card = makeCard(item, true);
       card.tabIndex = 0; card.setAttribute('aria-label', item.title || 'Board item');
+      card.addEventListener('keydown', event => { if (event.target === card && ['Enter', ' '].includes(event.key)) { event.preventDefault(); selectItem(item); if (event.key === 'Enter') edit(item); } });
       card.addEventListener('dblclick', event => { if (!event.target.closest('button,a')) edit(item); });
       const resize = el('span', 'ib-resize'); resize.setAttribute('aria-hidden', 'true'); card.append(resize); objects.append(card); cards.set(item.id, card);
     }
     paint(items()); drawLines(); transform(); syncSelection();
-    const empty = $('ib-canvas-empty'); empty.hidden = items().some(isPlaced); empty.replaceChildren(el('h3', '', 'Make a little room for ideas.'), el('p', '', 'Drag to arrange. Pinch to explore.'));
+    const empty = $('ib-canvas-empty'); empty.hidden = items().some(isPlaced); empty.replaceChildren(el('h3', '', 'Make a little room for ideas.'), el('p', '', phone() ? 'Hold an idea to move it. Pinch to zoom.' : 'Drag to arrange. Pinch to explore.'));
     if (!empty.hidden) { const add = button('Add an idea', 'plus', () => create('card'), 'ib-empty-add'); add.append(document.createTextNode('Add idea')); empty.append(add); }
   }
   function paint(data) {
     for (const item of data) {
       const card = cards.get(item.id); if (!card) continue;
-      if (item.type === 'draw') card.setAttribute('d', pathData(item.points));
+      if (item.type === 'draw') { card.setAttribute('d', pathData(item.points)); card.previousElementSibling?.setAttribute('d', pathData(item.points)); }
       else { card.style.left = `${item.x}px`; card.style.top = `${item.y}px`; card.style.width = `${item.width}px`; card.style.height = `${item.height}px`; }
     }
   }
@@ -182,9 +211,14 @@ export function createIdeasBoard({ state, persist, addPlan, icon }) {
     selection = selection.filter(id => items().some(item => item.id === id));
     for (const [id, node] of cards) node.classList.toggle('ib-selected', selection.includes(id));
     $('ib-selection').hidden = view !== 'canvas' || !selection.length;
+    $('ib-touch-hint').hidden = view !== 'canvas' || selection.length > 0;
     $('ib-selection-count').textContent = `${selection.length} selected`;
     $('ib-edit-selection').disabled = selection.length !== 1;
     $('ib-connect').disabled = selection.length !== 2 || selection.some(id => items().find(item => item.id === id)?.type === 'draw');
+    $('ib-actions-connect').disabled = $('ib-connect').disabled;
+    $('ib-actions-edit').disabled = $('ib-actions-schedule').disabled = selection.length !== 1;
+    $('ib-actions-schedule').disabled ||= !isContentIdea(items().find(item => item.id === selection[0]));
+    $('ib-actions-resize-smaller').disabled = $('ib-actions-resize-larger').disabled = selection.length !== 1 || items().find(item => item.id === selection[0])?.type === 'draw';
     $('ib-group').disabled = !selection.some(id => isContentIdea(items().find(item => item.id === id)));
   }
   function render() {
@@ -195,6 +229,8 @@ export function createIdeasBoard({ state, persist, addPlan, icon }) {
     $('ib-undo').disabled = !history.length; $('ib-redo').disabled = !future.length;
     $('ib-pan').setAttribute('aria-pressed', String(tool === 'pan')); $('ib-select').setAttribute('aria-pressed', String(tool === 'select'));
     surface.dataset.tool = tool;
+    surface.setAttribute('aria-label', phone() ? 'Idea canvas. Tap to select. Hold to move. Drag to pan, pinch to zoom.' : 'Idea canvas. Drag cards to arrange. Drag the background to pan.');
+    $('ib-tools-sheet').querySelector('.ib-tools-hint').textContent = phone() ? 'Hold to move. Tap Select to choose several ideas.' : 'Canvas: drag to arrange · Shift-click to select more';
     const fingerprint = JSON.stringify([boardSnapshotData(state.trip), view, $('ib-source').value, $('ib-category').value, $('ib-search').value, library, libraryLoading, (state.trip.items || []).map(item => [item.ideaId, item.day])]);
     if (fingerprint !== lastContent) { lastContent = fingerprint; if (view === 'gallery') renderGallery(); else renderCanvas(); }
     syncSelection();
@@ -311,10 +347,14 @@ export function createIdeasBoard({ state, persist, addPlan, icon }) {
   const pathData = points => points?.length ? `M ${points.map(point => `${point.x} ${point.y}`).join(' L ')}` : '';
   function point(event) { const rect = surface.getBoundingClientRect(); return { x: (event.clientX - rect.left - viewport.x) / viewport.scale, y: (event.clientY - rect.top - viewport.y) / viewport.scale }; }
   function down(event) {
+    suppressBoardClick = false;
     if (event.button !== 0 && event.pointerType !== 'touch') return;
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (pointers.size > 2) return;
     if (pointers.size === 2) {
-      frame.cancel(); if (gesture?.path) gesture.path.remove(); if (gesture?.original) { paint(gesture.original); drawLines(gesture.original); } $('ib-marquee').hidden = true;
+      touch.cancel(); surface.classList.remove('ib-dragging');
+      for (const card of cards.values()) card.classList.remove('ib-lifted');
+      suppressBoardClick = true; frame.cancel(); if (gesture?.path) gesture.path.remove(); if (gesture?.original) { paint(gesture.original); drawLines(gesture.original); } $('ib-marquee').hidden = true;
       const [a, b] = [...pointers.values()], rect = surface.getBoundingClientRect();
       gesture = { mode: 'pinch', distance: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)), viewport: { ...viewport }, center: { x: (a.x + b.x) / 2 - rect.left, y: (a.y + b.y) / 2 - rect.top } }; surface.setPointerCapture(event.pointerId); return;
     }
@@ -323,12 +363,21 @@ export function createIdeasBoard({ state, persist, addPlan, icon }) {
     const origin = { x: event.clientX, y: event.clientY }, base = { origin, viewport: { ...viewport }, original: items(), pointerId: event.pointerId, moved: false };
     if (tool === 'pen') { gesture = { ...base, mode: 'pen', points: [point(event)] }; const path = document.createElementNS(ns, 'path'); path.setAttribute('class', 'ib-stroke ib-stroke-draft'); path.setAttribute('stroke', colors.rose); path.setAttribute('stroke-width', '10'); $('ib-drawings').append(path); gesture.path = path; }
     else if (item) {
+      if (finger(event) && !event.target.closest('.ib-resize')) {
+        gesture = { ...base, mode: 'hold', item };
+        touch.start({ id: event.pointerId, x: event.clientX, y: event.clientY }, gesture);
+        return;
+      }
       if (event.shiftKey || tool === 'select') selection = selection.includes(item.id) ? selection.filter(id => id !== item.id) : [...selection, item.id];
       else if (!selection.includes(item.id)) selection = [item.id];
       gesture = { ...base, mode: event.target.closest('.ib-resize') ? 'resize' : 'move', item, ids: [...selection] }; syncSelection();
-    } else { if (!event.shiftKey) selection = []; syncSelection(); gesture = { ...base, mode: tool === 'select' || event.shiftKey ? 'marquee' : 'pan' }; }
+    } else {
+      if (!finger(event) && !event.shiftKey) selection = [];
+      syncSelection(); gesture = { ...base, mode: finger(event) ? 'pan' : tool === 'select' || event.shiftKey ? 'marquee' : 'pan', clearSelectionOnTap: finger(event) && !event.shiftKey };
+    }
   }
   function move(event) {
+    touch.move({ id: event.pointerId, x: event.clientX, y: event.clientY });
     if (pointers.has(event.pointerId)) pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     if (!gesture) return;
     if (gesture.mode === 'pinch') {
@@ -341,9 +390,9 @@ export function createIdeasBoard({ state, persist, addPlan, icon }) {
     frame.schedule({ x: event.clientX, y: event.clientY });
   }
   function updateGesture(position) {
-    const g = gesture; if (!g || g.mode === 'pinch') return;
+    const g = gesture; if (!g || g.mode === 'pinch' || g.mode === 'hold') return;
     const dx = position.x - g.origin.x, dy = position.y - g.origin.y;
-    if (Math.hypot(dx, dy) < 5 && !g.moved) return; g.moved = true;
+    if (Math.hypot(dx, dy) < 5 && !g.moved) return; g.moved = true; suppressBoardClick = true;
     if (g.mode === 'pan') { viewport.x = g.viewport.x + dx; viewport.y = g.viewport.y + dy; transform(); return; }
     if (g.mode === 'pen') { const rect = surface.getBoundingClientRect(); g.points.push({ x: (position.x - rect.left - viewport.x) / viewport.scale, y: (position.y - rect.top - viewport.y) / viewport.scale }); g.path.setAttribute('d', pathData(g.points)); return; }
     if (g.mode === 'marquee') {
@@ -358,12 +407,16 @@ export function createIdeasBoard({ state, persist, addPlan, icon }) {
   }
   const frame = createFrameScheduler(updateGesture);
   function up(event) {
+    touch.end({ id: event.pointerId }, event.type === 'pointercancel');
+    surface.classList.remove('ib-dragging');
+    for (const card of cards.values()) card.classList.remove('ib-lifted');
     pointers.delete(event.pointerId); const g = gesture; if (!g) return;
     if (g.mode === 'pinch') { frame.cancel(); gesture = null; pointers.clear(); storeViewport(); return; }
     if (event.pointerId !== g.pointerId) return;
     if (event.type === 'pointercancel') { frame.cancel(); if (g.path) g.path.remove(); paint(g.original); drawLines(); viewport = g.viewport; transform(); gesture = null; $('ib-marquee').hidden = true; return; }
+    if (g.mode === 'hold') { frame.cancel(); gesture = null; return; }
     frame.schedule({ x: event.clientX, y: event.clientY }); frame.flush(); gesture = null; $('ib-marquee').hidden = true;
-    if (g.mode === 'pan') storeViewport();
+    if (g.mode === 'pan') { if (g.clearSelectionOnTap && !g.moved) { selection = []; syncSelection(); } storeViewport(); }
     else if (g.mode === 'pen') { g.path.remove(); if (g.points.length > 1) save({ boardItems: [...items(), { id: crypto.randomUUID(), type: 'draw', placed: true, points: g.points, color: 'rose', strokeWidth: 10 }] }); }
     else if (g.moved && g.preview) {
       let next = g.preview;
@@ -387,6 +440,13 @@ export function createIdeasBoard({ state, persist, addPlan, icon }) {
   $('ib-new-frame').addEventListener('click', async () => { await closeDialogSmooth($('ib-tools-sheet')); view = 'canvas'; lastContent = ''; render(); create('group'); });
   $('ib-sticker').addEventListener('click', async () => { await closeDialogSmooth($('ib-tools-sheet')); view = 'canvas'; lastContent = ''; render(); const item = createBoardObject('sticker', { ...placement(), extras: { sticker: '✨' } }); edit(item, { fresh: true }); });
   $('ib-pen').addEventListener('click', async () => { await closeDialogSmooth($('ib-tools-sheet')); view = 'canvas'; tool = 'pen'; lastContent = ''; render(); notice('Draw on the canvas. Tap the hand to finish.'); });
+  $('ib-selection-more').addEventListener('click', () => { $('ib-actions-frame').disabled = $('ib-group').disabled; open($('ib-actions-sheet')); });
+  for (const [id, action] of [['ib-actions-edit', () => edit(items().find(item => item.id === selection[0]))], ['ib-actions-schedule', () => schedule(items().find(item => item.id === selection[0]))], ['ib-actions-frame', groupSelection], ['ib-actions-connect', connectSelection], ['ib-actions-clear', () => { selection = []; syncSelection(); }]]) $(id).addEventListener('click', async () => { await closeDialogSmooth($('ib-actions-sheet')); action(); });
+  for (const [id, factor] of [['ib-actions-resize-smaller', .85], ['ib-actions-resize-larger', 1.18]]) $(id).addEventListener('click', async () => {
+    const item = items().find(item => item.id === selection[0]); if (!item || item.type === 'draw') return;
+    await closeDialogSmooth($('ib-actions-sheet'));
+    save({ boardItems: items().map(entry => entry.id === item.id ? { ...entry, width: Math.max(item.type === 'sticker' ? 64 : 220, Math.min(2000, item.width * factor)), height: Math.max(item.type === 'sticker' ? 64 : 150, Math.min(2000, item.height * factor)) } : entry) });
+  });
   $('ib-edit-selection').addEventListener('click', () => edit(items().find(item => item.id === selection[0]))); $('ib-duplicate').addEventListener('click', duplicate); $('ib-delete').addEventListener('click', () => remove(selection)); $('ib-group').addEventListener('click', groupSelection); $('ib-connect').addEventListener('click', connectSelection); $('ib-clear-selection').addEventListener('click', () => { selection = []; syncSelection(); });
   $('idea-form').noValidate = true; $('idea-form').addEventListener('submit', submitIdea);
   $('idea-editor').addEventListener('close', () => { draft = null; });
@@ -395,6 +455,9 @@ export function createIdeasBoard({ state, persist, addPlan, icon }) {
   $('ib-schedule-form').addEventListener('submit', submitSchedule);
   $('ib-connection-form').addEventListener('submit', event => { event.preventDefault(); save({ boardLinks: links().map(link => link.id === connection ? { ...link, label: $('ib-connection-label').value.trim().slice(0, 80) } : link) }); closeDialogSmooth($('ib-connection-dialog')); });
   $('ib-connection-delete').addEventListener('click', () => { save({ boardLinks: links().filter(link => link.id !== connection) }); closeDialogSmooth($('ib-connection-dialog')); notice('Connection removed', undo); });
+  surface.addEventListener('click', event => { if (suppressBoardClick) { event.preventDefault(); event.stopImmediatePropagation(); suppressBoardClick = false; } }, true);
+  surface.addEventListener('contextmenu', event => { if (phone() || gesture?.mode === 'hold' || surface.classList.contains('ib-dragging')) event.preventDefault(); });
+  surface.addEventListener('lostpointercapture', event => { if (gesture?.pointerId === event.pointerId) up({ pointerId: event.pointerId, type: 'pointercancel' }); });
   surface.addEventListener('pointerdown', down); surface.addEventListener('pointermove', move); surface.addEventListener('pointerup', up); surface.addEventListener('pointercancel', up);
   surface.addEventListener('wheel', event => { event.preventDefault(); const rect = surface.getBoundingClientRect(); if (event.ctrlKey || event.metaKey) zoom(Math.exp(-event.deltaY * .008), event.clientX - rect.left, event.clientY - rect.top); else { viewport.x -= event.deltaX; viewport.y -= event.deltaY; transform(); clearTimeout(viewportTimer); viewportTimer = setTimeout(storeViewport, 300); } }, { passive: false });
   document.addEventListener('keydown', event => {

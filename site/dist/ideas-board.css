@@ -157,3 +157,48 @@
 .ib-dialog .ib-kind-picker button{display:flex;justify-content:center;align-items:center;gap:6px;border:0;min-height:44px;padding:6px;background:#f6f6f8;--phone-control-bg:#f6f6f8;--phone-control-ink:#747b87;color:#747b87;font-size:12px;border-radius:18px!important;corner-shape:squircle}
 .ib-kind-picker .icon{width:17px;height:17px}.ib-dialog .ib-kind-picker button[aria-pressed=true]{background:#fff0e7;--phone-control-bg:#fff0e7;--phone-control-ink:#b86138;color:#b86138}
 .workspace-nav [data-workspace-view=ideas]>.illustrated-icon{display:inline-block!important;width:30px!important;height:30px!important}
+
+/* Touch controls live at screen size, outside the zoomed board. */
+.ib-touch-hint{margin:0;min-height:56px;align-items:center;justify-content:center;text-align:center;color:#777;font-size:12px;line-height:18px;flex:none}
+.ib-schedule-label{font-size:13px;font-weight:500}.ib-card-footer .ib-icon:has(.ib-schedule-label){gap:7px}
+@media(max-width:580px), (max-width:980px) and (max-height:500px){
+  .ib-header-actions{gap:4px}.ib-view-switch button{width:48px;min-width:48px;min-height:48px;height:48px}
+  .ib-header-actions>.ib-icon,.ib-panel .ib-add{width:48px;min-width:48px;min-height:48px}
+  .ib-panel[data-view=canvas] .ib-filter-row{display:none}
+  .ib-gallery{grid-template-columns:minmax(0,1fr);gap:12px}
+  .ib-gallery .ib-card{min-height:0}.ib-gallery .ib-card-body{padding:14px 16px 6px}
+  .ib-gallery .ib-card-body:has(.ib-card-art){display:grid;grid-template-columns:52px minmax(0,1fr);gap:5px 12px;align-items:start}
+  .ib-gallery .ib-card-art{grid-column:1;grid-row:1/4;margin:8px 0 0;width:52px;height:52px}
+  .ib-gallery .ib-card-body:has(.ib-card-art)>:not(.ib-card-art){grid-column:2}
+  .ib-gallery .ib-card-head{align-items:center;min-height:48px;gap:8px}.ib-gallery .ib-card-title{min-height:48px;font-size:18px;line-height:24px}
+  .ib-card-head>.ib-icon{width:48px;min-width:48px;min-height:48px;margin:0 -8px 0 0}
+  .ib-card-footer{gap:4px;justify-content:flex-start;flex-wrap:wrap}.ib-card-footer .ib-icon{min-width:48px;min-height:48px}.ib-card-footer .ib-icon:has(.ib-schedule-label){width:auto;min-width:0;padding:0 4px}
+  .ib-object :is(.ib-card-title,.ib-card-image){pointer-events:none}
+  .ib-object .ib-card-head>.ib-icon,.ib-object .ib-card-footer,.ib-object .ib-resize,.ib-frame>.ib-icon,.ib-sticker>.ib-icon{display:none!important}
+  .ib-object .ib-card-body{pointer-events:none}.ib-object{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+  .ib-object.ib-hold-pending::after{content:'';position:absolute;inset:0;pointer-events:none;border:2px solid #ed986e;border-radius:inherit;corner-shape:squircle;animation:ib-hold-cue .38s ease both}
+  .ib-object.ib-lifted{outline:3px solid #e87d49;outline-offset:3px;box-shadow:0 8px 22px #64351e1a}
+  .ib-canvas.ib-dragging{cursor:grabbing}
+  .ib-selection{height:56px;min-height:56px;flex-wrap:nowrap;gap:4px;padding:4px 0;justify-content:flex-end}
+  .ib-selection>span{font-size:12px}.ib-selection button{height:48px;min-height:48px;min-width:48px}
+  .ib-selection #ib-edit-selection{display:flex;align-items:center;justify-content:center;gap:6px;width:auto;padding:0 8px;font-size:14px;color:#b85c2f;background:#fff3eb;--phone-control-bg:#fff3eb;--phone-control-ink:#b85c2f}
+  .ib-selection :is(#ib-group,#ib-connect,#ib-clear-selection){display:none}
+  .ib-panel .ib-canvas-controls button{min-width:48px;min-height:48px}.ib-panel .ib-canvas-controls #ib-fit{min-width:56px}
+  .ib-tool-pair,.ib-zoom-controls{gap:2px}.ib-dialog .ib-tools-grid button{min-height:64px;font-size:14px}
+  .ib-panel button,.ib-dialog button,.ib-card-footer a{touch-action:manipulation}
+}
+@keyframes ib-hold-cue{from{opacity:0}to{opacity:1}}
+@media(prefers-reduced-motion:reduce){.ib-object.ib-hold-pending::after{animation:none;opacity:1}}
+
+.ib-line-hit,.ib-stroke-hit{display:none}
+@media(max-width:580px), (max-width:980px) and (max-height:500px){
+  .ib-line-hit,.ib-stroke-hit{display:initial;fill:none;stroke:transparent;stroke-width:44;vector-effect:non-scaling-stroke;pointer-events:stroke}
+  .ib-line,.ib-stroke{pointer-events:none}
+  .ib-gallery .ib-card{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+  .ib-card-footer .ib-icon:has(.ib-schedule-label){display:inline-flex;align-items:center;justify-content:center}
+}
+@media(max-width:580px), (max-width:980px) and (max-height:500px){
+  .ib-dialog button,.ib-dialog .ib-library-check{min-height:48px}
+  .ib-dialog .editor-heading .small-action{width:48px;min-width:48px;min-height:48px}
+  .ib-dialog .ib-color{width:48px;min-width:48px;height:48px;min-height:48px}
+}

@@ -73,7 +73,7 @@ export function enablePhoneTouch(document) {
   document.addEventListener('pointerdown', event => {
     stopMomentum(); suppressClick = false;
     if (!phone() || event.pointerType !== 'mouse' || event.button !== 0 || gesture) return;
-    if (event.target.closest('input,textarea,select,[contenteditable],.google-map,.mobile-drag-handle')) return;
+    if (event.target.closest('input,textarea,select,[contenteditable],.google-map,.mobile-drag-handle,.ib-canvas')) return;
     const candidates = surfaces(event.target), time = now();
     if (candidates.length) gesture = { id: event.pointerId, x: event.clientX, y: event.clientY, candidates, lastTime: time, pending: 0, distance: 0, direction: 0, samples: [{ time, position: 0 }] };
   }, true);

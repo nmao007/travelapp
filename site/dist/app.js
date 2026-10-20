@@ -1167,6 +1167,7 @@ installButtonMotion(document);
 installSurfaceMotion(document);
 function setWorkspaceView(view, { keepMobileMap = false, showPlaces = false, remember = true } = {}) {
   const previousView = state.workspaceView;
+  if (previousView === 'ideas' && view !== 'ideas') ideasBoard.close();
   if (previousView !== view) workspacePositions.save(workspaceScope(), previousView);
   if (remember && previousView !== view) {
     workspaceTrail.push({ view: previousView, scroll: $(previousView === 'itinerary' ? 'day-content' : previousView === 'explore' ? 'nearby-results' : previousView === 'ideas' ? 'ib-cards' : 'transport-panel').scrollTop });

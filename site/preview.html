@@ -93,6 +93,12 @@
         }
       }
     }
+    /* Measured models use the same drawing contours in every browser. Keep
+       these overrides after the illustrative-frame fallbacks above. */
+    .stage.phone[data-measured-hardware=true] .device{border-radius:0;corner-shape:round;clip-path:var(--phone-body-clip)}
+    .stage.phone[data-measured-hardware=true] .device:before{inset:var(--phone-glass-top) var(--phone-glass-left);border-radius:0;corner-shape:round;clip-path:var(--phone-glass-clip);background:#050505}
+    .stage.phone[data-measured-hardware=true] .phone-screen{left:var(--phone-screen-left);top:var(--phone-screen-top);border-radius:0;corner-shape:round;clip-path:var(--phone-screen-clip)}
+    .stage.phone[data-measured-hardware=true] .island{left:var(--cutout-left);top:var(--cutout-top);width:var(--cutout-width);height:var(--cutout-height);transform:none;border-radius:0;clip-path:var(--phone-cutout-clip)}
   </style>
 </head>
 <body>
@@ -119,19 +125,34 @@
   <div class="phone-finger" id="phone-finger" aria-hidden="true" hidden></div>
   <script type="module">
     import { phoneDevices, phoneDevice } from "/phone-devices.js";
+    import { phoneHardware, phonePreviewScale } from "/phone-hardware.js";
     const stage=document.getElementById('stage'),button=document.getElementById('switch'),frame=stage.querySelector('iframe');
     const query=new URLSearchParams(location.search),initialPhone=Boolean(query.get('device'));let selectedDevice=phoneDevice(query.get('device'));query.delete('device');
     frame.src='/app' + (query.size?'?'+query:'');
-    function fitPhone(){const scale=Math.min(1,(innerWidth-48)/(selectedDevice.width+39.554),(innerHeight-64)/(selectedDevice.height+39.557));document.documentElement.style.setProperty('--phone-scale',Math.max(.2,scale));}
+    function fitPhone(){document.documentElement.style.setProperty('--phone-scale',phonePreviewScale(selectedDevice,innerWidth,innerHeight));}
     const modelMenu=document.getElementById('phone-model-menu');
     function configurePhone(){
-      const root=document.documentElement, d=selectedDevice;
-      for(const [name,value] of Object.entries({'phone-width':d.width,'phone-height':d.height,'phone-body-width':d.width+39.554,'phone-body-height':d.height+39.557,'phone-safe-top':d.safeTop,'cutout-width':d.cutout==='notch'?155:124.941}))root.style.setProperty('--'+name,value+'px');
+      const root=document.documentElement, d=selectedDevice, hardware=phoneHardware(d);
+      for(const [name,value] of Object.entries({'phone-width':d.width,'phone-height':d.height,'phone-body-width':hardware.bodyWidth,'phone-body-height':hardware.bodyHeight,'phone-safe-top':d.safeTop,'cutout-width':hardware.cutoutWidth}))root.style.setProperty('--'+name,value+'px');
       stage.dataset.cutout=d.cutout;
+      stage.dataset.measuredHardware=String(hardware.measured);
+      if(hardware.measured){
+        for(const [name,value] of Object.entries({'phone-screen-left':hardware.screenLeft,'phone-screen-top':hardware.screenTop,'phone-glass-left':hardware.glassLeft,'phone-glass-top':hardware.glassTop,'cutout-left':hardware.cutoutLeft,'cutout-top':hardware.cutoutTop,'cutout-height':hardware.cutoutHeight}))root.style.setProperty('--'+name,value+'px');
+        for(const part of ['body','glass','screen','cutout'])root.style.setProperty('--phone-'+part+'-clip',`path('${hardware[part+'Path']}')`);
+      }
       root.style.setProperty('--phone-body-corner',(105*(d.width+39.554)/432.554)+'px');
       root.style.setProperty('--phone-screen-corner',(85*d.width/393)+'px');
       stage.querySelector('.hardware-button.camera').hidden=!/^iphone1[678](?!e)|iphoneair/.test(d.id);
-      stage.querySelector('.hardware-button.action').style.height=/^iphone1[34]|iphone15(?!pro)/.test(d.id)?'26px':'41.667px';
+      for(const element of stage.querySelectorAll('.hardware-button'))element.removeAttribute('style');
+      if(hardware.measured){
+        for(const [name,measure] of Object.entries(hardware.buttons)){
+          const element=stage.querySelector('.hardware-button.'+name);
+          const side=['side','camera'].includes(name)?'right':'left';
+          element.style.top=measure.top+'px';element.style.height=measure.height+'px';
+          element.style[side]=-measure.protrusion+'px';
+          element.style.width=(measure.protrusion||1.5)+'px';
+        }
+      }else stage.querySelector('.hardware-button.action').style.height=/^iphone1[34]|iphone15(?!pro)/.test(d.id)?'26px':'41.667px';
       for(const row of modelMenu.querySelectorAll('button'))row.setAttribute('aria-pressed',String(row.dataset.device===d.id));
       fitPhone();syncDevice();
     }

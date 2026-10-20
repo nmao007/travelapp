@@ -1,6 +1,48 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { phoneDevices, phoneDevice, phoneViewport, dropdownBounds } from '../dist/phone-devices.js';
+import { phoneHardware, phonePreviewScale } from '../dist/phone-hardware.js';
+
+test('iPhone 18 frames retain the independent Apple drawing dimensions and cutouts', () => {
+  for (const [id, body, display, inset, island] of [
+    ['iphone18pro', [71.85, 150.01], [66.57, 144.73], 2.64, 15.66],
+    ['iphone18promax', [77.98, 163.43], [72.86, 158.31], 2.56, 15.68],
+  ]) {
+    const device = phoneDevice(id), hardware = phoneHardware(device);
+    assert.equal(hardware.measured, true);
+    const near = (actual, expected) => assert.ok(Math.abs(actual - expected) < .02, `${actual} differs from ${expected}`);
+    near(hardware.bodyWidth / hardware.scale, body[0]);
+    near(hardware.bodyHeight / hardware.scale, body[1]);
+    near(device.width / hardware.scale, display[0]);
+    near(device.height / hardware.scale, display[1]);
+    near(hardware.screenLeft / hardware.scale, inset);
+    near(hardware.screenTop / hardware.scale, inset);
+    near(hardware.cutoutWidth / hardware.scale, island);
+    near(hardware.cutoutHeight / hardware.scale, 6.07);
+    near(hardware.cutoutTop / hardware.scale, 2.315);
+    near(hardware.cutoutLeft * 2 + hardware.cutoutWidth, device.width);
+    assert.ok(hardware.cutoutTop + hardware.cutoutHeight < device.safeTop);
+    assert.ok(hardware.bodyPath.startsWith('M') && hardware.bodyPath.endsWith('Z'));
+    assert.ok(hardware.screenPath.startsWith('M') && !hardware.screenPath.includes('NaN'));
+    near(hardware.buttons.action.top / hardware.scale, 30.83);
+    near(hardware.buttons.side.height / hardware.scale, 17.7);
+    assert.equal(hardware.buttons.camera.protrusion, 0);
+  }
+  assert.notEqual(phoneHardware(phoneDevice('iphone18pro')).screenLeft, phoneHardware(phoneDevice('iphone18promax')).screenLeft);
+  assert.equal(phoneHardware(phoneDevice('iphone16')).measured, false);
+});
+
+test('phone fitting uses the measured housing and preserves a uniform scale', () => {
+  for (const id of ['iphone18pro', 'iphone18promax', 'iphone16']) {
+    const device = phoneDevice(id), hardware = phoneHardware(device);
+    for (const [width, height] of [[1280, 720], [1440, 1000], [375, 812]]) {
+      const scale = phonePreviewScale(device, width, height);
+      assert.ok(hardware.bodyWidth * scale <= width - 48 + .001);
+      assert.ok(hardware.bodyHeight * scale <= height - 64 + .001);
+      assert.ok(scale <= 1);
+    }
+  }
+});
 
 test('phone previews span mini, notch, island and Max screens without shrinking their logical viewport', () => {
   assert.equal(new Set(phoneDevices.map(d => d.id)).size, phoneDevices.length);
