@@ -252,6 +252,8 @@ export async function handleRequest(request, response) {
   assets.set('/flight-window.js', 'flight-window.js');
   for (const file of ['wallet-model.js', 'wallet-ui.js', 'wallet-export.js', 'expense-rates.js']) assets.set(`/${file}`, file);
   assets.set('/calendar-stops.js', 'calendar-stops.js');
+  assets.set('/trip-model.js', 'trip-model.js');
+  assets.set('/trip-sync.js', 'trip-sync.js');
   assets.set('/notices.js', 'notices.js');
   assets.set('/time-picker.js', 'time-picker.js');
   assets.set('/expansion.js', 'expansion.js');

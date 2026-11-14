@@ -1,4 +1,4 @@
-// Generated from lib/trip-itinerary.ts by prepare-shared.mjs.
+// Generated from lib/trip-itinerary.ts by site/prepare-shared.mjs.
 import { activityInstant,                                      } from "./domain.js";
 
 

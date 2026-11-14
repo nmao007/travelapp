@@ -1,4 +1,4 @@
-import { addPlace } from './trip-store.js';
+import { addPlace } from './trip-model.js';
 import { datesForTrip } from './itinerary-model.js';
 import { destinationForDay } from './place-model.js';
 

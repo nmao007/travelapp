@@ -1,6 +1,6 @@
 import { flightConflict } from './flight-window.js';
 import { datesForTrip } from './itinerary-model.js';
-import { stopForDay } from './trip-store.js';
+import { stopForDay } from './trip-model.js';
 import { activityInstant, isDate } from './domain.js';
 
 // Map entries have one marker per Google place, even across several trip days.

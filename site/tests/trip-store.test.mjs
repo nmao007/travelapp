@@ -218,3 +218,20 @@ test('shared transfer days keep activity ownership through repeated route change
   assert.deepEqual(restored.items.map(item=>item.day),trip.items.map(item=>item.day));
   assert.equal(stopForPlan(restored,{...restored.items[0],day:'2026-10-02'}).placeId,lisbon.placeId);
 });
+
+test('signing in moves guest trips into the account without replacing its own copies', async () => {
+  const { adoptGuestTrips } = await import('../dist/trip-store.js');
+  const values = new Map();
+  const storage = { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value), removeItem: key => values.delete(key) };
+  const accountKey = `${STORAGE_KEY}:user:user-1`;
+  const kyoto = { id: 'b', placeId: 'google-place-kyoto', name: 'Kyoto', latitude: 35.0116, longitude: 135.7681 };
+  storage.setItem(STORAGE_KEY, JSON.stringify([{ ...lisbon, title: 'Guest Lisbon' }, kyoto, { name: 'Imaginary' }]));
+  storage.setItem(accountKey, JSON.stringify([{ ...lisbon, title: 'Account Lisbon' }]));
+  const adopted = adoptGuestTrips(storage, { id: 'user-1' });
+  assert.deepEqual(adopted.map(trip => trip.id), ['b']);
+  const saved = JSON.parse(storage.getItem(accountKey));
+  assert.deepEqual(saved.map(trip => trip.title || trip.name), ['Kyoto', 'Account Lisbon']);
+  assert.equal(storage.getItem(STORAGE_KEY), null);
+  assert.deepEqual(adoptGuestTrips(storage, { id: 'user-1' }), []);
+  assert.deepEqual(adoptGuestTrips(storage, null), []);
+});

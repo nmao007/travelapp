@@ -1,0 +1,10 @@
+{
+  "name": "@trippilot/core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Trip planning rules shared by the TripPilot site and native app.",
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.js"
+  }
+}

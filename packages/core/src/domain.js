@@ -1,4 +1,4 @@
-// Generated from lib/domain.ts by prepare-shared.mjs.
+// Generated from lib/domain.ts by site/prepare-shared.mjs.
 // Platform-independent rules shared by the web app and future native clients.
 export const currencies = ["USD", "EUR", "GBP", "INR", "JPY", "AUD", "CAD", "CHF", "SGD", "NZD", "CNY", "THB", "KRW", "BHD"]         ;
 export const activityCategories = ["Activity", "Flight", "Stay", "Transport", "Food"]         ;

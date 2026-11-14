@@ -10,7 +10,7 @@ import { createPlaceSearch, createPlaceDetails, placeSearchGroups, mixedMapPlace
 import { isTourOperator } from './tour-model.js';
 import { playMotion, closeDialogSmooth, revealSequence, reducedMotion, installButtonMotion, installSurfaceMotion, animateContentChange, captureLayout, animateLayoutChange } from './motion.js';
 import { createTripBanner } from './trip-banner.js';
-import { readTrips, saveTrip, deleteTrip, addPlace, removePlace, movePlace, addStop, reorderStops, removeStop, tripStops, stopSchedule, datesForStop, setStopDates, tripTitle, renameTrip, currentAccount, createAccount, signIn, signOut, restoreSession, loadCloudTrips } from './trip-store.js';
+import { readTrips, saveTrip, deleteTrip, addPlace, removePlace, movePlace, addStop, reorderStops, removeStop, tripStops, stopSchedule, datesForStop, setStopDates, tripTitle, renameTrip, currentAccount, createAccount, signIn, signOut, restoreSession, loadCloudTrips, adoptGuestTrips } from './trip-store.js';
 import { createIdeasBoard } from './ideas-board.js';
 import { calendarMonth, presetRange } from './date-range.js';
 import { datesForTrip, eventsForDay, mappedPlace, makePlan } from './itinerary-model.js';
@@ -145,6 +145,7 @@ $('account-form').addEventListener('submit', async event => {
   try {
     const email = $('account-email').value, password = $('account-password').value;
     if ($('account-dialog').dataset.mode === 'signup') await createAccount(email, password); else await signIn(email, password);
+    adoptGuestTrips();
     let syncError = '';
     try { await loadCloudTrips(); } catch (error) { syncError = error.message || 'Your trip list could not sync from Supabase.'; }
     $('account-dialog').close(); form.reset(); showHome(); updateAccountBar();
@@ -1854,6 +1855,11 @@ updateRecent();
 updateAccountBar();
 const tripId = new URLSearchParams(location.search).get('trip');
 window.addEventListener('trippilot-cloud-save-error', event => status(state.trip ? 'trip-status' : 'home-status', event.detail || 'Your change could not sync to Supabase.'));
+window.addEventListener('trippilot-cloud-conflict', event => {
+  const trip = event.detail?.trip;
+  if (trip && state.trip?.id === trip.id) { state.trip = trip; renderPlan(); drawMarkers(); }
+  status(state.trip ? 'trip-status' : 'home-status', event.detail?.message);
+});
 async function initializeAccountWorkspace() {
   try {
     const session = await restoreSession();
