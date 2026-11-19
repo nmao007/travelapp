@@ -5,8 +5,10 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { TripsProvider } from '@/lib/trips';
+import { useShareInbox } from '@/lib/share-inbox';
 
 export default function RootLayout() {
+  useShareInbox();
   const [fontsLoaded] = useFonts({ DMSans_400Regular, DMSans_500Medium, DMSans_600SemiBold, DMSans_700Bold });
   if (!fontsLoaded) return null;
   return (

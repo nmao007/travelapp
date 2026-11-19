@@ -23,4 +23,6 @@ Phase 1 (without the map):
 - Plan tab: timeline, single-day view and calendar; adding, editing, moving, duplicating and removing plans (with undo); time, time zone, note, reservation, type and place; drag to reorder within or between days.
 - Stops and dates: trip dates (move or change range), stop dates, add, edit, remove and reorder stops.
 
+Phase 2 (started): an iOS share extension (`targets/share`, added by `@bacons/apple-targets`). "TripPilot" appears in the share sheet; it saves the shared link to the `group.app.trippilot.mobile` app group, and the app moves it into the device's saved imports when it opens (`src/lib/share-inbox.ts`). Expo Go can't load share extensions, so this needs a development build: `npx expo run:ios` (Xcode, CocoaPods). With Xcode 26, `expo-modules-jsi` 58.0.23 fails to compile (`sending 'slot' risks causing data races`); `patches/expo-modules-jsi+58.0.23.patch` applies the package's own `UncheckedSendable` wrapper there, reapplied by `patch-package` on every install. Drop the patch once Expo ships the fix or Xcode is updated (patch-package warns if the version changes).
+
 Not yet: the map (needs a development build with the Google Maps SDK), booked flights and trains in the Plan views and the Travel tab (phase 3), Explore and Ideas (later phases), and the menu's "Save offline itinerary" and "Export to calendar" (phase 3).
