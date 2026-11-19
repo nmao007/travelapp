@@ -3,20 +3,29 @@ import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient, type Session, type SupabaseClient } from '@supabase/supabase-js';
 import { createCloudSync } from '@trippilot/core/cloud-sync';
+import { normalizeTrip } from '@trippilot/core/trip-model';
+import type { Place } from './places';
 import { loadConfig } from './config';
 
 // The saved trip shape is defined by packages/core (trip-model.js); these are
 // the fields the screens read so far.
+export type Stop = { placeId: string; name: string; address?: string; latitude: number; longitude: number; timeZone?: string; date?: string | null; endDate?: string | null };
+export type PlanItem = { id: string; name: string; day: string; kind?: string; time?: string; timeZone?: string; notes?: string; reference?: string; booked?: boolean; placeId?: string; address?: string; latitude?: number; longitude?: number; routeStopId?: string; [field: string]: unknown };
 export type Trip = {
   id: string;
   name: string;
   title?: string;
   placeId: string;
+  address?: string;
   latitude: number;
   longitude: number;
+  timeZone?: string;
   startDate?: string | null;
   endDate?: string | null;
-  stops: { placeId: string; name: string }[];
+  stops: Stop[];
+  items: PlanItem[];
+  transport?: Record<string, any>[];
+  dayOrder?: Record<string, string[]>;
   [field: string]: unknown;
 };
 export type Account = { id: string; email: string };
@@ -30,6 +39,9 @@ type TripsContextValue = {
   signIn(email: string, password: string): Promise<void>;
   createAccount(email: string, password: string): Promise<void>;
   signOut(): Promise<void>;
+  saveTrip(trip: Trip): Trip;
+  deleteTrip(id: string): void;
+  createOrOpenTrip(place: Place): Trip;
 };
 
 const TripsContext = createContext<TripsContextValue | null>(null);
@@ -128,8 +140,32 @@ export function TripsProvider({ children }: { children: ReactNode }) {
     if (syncError) showHomeStatus(syncError);
   }, [sync, refresh, showHomeStatus]);
 
+  // Like the site: the device copy updates at once, the cloud copy follows.
+  const persist = useCallback((operation: Promise<unknown>) => {
+    operation.catch(() => showHomeStatus('Your change is saved on this device but could not sync to Supabase.'));
+  }, [showHomeStatus]);
+  const saveTrip = useCallback((trip: Trip) => {
+    const saved = normalizeTrip(trip) as Trip;
+    setTrips(current => [saved, ...current.filter(item => item.id !== saved.id)]);
+    persist(sync.saveTrip(account?.id ?? null, saved));
+    return saved;
+  }, [account, persist, sync]);
+  const deleteTrip = useCallback((id: string) => {
+    setTrips(current => current.filter(item => item.id !== id));
+    persist(sync.deleteTrip(account?.id ?? null, id) ?? Promise.resolve());
+  }, [account, persist, sync]);
+  // createOrOpenTrip in site/dist/app.js: one trip per destination, with an
+  // arrival travel prompt.
+  const createOrOpenTrip = useCallback((place: Place) => {
+    const existing = trips.find(trip => trip.placeId === place.placeId);
+    if (existing) return existing;
+    const tripId = crypto.randomUUID();
+    const arrivalDraft = { id: crypto.randomUUID(), trip_id: tripId, mode: 'Flight', service_id: '', departure_location: 'Starting point', arrival_location: place.name, departure_date: '', departure_time: '', departure_time_zone: 'UTC', arrival_date: '', arrival_time: '', arrival_time_zone: place.timeZone || 'UTC', notes: '', draft: true, leg: 'arrival', toPlaceId: place.placeId };
+    return saveTrip({ id: tripId, ...place, stops: [place], startDate: null, endDate: null, items: [], transport: [arrivalDraft], createdAt: new Date().toISOString() } as Trip);
+  }, [trips, saveTrip]);
+
   const value = useMemo<TripsContextValue>(() => ({
-    ready, account, trips, homeStatus, showHomeStatus,
+    ready, account, trips, homeStatus, showHomeStatus, saveTrip, deleteTrip, createOrOpenTrip,
     async signIn(email, password) {
       const client = await supabase();
       const { data, error } = await client.auth.signInWithPassword({ email: String(email).trim().toLowerCase(), password: String(password) });
@@ -148,7 +184,7 @@ export function TripsProvider({ children }: { children: ReactNode }) {
       setAccount(null);
       await refresh(null);
     },
-  }), [ready, account, trips, homeStatus, showHomeStatus, finishSignIn, sync, refresh]);
+  }), [ready, account, trips, homeStatus, showHomeStatus, saveTrip, deleteTrip, createOrOpenTrip, finishSignIn, sync, refresh]);
 
   return <TripsContext.Provider value={value}>{children}</TripsContext.Provider>;
 }

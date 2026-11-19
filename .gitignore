@@ -40,3 +40,6 @@ vercel-static/
 /site/dist/wallet-model.js
 /site/dist/trip-sync.js
 /site/dist/cloud-sync.js
+/site/dist/phone-motion.js
+/site/dist/place-art.js
+/site/dist/calendar-stops.js

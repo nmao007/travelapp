@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { tripTitle } from '@trippilot/core/trip-model';
 import { GuideArt, Icon } from './icons';
-import { colors, fonts, tripCardTints } from '@/lib/theme';
+import { colors, fonts, tripCardTints, sq } from '@/lib/theme';
 import type { Trip } from '@/lib/trips';
 
 // dateLabel / tripDateLabel from site/dist/app.js.
@@ -33,7 +33,7 @@ export function RecentTrip({ trip, index, onPress }: { trip: Trip; index: number
 }
 
 const styles = StyleSheet.create({
-  card: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 80, padding: 14, borderWidth: 1, borderRadius: 26, borderCurve: 'continuous' },
+  card: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 80, padding: 14, borderWidth: 1, borderRadius: sq(26), borderCurve: 'continuous' },
   pressed: { backgroundColor: colors.pressed },
   iconPressed: { transform: [{ scale: 0.9 }] },
   copy: { flex: 1, minWidth: 0, gap: 5 },

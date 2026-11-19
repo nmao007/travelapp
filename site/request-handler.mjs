@@ -8,6 +8,7 @@ import { createRouteService } from './route-service.mjs';
 import { createFlightService } from './flight-service.mjs';
 import { matchingPhotoPage } from './wiki-photo-match.mjs';
 import { createTravelDataService } from './travel-data-service.mjs';
+import { createPlacesService } from './places-service.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml' };
@@ -16,6 +17,7 @@ const photoCache = new Map();
 const ideaPreviewCache = new Map();
 const lookupFlight = createFlightService();
 const lookupRoute = createRouteService();
+const places = createPlacesService();
 const require = createRequire(import.meta.url);
 let zoneLookup;
 try { zoneLookup = require('geo-tz').find; } catch { /* Time zones remain editable without the optional lookup. */ }
@@ -136,8 +138,38 @@ async function localConfig() {
   return { mapsKey: (values.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY || values.GOOGLE_MAPS_BROWSER_KEY) || null, mapId: values.GOOGLE_MAP_ID || 'DEMO_MAP_ID', flightLookup: Boolean(values.AERODATABOX_API_KEY || process.env.AERODATABOX_API_KEY), supabaseUrl: values.NEXT_PUBLIC_SUPABASE_URL || null, supabaseAnonKey: values.NEXT_PUBLIC_SUPABASE_ANON_KEY || null };
 }
 
+// The native app's web preview (Expo on another localhost port) calls this API
+// during local development. Deployed APIs are only used same-origin or natively.
+function allowLocalOrigin(request, response) {
+  const origin = request.headers?.origin;
+  if (process.env.VERCEL || !origin || !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return false;
+  const writeHead = response.writeHead.bind(response);
+  response.writeHead = (status, headers = {}) => writeHead(status, { ...headers, 'access-control-allow-origin': origin, vary: 'Origin', 'access-control-allow-headers': 'content-type', 'access-control-allow-methods': 'GET, POST, OPTIONS' });
+  return true;
+}
+
+const clientAddress = request => String(request.headers?.['x-forwarded-for'] || '').split(',')[0].trim() || request.socket?.remoteAddress || 'local';
+
 export async function handleRequest(request, response) {
   const pathname = new URL(request.url || '/', 'http://localhost').pathname;
+  if (allowLocalOrigin(request, response) && request.method === 'OPTIONS') { response.writeHead(204); response.end(); return; }
+  if (pathname === '/api/places-autocomplete' || pathname === '/api/place-details') {
+    const params = new URL(request.url, 'http://localhost').searchParams;
+    try {
+      if (request.method !== 'GET') throw Object.assign(new Error('Use GET for place search.'), { status: 405 });
+      const values = await localSettings();
+      const key = values.GOOGLE_MAPS_SERVER_KEY || values.GOOGLE_MAPS_ROUTES_KEY || values.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY || values.GOOGLE_MAPS_BROWSER_KEY;
+      const client = clientAddress(request);
+      const data = pathname === '/api/places-autocomplete'
+        ? { suggestions: await places.autocomplete({ input: params.get('input'), scope: params.get('scope'), session: params.get('session') }, key, client) }
+        : { place: await places.details({ id: params.get('id'), session: params.get('session') }, key, client) };
+      response.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); response.end(JSON.stringify(data));
+    } catch (error) {
+      response.writeHead(error.status || 502, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+      response.end(JSON.stringify({ error: error.status ? error.message : 'Place search is unavailable right now.' }));
+    }
+    return;
+  }
   if(pathname==='/api/idea-preview'){
     try{
       if(request.method!=='GET')throw Object.assign(new Error('Use GET to retrieve a link preview.'),{status:405});

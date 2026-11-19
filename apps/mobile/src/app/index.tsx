@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import { AccountSheet } from '@/components/account-sheet';
+import { DestinationSearch } from '@/components/destination-search';
 import { HomeArt } from '@/components/home-art';
-import { Icon } from '@/components/icons';
 import { RecentTrip } from '@/components/recent-trip';
 import { TopBar } from '@/components/top-bar';
 import { colors, fonts } from '@/lib/theme';
@@ -15,8 +16,6 @@ import { useTrips } from '@/lib/trips';
 export default function Home() {
   const { trips, homeStatus } = useTrips();
   const [accountOpen, setAccountOpen] = useState(false);
-  const [query, setQuery] = useState('');
-  const [focused, setFocused] = useState(false);
 
   // #home-view h1 on phones: one line, font-size clamp(44px, 13vw, 52px), line-height 1.08.
   const { width } = useWindowDimensions();
@@ -28,11 +27,6 @@ export default function Home() {
   useEffect(() => { if (!reduced) welcome.value = withTiming(1, { duration: 320, easing: Easing.out(Easing.ease) }); }, [reduced, welcome]);
   const titleStyle = useAnimatedStyle(() => ({ opacity: welcome.value, transform: [{ translateY: (1 - welcome.value) * 10 }] }));
 
-  // .home-search:focus-within ring: box-shadow 0 0 0 4px, .2s.
-  const ring = useSharedValue(0);
-  useEffect(() => { ring.value = withTiming(focused ? 1 : 0, { duration: 200 }); }, [focused, ring]);
-  const ringStyle = useAnimatedStyle(() => ({ opacity: ring.value }));
-
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}>
       <TopBar onSignIn={() => setAccountOpen(true)} />
@@ -43,31 +37,13 @@ export default function Home() {
           </Animated.Text>
           <HomeArt />
         </View>
-        <View style={[styles.search, focused && styles.searchFocused]}>
-          <Animated.View style={[styles.searchRing, ringStyle]} pointerEvents="none" />
-          <Icon name="search" size={23} color={colors.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            value={query}
-            onChangeText={setQuery}
-            onFocus={() => setFocused(true)}
-            onBlur={() => setFocused(false)}
-            placeholder="City, region, or place"
-            placeholderTextColor={colors.placeholder}
-            accessibilityLabel="Search for a destination"
-            autoComplete="off"
-            autoCorrect={false}
-            spellCheck={false}
-            returnKeyType="search"
-            clearButtonMode="while-editing"
-          />
-        </View>
+        <DestinationSearch />
         {homeStatus ? <Text style={styles.status} accessibilityLiveRegion="polite">{homeStatus}</Text> : null}
         {trips.length ? (
           <View style={styles.recent}>
             <Text style={styles.sectionLabel}>Your trips</Text>
             <View style={styles.recentItems}>
-              {trips.slice(0, 6).map((trip, index) => <RecentTrip key={trip.id} trip={trip} index={index} />)}
+              {trips.slice(0, 6).map((trip, index) => <RecentTrip key={trip.id} trip={trip} index={index} onPress={() => router.push({ pathname: '/trip/[id]', params: { id: trip.id } })} />)}
             </View>
           </View>
         ) : null}
@@ -83,13 +59,6 @@ const styles = StyleSheet.create({
   intro: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, minHeight: 122, marginBottom: 18 },
   title: { flexShrink: 0, fontFamily: fonts.bold, letterSpacing: -2.7, color: colors.title },
   punctuation: { color: colors.punctuation },
-  search: {
-    height: 60, paddingHorizontal: 16, gap: 10, flexDirection: 'row', alignItems: 'center',
-    borderWidth: 1.5, borderColor: colors.searchLine, borderRadius: 24, borderCurve: 'continuous', backgroundColor: colors.white,
-  },
-  searchFocused: { borderColor: colors.searchFocusLine, backgroundColor: colors.searchFocusFill },
-  searchRing: { position: 'absolute', top: -5.5, left: -5.5, right: -5.5, bottom: -5.5, borderRadius: 28, borderWidth: 4, borderColor: colors.searchFocusRing },
-  searchInput: { flex: 1, height: '100%', fontFamily: fonts.regular, fontSize: 16, letterSpacing: -0.2, color: colors.ink },
   status: { marginTop: 13, fontFamily: fonts.regular, fontSize: 13, lineHeight: 19.5, color: colors.danger },
   recent: { marginTop: 28 },
   sectionLabel: { marginBottom: 12, fontFamily: fonts.semibold, fontSize: 15, letterSpacing: -0.2, color: colors.sectionLabel },

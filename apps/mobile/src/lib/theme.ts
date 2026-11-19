@@ -45,3 +45,8 @@ export const fonts = {
 
 // CSS --ease-out: cubic-bezier(.16, 1, .3, 1)
 export const easeOut = [0.16, 1, 0.3, 1] as const;
+
+// The site gives every element on phones CSS squircle corners (corner-shape:
+// squircle in phone.css). iOS continuous corners at ~0.65x the CSS radius
+// draw the same shape; use sq() for every radius taken from the site's CSS.
+export const sq = (radius: number) => Math.round(radius * 0.65 * 10) / 10;

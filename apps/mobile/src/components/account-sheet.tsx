@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { Icon } from './icons';
-import { colors, fonts } from '@/lib/theme';
+import { colors, fonts, sq } from '@/lib/theme';
 import { useTrips } from '@/lib/trips';
 
 // The site's #account-dialog on phones. It appears at once while the backdrop
@@ -102,23 +102,23 @@ const styles = StyleSheet.create({
   // 364pt wide on a 402pt screen (19pt margins), 20pt padding, 16pt gaps.
   card: {
     width: '100%', maxWidth: 364, marginHorizontal: 19, padding: 20, gap: 16, backgroundColor: colors.white,
-    borderTopLeftRadius: 42, borderTopRightRadius: 42, borderCurve: 'continuous',
+    borderTopLeftRadius: sq(42), borderTopRightRadius: sq(42), borderCurve: 'continuous',
     shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 15, shadowOffset: { width: 0, height: -5 },
   },
   heading: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
   label: { fontFamily: fonts.bold, fontSize: 14, color: colors.ink },
   title: { marginTop: 6, fontFamily: fonts.semibold, fontSize: 24, letterSpacing: -0.96, color: colors.ink },
-  close: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' },
+  close: { width: 44, height: 44, borderRadius: sq(22), borderCurve: 'continuous', backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' },
   description: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 19.5, color: colors.muted },
   field: { gap: 7 },
   fieldLabel: { fontFamily: fonts.bold, fontSize: 13, color: colors.ink },
-  input: { height: 48, paddingHorizontal: 10, borderWidth: 1, borderColor: colors.inputLine, borderRadius: 22, backgroundColor: colors.white, fontFamily: fonts.regular, fontSize: 16, color: colors.ink },
+  input: { height: 48, paddingHorizontal: 10, borderWidth: 1, borderColor: colors.inputLine, borderRadius: sq(22), borderCurve: 'continuous', backgroundColor: colors.white, fontFamily: fonts.regular, fontSize: 16, color: colors.ink },
   message: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 18.2, color: colors.muted },
   error: { color: colors.danger },
-  submit: { minHeight: 52, paddingVertical: 12, paddingHorizontal: 19, borderRadius: 22, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
+  submit: { minHeight: 52, paddingVertical: 12, paddingHorizontal: 19, borderRadius: sq(22), borderCurve: 'continuous', backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
   submitPressed: { backgroundColor: colors.accentPressed },
   submitText: { fontFamily: fonts.semibold, fontSize: 16, lineHeight: 20.8, color: colors.white },
-  toggle: { alignSelf: 'center', minHeight: 44, paddingHorizontal: 6, borderRadius: 22, justifyContent: 'center' },
+  toggle: { alignSelf: 'center', minHeight: 44, paddingHorizontal: 6, borderRadius: sq(22), borderCurve: 'continuous', justifyContent: 'center' },
   toggleText: { fontFamily: fonts.bold, fontSize: 14, color: colors.action, textDecorationLine: 'underline', textDecorationColor: colors.action },
   pressed: { backgroundColor: colors.pressed },
   iconPressed: { transform: [{ scale: 0.9 }] },

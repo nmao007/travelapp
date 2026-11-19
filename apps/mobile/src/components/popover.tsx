@@ -1,0 +1,82 @@
+import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
+import { Modal, Pressable, StyleSheet, Text, View, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { Icon } from './icons';
+import { colors, fonts, sq } from '@/lib/theme';
+
+type Anchor = { x: number; y: number; width: number; height: number };
+
+// A floating panel under (or aligned to) a trigger, closed by tapping outside.
+// Fades and drops 6pt in over 160ms like the site's dropdown and menu motion.
+export function Popover({ anchor, align = 'left', width, onClose, children, style }: { anchor: Anchor | null; align?: 'left' | 'right'; width?: number; onClose(): void; children: ReactNode; style?: StyleProp<ViewStyle> }) {
+  const progress = useSharedValue(0);
+  useEffect(() => { if (anchor) { progress.value = 0; progress.value = withTiming(1, { duration: 160, easing: Easing.out(Easing.cubic) }); } }, [anchor, progress]);
+  const motion = useAnimatedStyle(() => ({ opacity: progress.value, transform: [{ translateY: (1 - progress.value) * -6 }] }));
+  if (!anchor) return null;
+  const position = align === 'right' ? { right: undefined, left: anchor.x + anchor.width - (width ?? anchor.width) } : { left: anchor.x };
+  return (
+    <Modal visible transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
+      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close menu" />
+      <Animated.View style={[styles.panel, { top: anchor.y + anchor.height + 8, width: width ?? anchor.width, ...position }, motion, style]}>
+        {children}
+      </Animated.View>
+    </Modal>
+  );
+}
+
+// Measure a trigger in window coordinates, for anchoring a Popover.
+export function useAnchor() {
+  const ref = useRef<ComponentRef<typeof View>>(null);
+  const [anchor, setAnchor] = useState<Anchor | null>(null);
+  const open = () => ref.current?.measureInWindow((x, y, width, height) => setAnchor({ x, y, width, height }));
+  return { ref, anchor, open, close: () => setAnchor(null) };
+}
+
+// .coded-dropdown on phones: a value with a chevron that flips while open, and
+// a list of options with a check on the selected one.
+export function Dropdown<T extends string>({ value, options, onChange, label, triggerStyle, valueStyle, chevronColor = '#555555', disabled, gap = 8, fullWidth }: {
+  value: T; options: { value: T; label: string; disabled?: boolean }[]; onChange(value: T): void; label: string;
+  triggerStyle?: StyleProp<ViewStyle>; valueStyle?: StyleProp<TextStyle>; chevronColor?: string; disabled?: boolean; gap?: number; fullWidth?: boolean;
+}) {
+  const { ref, anchor, open, close } = useAnchor();
+  const current = options.find(option => option.value === value);
+  return (
+    <View ref={ref} collapsable={false} style={fullWidth ? { flex: 1 } : undefined}>
+      <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ expanded: Boolean(anchor), disabled }} disabled={disabled} onPress={open}
+        style={({ pressed }) => [styles.trigger, { gap }, triggerStyle, pressed && styles.pressed]}>
+        <Text style={valueStyle} numberOfLines={1}>{current?.label ?? ''}</Text>
+        <Icon name="chevron" size={16} color={chevronColor} style={anchor ? styles.flipped : undefined} />
+      </Pressable>
+      <Popover anchor={anchor} onClose={close} style={styles.menu}>
+        {options.map(option => {
+          const selected = option.value === value;
+          return (
+            <Pressable key={option.value} accessibilityRole="menuitem" accessibilityState={{ selected, disabled: option.disabled }} disabled={option.disabled}
+              onPress={() => { close(); if (!selected) onChange(option.value); }}
+              style={({ pressed }) => [styles.option, selected && styles.optionSelected, pressed && !selected && styles.pressed, option.disabled && styles.disabled]}>
+              <Text style={[styles.optionText, selected && styles.optionTextSelected]} numberOfLines={1}>{option.label}</Text>
+              <Icon name="check" size={16} color={colors.action} style={{ opacity: selected ? 1 : 0 }} />
+            </Pressable>
+          );
+        })}
+      </Popover>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  panel: {
+    position: 'absolute', padding: 6, borderWidth: 1, borderColor: '#e6e6e6', backgroundColor: colors.white, borderRadius: sq(18), borderCurve: 'continuous',
+    shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 12, shadowOffset: { width: 0, height: 6 },
+  },
+  trigger: { minHeight: 44, flexDirection: 'row', alignItems: 'center', borderRadius: sq(22), borderCurve: 'continuous' },
+  pressed: { backgroundColor: colors.pressed },
+  flipped: { transform: [{ rotate: '180deg' }] },
+  menu: {},
+  option: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 14, paddingVertical: 9, paddingHorizontal: 10, borderRadius: sq(16), borderCurve: 'continuous' },
+  optionSelected: { backgroundColor: '#fff2eb' },
+  // The site asks for weight 550; with DM Sans's static weights that renders as 600.
+  optionText: { flexShrink: 1, fontFamily: fonts.semibold, fontSize: 15, color: '#333333' },
+  optionTextSelected: { fontFamily: fonts.semibold },
+  disabled: { opacity: 0.25 },
+});

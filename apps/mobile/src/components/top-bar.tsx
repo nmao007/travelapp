@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { BrandSlash, Icon } from './icons';
-import { colors, fonts } from '@/lib/theme';
+import { colors, fonts, sq } from '@/lib/theme';
 import { useTrips } from '@/lib/trips';
 
 // .topbar on phones: 44pt tall, 20pt side padding, 12pt gap. Signed out it
@@ -39,9 +39,9 @@ const styles = StyleSheet.create({
   bar: { height: 44, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.white },
   brand: { flexDirection: 'row', alignItems: 'center', height: 22 },
   wordmark: { fontFamily: fonts.bold, fontSize: 21, lineHeight: 21, letterSpacing: -0.9, color: colors.ink, includeFontPadding: false },
-  account: { height: 44, paddingHorizontal: 10, borderRadius: 22, justifyContent: 'center' },
+  account: { height: 44, paddingHorizontal: 10, borderRadius: sq(22), borderCurve: 'continuous', justifyContent: 'center' },
   accountText: { fontFamily: fonts.medium, fontSize: 14, color: colors.muted },
-  signOut: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  signOut: { width: 44, height: 44, borderRadius: sq(22), borderCurve: 'continuous', alignItems: 'center', justifyContent: 'center' },
   pressed: { backgroundColor: colors.pressed },
   iconPressed: { transform: [{ scale: 0.9 }] },
 });

@@ -1,33 +1,24 @@
-import { View } from 'react-native';
-import Svg, { Circle, Path, Rect } from 'react-native-svg';
+import { memo } from 'react';
+import { View, type StyleProp, type ViewStyle } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
+import { SvgXml } from 'react-native-svg';
+import { placeArt } from '@trippilot/core/place-art';
+import { symbols, type SymbolName } from './icon-symbols';
 
-// The site's <symbol> icons (site/dist/index.html): 24×24, stroke 1.8, round caps.
-const paths = {
-  search: <><Circle cx={10.8} cy={10.8} r={6.6} /><Path d="m16 16 4.5 4.5" /></>,
-  arrow: <Path d="M5 12h14m-6-6 6 6-6 6" />,
-  close: <Path d="M5 5l14 14M19 5 5 19" />,
-  signout: <Path d="M10 4H4v16h6m4-12 4 4-4 4m-5-4h13" />,
-};
+// The site's line icons (.icon in app.css): stroke currentColor 1.8, round caps.
+export const Icon = memo(function Icon({ name, size = 20, width, height, color, strokeWidth = 1.8, style }: { name: SymbolName; size?: number; width?: number; height?: number; color: string; strokeWidth?: number; style?: StyleProp<ViewStyle> }) {
+  const symbol = symbols[name];
+  const xml = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${symbol.viewBox}" fill="none" stroke="${color}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round">${symbol.body}</svg>`;
+  return <SvgXml xml={xml} width={width ?? size} height={height ?? size} style={style} />;
+});
 
-export function Icon({ name, size = 20, color }: { name: keyof typeof paths; size?: number; color: string }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-      {paths[name]}
-    </Svg>
-  );
-}
+// placeArt() illustrations shared with the site (packages/core/src/place-art.js).
+export const Art = memo(function Art({ name, size }: { name: string; size: number }) {
+  return <SvgXml xml={placeArt(name).replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" ')} width={size} height={size} />;
+});
 
-// placeArt('guide') from site/dist/place-art.js, used on recent trip cards.
 export function GuideArt({ size = 38 }: { size?: number }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 48 48">
-      <Rect x={8} y={9} width={28} height={32} rx={5} fill="#9ba5e8" />
-      <Path d="M14 9v32" stroke="#7782cd" strokeWidth={2} />
-      <Path d="m25 15 7 12-7 7-7-7Z" fill="#ffdf9c" />
-      <Path d="m25 18 3 9-3 4-3-4Z" fill="#f38a50" />
-      <Path d="m36 11 5-4v18l-5-3" fill="#e7bd67" />
-    </Svg>
-  );
+  return <Art name="guide" size={size} />;
 }
 
 // The brand slash: viewBox 0 0 10 24, drawn 9×22. On the site it sits 3pt

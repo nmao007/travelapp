@@ -7,3 +7,7 @@ if (!globalCrypto.randomUUID) {
   globalCrypto.randomUUID = randomUUID as Crypto['randomUUID'];
   (globalThis as { crypto?: Partial<Crypto> }).crypto = globalCrypto;
 }
+
+// itinerary-model.js snapshots removed plans with structuredClone for undo.
+const scope = globalThis as { structuredClone?: <T>(value: T) => T };
+scope.structuredClone ||= <T,>(value: T): T => JSON.parse(JSON.stringify(value));

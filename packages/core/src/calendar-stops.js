@@ -1,4 +1,4 @@
-import { stopSchedule, stopForDay } from './trip-store.js';
+import { stopSchedule, stopForDay } from './trip-model.js';
 
 const colors = ['#2761df', '#19765e', '#5540ca', '#9a3c6f', '#856016', '#c23e0c'];
 export function calendarStops(trip) {
