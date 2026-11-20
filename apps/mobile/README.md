@@ -8,8 +8,12 @@ Trip rules come from `packages/core/src` (imported as `@trippilot/core/*`). The 
 
 ## Run it
 
-1. Start the API the app reads its settings from: `npm run dev` in `site/` (port 3010). To use another server, copy `.env.example` to `.env.local` and set `EXPO_PUBLIC_API_URL`.
-2. In this folder: `npm install`, then `npx expo start --ios` (needs Xcode and an iOS Simulator) or scan the QR code with Expo Go on a phone. On a real phone, set `EXPO_PUBLIC_API_URL` to your computer's LAN address.
+1. Start the API in `site/`: `npm run dev` (port 3010). It listens on your network during development, like `next dev`.
+2. In this folder (`apps/mobile`, not `site/`): `npm install`, then
+   - `npx expo start` and scan the QR code with your phone's Camera to open it in Expo Go (same Wi-Fi as the computer), or
+   - `npx expo run:ios` for the development build in the iOS Simulator (needs Xcode). Sharing into the app needs this build; Expo Go can't load share extensions.
+
+The app finds the API on the computer running Expo by itself. Once the site is deployed, set `EXPO_PUBLIC_API_URL` to its address in `apps/mobile/.env` and the app uses the deployed API instead (see `.env.example`); use `.env.local` to point back at your computer while changing server code.
 
 `npx expo start --web` renders the same screens in a browser for quick checks. The local API allows requests from other `localhost` ports so this preview can search places and sign in; deployed APIs don't.
 
