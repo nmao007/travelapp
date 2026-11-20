@@ -85,7 +85,7 @@ export function exportTripCalendar(trip, { now = new Date() } = {}) {
     add('transport', segment, [`SUMMARY:${text(`${segment.mode} ${segment.service_id} · ${segment.departure_location} → ${segment.arrival_location}`)}`, `DTSTART:${utc(start)}`, `DTEND:${utc(end)}`, 'TRANSP:OPAQUE', `LOCATION:${text(segment.departure_location)}`, `DESCRIPTION:${text(description.join('\n'))}`]);
   }
   if (!identities.size) throw new Error('Add a plan, flight or train to a trip day before exporting.');
-  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//TripPilot//Trip Calendar//EN', 'CALSCALE:GREGORIAN', `X-WR-CALNAME:${text(title)}`, ...events, 'END:VCALENDAR'];
+  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Elsewhere//Trip Calendar//EN', 'CALSCALE:GREGORIAN', `X-WR-CALNAME:${text(title)}`, ...events, 'END:VCALENDAR'];
   const filename = `${[...title.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '-').replace(/^[.\s]+|[.\s]+$/g, '')].slice(0, 50).join('') || 'Trip'}.ics`;
   return { content: lines.map(fold).join('\r\n') + '\r\n', filename, count: identities.size };
 }

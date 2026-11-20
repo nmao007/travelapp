@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- The Elsewhere mark without its background, for Android adaptive icons and the splash screen. Set fill/stroke with currentColor. -->
+  <g transform="translate(512 556) scale(.7) translate(-522 -556)" fill="currentColor" stroke="currentColor">
+    <path d="M252 640 C 270 860, 540 905, 650 800" fill="none" stroke-opacity=".8" stroke-width="36" stroke-linecap="round" stroke-dasharray="1 76"/>
+    <circle cx="252" cy="618" r="62" stroke="none"/>
+    <path d="M672 206c-104 0-182 79-182 180 0 132 182 382 182 382s182-250 182-382c0-101-78-180-182-180Zm0 114a66 66 0 1 0 0 132 66 66 0 1 0 0-132Z" fill-rule="evenodd" stroke="none"/>
+  </g>
+</svg>

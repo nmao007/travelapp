@@ -373,3 +373,43 @@ export function editedBoardIdea(item, input) {
   const url = ideaWebURL(input.url), image = ideaWebURL(input.image, 'Image');
   return { ...item, title, notes, location, url, image, sourceUrl: url, category: input.category || 'Activity', color: palette.includes(input.color) ? input.color : 'sun', ...(item.type === 'sticker' ? { sticker: title } : {}) };
 }
+
+// A link shared into the app from TikTok, Instagram, YouTube or the web becomes
+// an Inbox card on the trip's Ideas board (unplaced, so the site lists it in
+// the board's Inbox and the app in its Ideas cards).
+const PROVIDER_NAMES = { tiktok: 'TikTok', instagram: 'Instagram', youtube: 'YouTube' };
+
+export function sharedTitle(shared = {}) {
+  const firstLine = String(shared.title || '').split('\n').map(line => line.replace(/#[\p{L}\p{N}_]+/gu, '').trim()).find(Boolean) || '';
+  const place = shared.place?.name;
+  const fallback = place || (PROVIDER_NAMES[shared.provider] ? `${PROVIDER_NAMES[shared.provider]} video` : (() => { try { return new URL(shared.url).hostname.replace(/^www\./, ''); } catch { return 'Saved link'; } })());
+  const title = firstLine || fallback;
+  return title.length > 120 ? `${title.slice(0, 117).trimEnd()}…` : title;
+}
+
+export function sharedLinkIdea(shared = {}, extras = {}) {
+  const place = shared.place || null;
+  const creator = [shared.author, shared.handle].filter(Boolean).join(' ');
+  const caption = String(shared.title || '').trim();
+  const notes = [caption && caption !== sharedTitle(shared) ? caption : '', creator ? `From ${creator}${PROVIDER_NAMES[shared.provider] ? ` on ${PROVIDER_NAMES[shared.provider]}` : ''}` : ''].filter(Boolean).join('\n\n').slice(0, 2000);
+  return unplacedIdea('card', {
+    ...(extras.id ? { id: extras.id } : {}),
+    title: sharedTitle(shared),
+    url: shared.url || '',
+    image: shared.image || '',
+    notes,
+    category: 'Activity',
+    location: place ? [place.name, place.address || place.detail].filter(Boolean).join(', ') : '',
+    ...(place?.placeId && Number.isFinite(place.latitude) && Number.isFinite(place.longitude) ? { placeId: place.placeId, latitude: place.latitude, longitude: place.longitude } : {}),
+    source: 'share',
+    provider: shared.provider || 'web',
+    sharedAt: shared.savedAt || new Date().toISOString(),
+  });
+}
+
+// Adds a shared card unless the same link is already on this trip's board.
+export function addSharedIdea(trip, idea, now) {
+  const items = Array.isArray(trip?.boardItems) ? trip.boardItems : [];
+  if (idea.url && items.some(item => item.url === idea.url)) return trip;
+  return withBoardChange(trip, { boardItems: [...items, idea] }, now);
+}

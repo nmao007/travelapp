@@ -5,20 +5,29 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { TripsProvider } from '@/lib/trips';
-import { useShareInbox } from '@/lib/share-inbox';
+import { ShareIntentProvider } from 'expo-share-intent';
+import { Platform } from 'react-native';
+import { SharedInboxProvider } from '@/lib/share-inbox';
+import { AndroidShareHandler } from '@/components/android-share';
 
 export default function RootLayout() {
-  useShareInbox();
   const [fontsLoaded] = useFonts({ DMSans_400Regular, DMSans_500Medium, DMSans_600SemiBold, DMSans_700Bold });
   if (!fontsLoaded) return null;
   return (
+    // Android delivers shares to the app itself (expo-share-intent); iOS uses
+    // the share extension in targets/share instead.
+    <ShareIntentProvider options={{ disabled: Platform.OS !== 'android' }}>
     <GestureHandlerRootView style={{ flex: 1 }}>
     <SafeAreaProvider>
       <TripsProvider>
-        <StatusBar style="dark" />
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#ffffff' } }} />
+        <SharedInboxProvider>
+          <StatusBar style="dark" />
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#ffffff' } }} />
+          <AndroidShareHandler />
+        </SharedInboxProvider>
       </TripsProvider>
     </SafeAreaProvider>
     </GestureHandlerRootView>
+    </ShareIntentProvider>
   );
 }

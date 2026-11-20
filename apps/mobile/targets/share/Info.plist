@@ -2,11 +2,17 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+  <!-- The share screen fetches previews from the API; local development uses http://localhost. -->
+  <key>NSAppTransportSecurity</key>
+  <dict>
+    <key>NSAllowsLocalNetworking</key>
+    <true/>
+  </dict>
   <key>NSExtension</key>
   <dict>
     <key>NSExtensionAttributes</key>
     <dict>
-      <!-- Offer TripPilot for one shared link or text (TikTok and Instagram share a link). -->
+      <!-- Offer Elsewhere for one shared link or text (TikTok and Instagram share a link). -->
       <key>NSExtensionActivationRule</key>
       <dict>
         <key>NSExtensionActivationSupportsWebURLWithMaxCount</key>

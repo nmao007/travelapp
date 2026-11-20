@@ -108,3 +108,22 @@ test('frame placement starts inside the frame instead of colliding with the fram
   assert.equal(idea.groupId, 'f');
   assert.equal(idea.x, 128); assert.equal(idea.y, 156);
 });
+
+test('a shared TikTok becomes an Inbox card titled from its caption, with the chosen place', async () => {
+  const { sharedLinkIdea, addSharedIdea, isPlaced } = await import('../dist/board-model.js');
+  const idea = sharedLinkIdea({ provider: 'tiktok', url: 'https://www.tiktok.com/@kyotoeats/video/1', title: 'Sunrise at the gates 🌅 #kyoto #fyp\n📍 Fushimi Inari', author: 'Kyoto Eats', handle: '@kyotoeats', image: 'https://p16.tiktokcdn.com/c.jpg', place: { placeId: 'inari-id', name: 'Fushimi Inari Taisha', address: 'Kyoto, Japan', latitude: 34.97, longitude: 135.77 }, savedAt: '2026-11-19T10:00:00Z' }, { id: 'idea-1' });
+  assert.equal(idea.type, 'card'); assert.equal(isPlaced(idea), false);
+  assert.equal(idea.title, 'Sunrise at the gates 🌅');
+  assert.equal(idea.location, 'Fushimi Inari Taisha, Kyoto, Japan');
+  assert.deepEqual([idea.placeId, idea.latitude], ['inari-id', 34.97]);
+  assert.match(idea.notes, /From Kyoto Eats @kyotoeats on TikTok/);
+  assert.equal(idea.source, 'share');
+  const trip = { id: 't', boardItems: [], boardRevision: 2 };
+  const next = addSharedIdea(trip, idea, () => '2026-11-19T10:00:01Z');
+  assert.equal(next.boardItems.length, 1); assert.equal(next.boardRevision, 3);
+  // Sharing the same video again doesn't add a second card.
+  assert.equal(addSharedIdea(next, { ...idea, id: 'idea-2' }), next);
+  // No caption: named after the place, or the app it came from.
+  assert.equal(sharedLinkIdea({ provider: 'instagram', url: 'https://www.instagram.com/reel/x/' }).title, 'Instagram video');
+  assert.equal(sharedLinkIdea({ provider: 'web', url: 'https://www.example.com/post' }).title, 'example.com');
+});

@@ -11,10 +11,10 @@ export function TopBar({ onSignIn }: { onSignIn(): void }) {
   const [signingOut, setSigningOut] = useState(false);
   return (
     <View style={styles.bar}>
-      <View style={styles.brand} accessibilityRole="header" accessibilityLabel="TripPilot home">
-        <Text style={styles.wordmark}>TRIP</Text>
+      <View style={styles.brand} accessibilityRole="header" accessibilityLabel="Elsewhere home">
+        <Text style={styles.wordmark}>ELSE</Text>
         <BrandSlash color={colors.action} />
-        <Text style={styles.wordmark}>PILOT</Text>
+        <Text style={styles.wordmark}>WHERE</Text>
       </View>
       {account ? (
         <Pressable

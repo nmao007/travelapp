@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "TripPilot",
+    "name": "Elsewhere",
     "slug": "trippilot",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -10,12 +10,14 @@
       "supportsTablet": false,
       "bundleIdentifier": "app.trippilot.mobile",
       "entitlements": {
-        "com.apple.security.application-groups": ["group.app.trippilot.mobile"]
+        "com.apple.security.application-groups": [
+          "group.app.trippilot.mobile"
+        ]
       }
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#F75F25",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -29,7 +31,8 @@
     "plugins": [
       "expo-router",
       "expo-font",
-      "@bacons/apple-targets"
+      "@bacons/apple-targets",
+      ["expo-share-intent", { "disableIOS": true, "androidIntentFilters": ["text/*"] }]
     ],
     "scheme": "trippilot"
   }

@@ -13,6 +13,7 @@ import { PlanSheet } from '@/components/workspace/plan-sheet';
 import { RemovalNotice, TripNotice } from '@/components/workspace/notices';
 import { DragProvider, DragHandle } from '@/components/workspace/plan-drag';
 import { TripDatesSheet } from '@/components/workspace/trip-dates-sheet';
+import { IdeasView } from '@/components/workspace/ideas-view';
 import { StopSheets, type StopSheetState } from '@/components/workspace/stop-sheets';
 import { colors } from '@/lib/theme';
 import { useTrips, type PlanItem, type Trip } from '@/lib/trips';
@@ -27,6 +28,7 @@ export default function TripWorkspace() {
   const stored = trips.find(trip => trip.id === id);
   const [trip, setTrip] = useState<Trip | null>(null);
   const [mode, setMode] = useState<Mode>('list');
+  const [tab, setTab] = useState<'plan' | 'ideas'>('plan');
   const [day, setDay] = useState('ideas');
   const [stopFilter, setStopFilter] = useState<string | null>(null);
   const [month, setMonth] = useState<string | null>(null);
@@ -126,7 +128,9 @@ export default function TripWorkspace() {
       <DragProvider trip={trip} commit={commit} onDrop={next => setDay(next)} scrollRef={scroll} scrollOffset={scrollOffset}>
         <ScrollView ref={scroll} style={styles.body} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled" scrollEventThrottle={16} onScroll={event => { scrollOffset.current = event.nativeEvent.contentOffset.y; }}>
           <Animated.View style={enterStyle}>
-            {mode === 'list' ? (
+            {tab === 'ideas' ? (
+              <IdeasView trip={trip} commit={commit} onNotice={setNotice} onNeedDates={() => setDatesOpen(true)} />
+            ) : mode === 'list' ? (
               <Timeline trip={trip} stopFilter={stopFilter} {...handlers} onChooseDay={next => chooseDay(next, 'day')} onChooseDates={() => setDatesOpen(true)}
                 onSetStopDates={() => stopFilter && setStopSheet({ kind: 'dates', placeId: stopFilter })} />
             ) : mode === 'calendar' ? (
@@ -141,7 +145,7 @@ export default function TripWorkspace() {
       </DragProvider>
       <TripNotice message={notice} onHide={() => setNotice('')} />
       <RemovalNotice removal={removal} onUndo={restored => { commit(restored.trip); chooseDay(restored.day, mode === 'list' ? undefined : 'day'); setRemoval(null); }} onHide={() => setRemoval(null)} trip={trip} />
-      <WorkspaceNav onSelect={() => {}} />
+      <WorkspaceNav active={tab} onSelect={key => { if (key === 'plan' || key === 'ideas') { setTab(key); scroll.current?.scrollTo({ y: 0, animated: false }); } }} />
       <PlanSheet trip={trip} editing={editing} onClose={() => setEditing(null)} commit={commit}
         onSaved={item => { setDay(item.day); }} onDuplicated={copy => { chooseDay(copy.day, 'day'); }}
         onRemoved={result => { commit(result.trip); setRemoval(result.removal as Removal); }} onNeedDates={() => setDatesOpen(true)} />

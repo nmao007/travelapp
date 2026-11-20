@@ -6,7 +6,7 @@ import type { Trip } from '@/lib/trips';
 
 // dateLabel / tripDateLabel from site/dist/app.js.
 const dateLabel = (value: string) => new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T12:00:00Z`));
-const tripDateLabel = (trip: Trip) => trip.startDate && trip.endDate ? `${dateLabel(trip.startDate)} – ${dateLabel(trip.endDate)}` : 'Add dates';
+export const tripDateLabel = (trip: Trip) => trip.startDate && trip.endDate ? `${dateLabel(trip.startDate)} – ${dateLabel(trip.endDate)}` : 'Add dates';
 
 // #home-view .recent-trip on phones.
 export function RecentTrip({ trip, index, onPress }: { trip: Trip; index: number; onPress?(): void }) {

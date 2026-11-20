@@ -9,6 +9,7 @@ import { createFlightService } from './flight-service.mjs';
 import { matchingPhotoPage } from './wiki-photo-match.mjs';
 import { createTravelDataService } from './travel-data-service.mjs';
 import { createPlacesService } from './places-service.mjs';
+import { createSocialPreview } from './social-preview.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml' };
@@ -18,6 +19,7 @@ const ideaPreviewCache = new Map();
 const lookupFlight = createFlightService();
 const lookupRoute = createRouteService();
 const places = createPlacesService();
+const socialPreviews = createSocialPreview({ places, genericPreview: url => fetchIdeaPreview(url) });
 const require = createRequire(import.meta.url);
 let zoneLookup;
 try { zoneLookup = require('geo-tz').find; } catch { /* Time zones remain editable without the optional lookup. */ }
@@ -167,6 +169,22 @@ export async function handleRequest(request, response) {
     } catch (error) {
       response.writeHead(error.status || 502, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
       response.end(JSON.stringify({ error: error.status ? error.message : 'Place search is unavailable right now.' }));
+    }
+    return;
+  }
+  // Links shared into the app from TikTok, Instagram, YouTube or the web.
+  if (pathname === '/api/social-preview') {
+    try {
+      if (request.method !== 'GET') throw Object.assign(new Error('Use GET to preview a shared link.'), { status: 405 });
+      const raw = new URL(request.url, 'http://localhost').searchParams.get('url') || '';
+      if (raw.length > 2048) throw Object.assign(new Error('This link is too long.'), { status: 400 });
+      const values = await localSettings();
+      const key = values.GOOGLE_MAPS_SERVER_KEY || values.GOOGLE_MAPS_ROUTES_KEY || values.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY || values.GOOGLE_MAPS_BROWSER_KEY;
+      const preview = await socialPreviews.preview(raw, key, clientAddress(request));
+      response.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'private, max-age=300' }); response.end(JSON.stringify({ preview }));
+    } catch (error) {
+      response.writeHead(error.status || 502, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+      response.end(JSON.stringify({ error: error.status ? error.message : 'This link could not be previewed.' }));
     }
     return;
   }

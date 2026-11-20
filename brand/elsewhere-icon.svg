@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ff7a3c"/>
+      <stop offset="1" stop-color="#f2521d"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <!-- From here (the dot) to elsewhere (the pin): the route lands on the pin's tip. -->
+  <path d="M252 640 C 270 860, 540 905, 650 800" fill="none" stroke="#ffffff" stroke-opacity=".8" stroke-width="36" stroke-linecap="round" stroke-dasharray="1 76"/>
+  <circle cx="252" cy="618" r="62" fill="#ffffff"/>
+  <path d="M672 206c-104 0-182 79-182 180 0 132 182 382 182 382s182-250 182-382c0-101-78-180-182-180Z" fill="#ffffff"/>
+  <circle cx="672" cy="386" r="66" fill="#f8642a"/>
+</svg>
