@@ -1,5 +1,9 @@
 This is an Expo/React Native mobile application. Prioritize mobile-first patterns, performance, and cross-platform compatibility.
 
+## This project
+
+Elsewhere's native app, converted from the web app in `../../site`. The app leads: only features on `ROADMAP.md` are built. When a kept feature exists on the site, convert its code and match the site's phone layout (layout, copy, measurements, motion) rather than redesigning it; features the roadmap drops are not ported. Trip rules live in `../../packages/core/src`. How to run it and what's built: `README.md`. What's left, in order, through publishing: `ROADMAP.md`; tick items off there as they land.
+
 ## Expo has changed — do not trust your training data
 
 Expo ships breaking changes every SDK release. APIs you remember are likely renamed, moved, or removed. Before writing any code that touches an Expo, EAS, or React Native API:

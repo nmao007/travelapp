@@ -47,12 +47,12 @@ function TripMenu({ actions, onOpen }: { actions: MenuAction[]; onOpen?(): void 
 
 type HeaderProps = {
   trip: Trip; mode: 'list' | 'calendar' | 'day'; day: string; stopFilter: string | null; days: string[]; dayContext: string;
-  onBack(): void; onAdd(): void; onToggleMode(): void; onStop(placeId: string): void; onDay(day: string): void; onRename(): void; menu: MenuAction[]; onMenuOpen?(): void; renaming: boolean; onRenameDone(value: string | null): void;
+  onBack(): void; onAdd?(): void; addLabel?: string; showToggle?: boolean; onToggleMode(): void; onStop(placeId: string): void; onDay(day: string): void; onRename(): void; menu: MenuAction[]; onMenuOpen?(): void; renaming: boolean; onRenameDone(value: string | null): void;
 };
 
 // The phone masthead: trip title or day picker, add (+) and ⋯, then the stop
 // picker and calendar switch while viewing the whole trip.
-export function WorkspaceHeader({ trip, mode, day, stopFilter, days, dayContext, onBack, onAdd, onToggleMode, onStop, onDay, onRename, menu, onMenuOpen, renaming, onRenameDone }: HeaderProps) {
+export function WorkspaceHeader({ trip, mode, day, stopFilter, days, dayContext, onBack, onAdd, addLabel = 'Add a plan', showToggle = true, onToggleMode, onStop, onDay, onRename, menu, onMenuOpen, renaming, onRenameDone }: HeaderProps) {
   const insets = useSafeAreaInsets();
   const stops = tripStops(trip) as Trip['stops'];
   const entries = stopSchedule(trip) as { stop: Trip['stops'][number]; start: string | null; end: string | null }[];
@@ -82,7 +82,7 @@ export function WorkspaceHeader({ trip, mode, day, stopFilter, days, dayContext,
             {mode === 'list' ? <Text style={styles.subtitle}>{range}</Text> : null}
           </View>
         )}
-        <RoundButton icon="plus" label="Add a plan" onPress={onAdd} size={23} color={colors.white} style={styles.add} />
+        {onAdd ? <RoundButton icon="plus" label={addLabel} onPress={onAdd} size={23} color={colors.white} style={styles.add} /> : null}
         <TripMenu actions={menu} onOpen={onMenuOpen} />
       </View>
       {mode !== 'day' ? (
@@ -90,7 +90,7 @@ export function WorkspaceHeader({ trip, mode, day, stopFilter, days, dayContext,
           <Dropdown value={stopFilter || entries[0]?.stop.placeId || ''} label="Choose destination" disabled={entries.length < 2} fullWidth
             options={entries.map(entry => ({ value: entry.stop.placeId, label: `${entry.stop.name} · ${stopRangeLabel(entry)}` }))}
             onChange={onStop} triggerStyle={styles.stopTrigger} valueStyle={styles.stopValue} chevronColor="#555555" />
-          {mode === 'list' ? <RoundButton icon="calendar" label="Show calendar" onPress={onToggleMode} size={20} color="#555555" style={styles.toggle} /> : null}
+          {mode === 'list' && showToggle ? <RoundButton icon="calendar" label="Show calendar" onPress={onToggleMode} size={20} color="#555555" style={styles.toggle} /> : null}
         </View>
       ) : null}
     </View>
@@ -113,7 +113,7 @@ const tabs: { key: string; label: string; art: string }[] = [
   { key: 'ideas', label: 'Ideas', art: 'ideas' },
 ];
 
-// .workspace-nav: the phone tab bar. Travel, Explore and Ideas arrive in later phases.
+// .workspace-nav: the phone tab bar. Travel arrives in a later milestone.
 export function WorkspaceNav({ active = 'plan', onSelect }: { active?: string; onSelect(key: string): void }) {
   const insets = useSafeAreaInsets();
   return (

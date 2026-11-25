@@ -6,17 +6,17 @@ import { BottomSheet } from '../sheet';
 import { Art, Icon } from '../icons';
 import { formatDay } from '@/lib/format';
 import { useSharedInbox, type SharedLink } from '@/lib/share-inbox';
+import { PROVIDERS } from '../shared-preview';
 import { colors, fonts, sq } from '@/lib/theme';
 import type { PlanItem, Trip } from '@/lib/trips';
 
 type Idea = { id: string; type: string; title?: string; image?: string; url?: string; notes?: string; location?: string; category?: string; provider?: string; source?: string; placeId?: string; latitude?: number; longitude?: number; libraryIdeaId?: string; sharedAt?: string };
 
-const PROVIDERS: Record<string, string> = { tiktok: 'TikTok', instagram: 'Instagram', youtube: 'YouTube' };
 const providerLabel = (idea: { provider?: string; url?: string }) => PROVIDERS[idea.provider || ''] || (() => { try { return new URL(idea.url || '').hostname.replace(/^www\./, ''); } catch { return ''; } })();
 
 // The Ideas tab as cards: videos and links shared into the app, and the
 // trip's other board ideas. Each can be added to a day of the plan.
-export function IdeasView({ trip, commit, onNotice, onNeedDates }: { trip: Trip; commit(trip: Trip): void; onNotice(message: string): void; onNeedDates(): void }) {
+export function IdeasView({ trip, commit, onNotice, onNeedDates, onPaste }: { trip: Trip; commit(trip: Trip): void; onNotice(message: string): void; onNeedDates(): void; onPaste(): void }) {
   const { unassigned, addToTrip, dismiss } = useSharedInbox();
   const [scheduling, setScheduling] = useState<Idea | null>(null);
   const [adding, setAdding] = useState<string | null>(null);
@@ -30,6 +30,10 @@ export function IdeasView({ trip, commit, onNotice, onNeedDates }: { trip: Trip;
 
   return (
     <View style={styles.view}>
+      <Pressable accessibilityRole="button" onPress={onPaste} style={({ pressed }) => [styles.add, styles.paste, pressed && styles.addPressed]}>
+        <Icon name="link" size={17} color={colors.action} />
+        <Text style={styles.addText}>Paste link</Text>
+      </Pressable>
       {unassigned.length ? (
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Saved from other apps</Text>
@@ -50,7 +54,7 @@ export function IdeasView({ trip, commit, onNotice, onNeedDates }: { trip: Trip;
           <View style={styles.empty}>
             <Art name="ideas" size={44} />
             <Text style={styles.emptyTitle}>Save ideas from anywhere</Text>
-            <Text style={styles.emptyText}>Share a TikTok, Reel or link to Elsewhere and choose this trip. It lands here, ready to add to a day.</Text>
+            <Text style={styles.emptyText}>Share a TikTok, Reel or link to Elsewhere and choose this trip, or paste a link. It lands here, ready to add to a day.</Text>
           </View>
         )}
       </View>
@@ -180,6 +184,7 @@ const styles = StyleSheet.create({
   actions: { marginTop: 'auto', flexDirection: 'row', alignItems: 'center', gap: 4 },
   add: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, borderRadius: sq(20), borderCurve: 'continuous', backgroundColor: '#fff2eb' },
   addPressed: { backgroundColor: '#ffe6d6' },
+  paste: { minHeight: 44, justifyContent: 'center', borderRadius: sq(22) },
   addText: { fontFamily: fonts.semibold, fontSize: 14, color: colors.action },
   addPrimary: { backgroundColor: colors.accent },
   addPrimaryPressed: { backgroundColor: colors.accentPressed },

@@ -14,6 +14,8 @@ import { RemovalNotice, TripNotice } from '@/components/workspace/notices';
 import { DragProvider, DragHandle } from '@/components/workspace/plan-drag';
 import { TripDatesSheet } from '@/components/workspace/trip-dates-sheet';
 import { IdeasView } from '@/components/workspace/ideas-view';
+import { ExploreMap } from '@/components/workspace/explore-map';
+import { PasteLinkSheet } from '@/components/workspace/paste-link-sheet';
 import { StopSheets, type StopSheetState } from '@/components/workspace/stop-sheets';
 import { colors } from '@/lib/theme';
 import { useTrips, type PlanItem, type Trip } from '@/lib/trips';
@@ -28,7 +30,7 @@ export default function TripWorkspace() {
   const stored = trips.find(trip => trip.id === id);
   const [trip, setTrip] = useState<Trip | null>(null);
   const [mode, setMode] = useState<Mode>('list');
-  const [tab, setTab] = useState<'plan' | 'ideas'>('plan');
+  const [tab, setTab] = useState<'plan' | 'explore' | 'ideas'>('plan');
   const [day, setDay] = useState('ideas');
   const [stopFilter, setStopFilter] = useState<string | null>(null);
   const [month, setMonth] = useState<string | null>(null);
@@ -37,6 +39,7 @@ export default function TripWorkspace() {
   const [stopSheet, setStopSheet] = useState<StopSheetState>(null);
   const [renaming, setRenaming] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [pasteOpen, setPasteOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [notice, setNotice] = useState('');
   const [removal, setRemoval] = useState<Removal | null>(null);
@@ -115,9 +118,9 @@ export default function TripWorkspace() {
   return (
     <View style={styles.screen}>
       <WorkspaceHeader
-        trip={trip} mode={mode} day={activeDay} stopFilter={stopFilter} days={days}
+        trip={trip} mode={tab === 'explore' ? 'list' : mode} day={activeDay} stopFilter={stopFilter} days={days}
         dayContext={`${dayStop?.name || trip.name} · ${dayCount} ${dayCount === 1 ? 'plan' : 'plans'}`}
-        onBack={back} onAdd={() => openPlan(null)} onToggleMode={() => chooseDay(activeDay === 'ideas' ? days[0] || 'ideas' : activeDay, 'calendar')}
+        onBack={tab === 'explore' ? () => router.back() : back} onAdd={tab === 'explore' ? undefined : () => tab === 'ideas' ? setPasteOpen(true) : openPlan(null)} addLabel={tab === 'ideas' ? 'Paste link' : undefined} showToggle={tab !== 'explore'} onToggleMode={() => chooseDay(activeDay === 'ideas' ? days[0] || 'ideas' : activeDay, 'calendar')}
         onStop={selectStop} onDay={next => chooseDay(next)} onRename={() => setRenaming(true)} menu={menu} onMenuOpen={() => setConfirmDelete(false)}
         renaming={renaming} onRenameDone={value => {
           if (!renaming) return;
@@ -125,11 +128,17 @@ export default function TripWorkspace() {
           setRenaming(false);
         }}
       />
-      <DragProvider trip={trip} commit={commit} onDrop={next => setDay(next)} scrollRef={scroll} scrollOffset={scrollOffset}>
+      {tab === 'explore' ? (
+        <ExploreMap trip={trip} stopFilter={stopFilter} onOpenPlan={placeId => {
+          const items = (trip.items || []).filter(item => item.placeId === placeId || item.id === placeId);
+          const item = items.find(item => item.day === activeDay) || items[0];
+          if (item) openPlan(item, item.day);
+        }} />
+      ) : <DragProvider trip={trip} commit={commit} onDrop={next => setDay(next)} scrollRef={scroll} scrollOffset={scrollOffset}>
         <ScrollView ref={scroll} style={styles.body} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled" scrollEventThrottle={16} onScroll={event => { scrollOffset.current = event.nativeEvent.contentOffset.y; }}>
           <Animated.View style={enterStyle}>
             {tab === 'ideas' ? (
-              <IdeasView trip={trip} commit={commit} onNotice={setNotice} onNeedDates={() => setDatesOpen(true)} />
+              <IdeasView trip={trip} commit={commit} onNotice={setNotice} onNeedDates={() => setDatesOpen(true)} onPaste={() => setPasteOpen(true)} />
             ) : mode === 'list' ? (
               <Timeline trip={trip} stopFilter={stopFilter} {...handlers} onChooseDay={next => chooseDay(next, 'day')} onChooseDates={() => setDatesOpen(true)}
                 onSetStopDates={() => stopFilter && setStopSheet({ kind: 'dates', placeId: stopFilter })} />
@@ -142,10 +151,10 @@ export default function TripWorkspace() {
             )}
           </Animated.View>
         </ScrollView>
-      </DragProvider>
+      </DragProvider>}
       <TripNotice message={notice} onHide={() => setNotice('')} />
       <RemovalNotice removal={removal} onUndo={restored => { commit(restored.trip); chooseDay(restored.day, mode === 'list' ? undefined : 'day'); setRemoval(null); }} onHide={() => setRemoval(null)} trip={trip} />
-      <WorkspaceNav active={tab} onSelect={key => { if (key === 'plan' || key === 'ideas') { setTab(key); scroll.current?.scrollTo({ y: 0, animated: false }); } }} />
+      <WorkspaceNav active={tab} onSelect={key => { if (key === 'plan' || key === 'explore' || key === 'ideas') { setTab(key); scroll.current?.scrollTo({ y: 0, animated: false }); } }} />
       <PlanSheet trip={trip} editing={editing} onClose={() => setEditing(null)} commit={commit}
         onSaved={item => { setDay(item.day); }} onDuplicated={copy => { chooseDay(copy.day, 'day'); }}
         onRemoved={result => { commit(result.trip); setRemoval(result.removal as Removal); }} onNeedDates={() => setDatesOpen(true)} />
@@ -154,6 +163,7 @@ export default function TripWorkspace() {
         onSaved={() => { const first = datesForStop(trip, stopFilter || stops[0].placeId)[0]; if (first && !days.includes(day)) setDay(first); }} />
       <StopSheets state={stopSheet} trip={trip} commit={commit} onClose={() => setStopSheet(null)} onError={setNotice}
         onStopAdded={placeId => selectStop(placeId)} onStopRemoved={() => { const first = (tripStops(trip) as Trip['stops'])[0]; selectStop(first.placeId); }} />
+      <PasteLinkSheet visible={pasteOpen} trip={trip} onClose={() => setPasteOpen(false)} onSaved={() => setNotice('Added to Ideas')} />
       <AccountSheet visible={accountOpen} onClose={() => setAccountOpen(false)} />
     </View>
   );

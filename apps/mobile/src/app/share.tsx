@@ -1,15 +1,14 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, BackHandler, Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { BackHandler, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { tripTitle } from '@trippilot/core/trip-model';
-import { Art, Icon } from '@/components/icons';
+import { Icon } from '@/components/icons';
+import { SharedLinkPreview } from '@/components/shared-preview';
 import { tripDateLabel } from '@/components/recent-trip';
 import { fetchSharedPreview, useSharedInbox, type SharedPlace, type SharedPreview } from '@/lib/share-inbox';
 import { colors, fonts, sq } from '@/lib/theme';
 import { useTrips } from '@/lib/trips';
-
-const PROVIDERS: Record<string, string> = { tiktok: 'TikTok', instagram: 'Instagram', youtube: 'YouTube' };
 
 // Android's "Save to Elsewhere" screen, the same steps as the iOS share
 // extension (targets/share/ShareViewController.swift): preview, place, trip.
@@ -33,10 +32,6 @@ export default function ShareScreen() {
   }, [url]);
 
   const close = () => { if (router.canGoBack()) router.back(); else router.replace('/'); };
-  const provider = preview?.provider || '';
-  const source = PROVIDERS[provider] || (() => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return 'Link'; } })();
-  const caption = (preview?.title || '').split('\n').map(line => line.replace(/#[\p{L}\p{N}_]+/gu, '').trim()).find(Boolean)
-    || (preview || failed ? `${source} link` : 'Loading preview…');
   const trip = trips.find(entry => entry.id === tripId) || null;
 
   const save = async () => {
@@ -73,34 +68,7 @@ export default function ShareScreen() {
       ) : (
         <>
           <ScrollView contentContainerStyle={styles.body}>
-            <View style={styles.preview}>
-              <View style={styles.thumb}>
-                {preview?.image ? <Image source={{ uri: preview.image }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-                  : !preview && !failed ? <ActivityIndicator color={colors.action} /> : <Art name="ideas" size={34} />}
-                <View style={styles.badge}><Text style={styles.badgeText}>{source}</Text></View>
-              </View>
-              <View style={styles.previewCopy}>
-                <Text style={styles.caption} numberOfLines={3}>{caption}</Text>
-                {preview && (preview.author || preview.handle) ? <Text style={styles.meta} numberOfLines={1}>{[preview.author, preview.handle].filter(Boolean).join(' · ')}</Text> : null}
-                {failed ? <Text style={styles.muted}>No preview right now. The link is saved as it is.</Text> : null}
-              </View>
-            </View>
-            {preview?.places.length ? (
-              <View style={styles.group}>
-                <Text style={styles.label}>Place</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-                  {preview.places.map(option => {
-                    const selected = place?.placeId === option.placeId;
-                    return (
-                      <Pressable key={option.placeId} accessibilityRole="button" accessibilityState={{ selected }} onPress={() => setPlace(selected ? null : option)} style={[styles.chip, selected && styles.chipSelected]}>
-                        <Icon name="pin" size={15} color={selected ? colors.action : colors.ink} />
-                        <Text style={[styles.chipText, selected && styles.chipTextSelected]} numberOfLines={1}>{option.name}</Text>
-                      </Pressable>
-                    );
-                  })}
-                </ScrollView>
-              </View>
-            ) : null}
+            <SharedLinkPreview url={url} preview={preview} failed={failed} place={place} onPlace={setPlace} />
             <View style={styles.group}>
               <Text style={styles.label}>Trip</Text>
               {[...trips.map(entry => ({ id: entry.id, name: tripTitle(entry) as string, detail: entry.startDate ? tripDateLabel(entry) : 'Ideas tab' })), { id: null, name: 'Decide later', detail: 'Add it to a trip in the app' }].map(option => {
@@ -136,21 +104,9 @@ const styles = StyleSheet.create({
   close: { width: 44, height: 44, borderRadius: sq(22), borderCurve: 'continuous', backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' },
   closePressed: { backgroundColor: '#ebecef' },
   body: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 16, gap: 18 },
-  preview: { flexDirection: 'row', gap: 12 },
-  thumb: { width: 84, height: 112, borderRadius: sq(16), borderCurve: 'continuous', overflow: 'hidden', backgroundColor: '#fff2eb', alignItems: 'center', justifyContent: 'center' },
-  badge: { position: 'absolute', left: 6, bottom: 6, paddingHorizontal: 6, paddingVertical: 2, borderRadius: sq(8), borderCurve: 'continuous', backgroundColor: 'rgba(32, 32, 31, 0.72)' },
-  badgeText: { fontFamily: fonts.semibold, fontSize: 10, color: colors.white },
-  previewCopy: { flex: 1, minWidth: 0, gap: 4 },
-  caption: { fontFamily: fonts.bold, fontSize: 16, lineHeight: 20.8, color: colors.tripTitle },
-  meta: { fontFamily: fonts.regular, fontSize: 13, color: colors.tripMeta },
   muted: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 18, color: colors.muted },
   group: { gap: 8 },
   label: { fontFamily: fonts.semibold, fontSize: 14, color: colors.sectionLabel },
-  chips: { gap: 8 },
-  chip: { minHeight: 40, maxWidth: 240, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, borderWidth: 1, borderColor: colors.line, borderRadius: sq(20), borderCurve: 'continuous', backgroundColor: colors.white },
-  chipSelected: { borderColor: '#ffd9be', backgroundColor: '#fff2eb' },
-  chipText: { fontFamily: fonts.medium, fontSize: 14, color: colors.ink, flexShrink: 1 },
-  chipTextSelected: { color: colors.action },
   trip: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, borderWidth: 1, borderColor: colors.line, borderRadius: sq(22), borderCurve: 'continuous' },
   tripSelected: { borderColor: '#ffd9be', backgroundColor: '#fffaf6' },
   tripCopy: { flex: 1, minWidth: 0, gap: 2 },
