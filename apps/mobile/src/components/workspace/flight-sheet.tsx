@@ -12,11 +12,10 @@ import { flightForm, formWithFlight, legs, lookupNotes, transportInput, type Fli
 import { autocomplete, newSession, placeDetails, placeZone, type Suggestion } from '@/lib/places';
 import { formatClock, formatDay } from '@/lib/format';
 import { colors, fonts, sq } from '@/lib/theme';
+import { zoneOptions } from '@/lib/time-zones';
 import type { Trip } from '@/lib/trips';
 
 type Removal = { trip: Trip; removal: unknown };
-const zones = ['UTC', ...((Intl as unknown as { supportedValuesOf?(key: string): string[] }).supportedValuesOf?.('timeZone') ?? [])];
-const zoneOptions = zones.map(zone => ({ value: zone, label: zone.replaceAll('_', ' ') }));
 
 // The site's #transport-dialog on phones (openTransport, searchFlight and the
 // #transport-form submit in itinerary-ui.js), for flights only. Typing a flight
@@ -158,7 +157,7 @@ export function FlightSheet({ trip, editing, onClose, commit, onSaved, onRemoved
             </View>
             <View style={styles.field}>
               <Text style={styles.label}>Time zone</Text>
-              <Dropdown value={form[key].zone} options={zoneOptions} label={key === 'departure' ? 'Departure time zone' : 'Arrival time zone'} fullWidth gap={8}
+              <Dropdown value={form[key].zone} options={zoneOptions(form[key].zone)} label={key === 'departure' ? 'Departure time zone' : 'Arrival time zone'} fullWidth gap={8}
                 triggerStyle={styles.trigger} valueStyle={styles.triggerValue} chevronColor="#333333" onChange={zone => setLeg(key, { zone })} />
             </View>
           </View>

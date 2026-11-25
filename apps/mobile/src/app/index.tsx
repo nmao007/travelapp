@@ -7,6 +7,7 @@ import { AccountSheet } from '@/components/account-sheet';
 import { DestinationSearch } from '@/components/destination-search';
 import { HomeArt } from '@/components/home-art';
 import { RecentTrip } from '@/components/recent-trip';
+import { SavedVideos } from '@/components/saved-videos';
 import { TopBar } from '@/components/top-bar';
 import { colors, fonts } from '@/lib/theme';
 import { useTrips } from '@/lib/trips';
@@ -39,6 +40,7 @@ export default function Home() {
         </View>
         <DestinationSearch />
         {homeStatus ? <Text style={styles.status} accessibilityLiveRegion="polite">{homeStatus}</Text> : null}
+        <SavedVideos />
         {trips.length ? (
           <View style={styles.recent}>
             <Text style={styles.sectionLabel}>Your trips</Text>

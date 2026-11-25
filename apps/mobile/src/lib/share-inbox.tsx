@@ -32,7 +32,20 @@ export type SharedLink = {
   image?: string;
   place?: SharedPlace | null;
   places?: SharedPlace[];
+  // Chosen "New trip" in the share sheet: the app asks for the destination.
+  newTrip?: boolean;
 };
+
+// A destination to suggest for a new trip from a shared place: its city and
+// country from the address ("Jinnan, Shibuya City, Tokyo, Japan" -> "Tokyo,
+// Japan"; "Shattuck Ave, Berkeley, CA, USA" -> "Berkeley, CA, USA").
+export function destinationGuess(place?: SharedPlace | null) {
+  const parts = (place?.detail || '').split(',').map(part => part.trim()).filter(part => part && !/\d/.test(part));
+  if (parts.length < 2) return place?.detail || place?.name || '';
+  const country = parts[parts.length - 1], region = parts[parts.length - 2];
+  if (/^[A-Z]{2}$/.test(region) && parts.length >= 3) return `${parts[parts.length - 3]}, ${region}, ${country}`;
+  return `${region}, ${country}`;
+}
 
 const storage = () => (Platform.OS === 'ios' ? new ExtensionStorage(APP_GROUP) : null);
 
@@ -70,6 +83,8 @@ type Inbox = {
   saveShared(link: SharedLink): Promise<'trip' | 'inbox'>;
   addToTrip(link: SharedLink, trip: Trip): Promise<Trip>;
   dismiss(link: SharedLink): void;
+  // Keeps a "New trip" share in the inbox without asking again.
+  postpone(link: SharedLink): void;
 };
 
 const InboxContext = createContext<Inbox | null>(null);
@@ -103,6 +118,7 @@ export function SharedInboxProvider({ children }: { children: ReactNode }) {
   }, [addToTrip, writeUnassigned]);
 
   const dismiss = useCallback((link: SharedLink) => writeUnassigned(list => list.filter(entry => entry.id !== link.id)), [writeUnassigned]);
+  const postpone = useCallback((link: SharedLink) => writeUnassigned(list => list.map(entry => entry.id === link.id ? { ...entry, newTrip: false } : entry)), [writeUnassigned]);
 
   useEffect(() => {
     AsyncStorage.getItem(UNASSIGNED_KEY).then(raw => { try { const list = JSON.parse(raw || '[]'); if (Array.isArray(list)) setUnassigned(list); } catch { /* Start empty. */ } });
@@ -135,7 +151,7 @@ export function SharedInboxProvider({ children }: { children: ReactNode }) {
     storage()?.set(CONTEXT_KEY, JSON.stringify({ apiUrl, trips: trips.map(trip => ({ id: trip.id, name: tripTitle(trip), dates: trip.startDate ? tripDateLabel(trip) : '' })) }));
   }, [ready, trips]);
 
-  const value = useMemo(() => ({ unassigned, saveShared, addToTrip, dismiss }), [unassigned, saveShared, addToTrip, dismiss]);
+  const value = useMemo(() => ({ unassigned, saveShared, addToTrip, dismiss, postpone }), [unassigned, saveShared, addToTrip, dismiss, postpone]);
   return <InboxContext.Provider value={value}>{children}</InboxContext.Provider>;
 }
 

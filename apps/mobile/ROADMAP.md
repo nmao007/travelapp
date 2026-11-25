@@ -16,13 +16,14 @@ Each milestone ends with something you can try in the iOS Simulator (`npx expo r
 - [x] Map with numbered plan pins and the tapped pin's card, on Apple Maps (`src/components/workspace/trip-map.tsx`)
 - [x] Milestone 1, Ideas at the center: three tabs (Plan · Map · Ideas); saved videos with a place as cover pins on the map, whose card adds them to a day or opens the video; an empty Ideas tab that explains how to share a video in
 - [x] Milestone 2, booked flights in the plan: the Plan tab's + offers "Add flight"; flights show in the timeline, single day and calendar, and open for editing or removal with undo
+- [x] Saved videos on the home screen (add to a trip or start a new one) and "New trip" in the share sheets
 
 ## Milestone 2: Booked flights in the plan
 
 - [x] **Add a flight by number and date**: the app looks it up and puts it on the right day in the timeline and calendar, showing local departure and arrival times. Edit and remove it too. Convert the site's code: `/api/flights`, `flight-model.js`, `flight-window.js`, `itinerary-model.js`.
 - [x] "Add flight" goes under the Plan tab's +, not a Travel tab.
 
-Needs an AeroDataBox key on the server (`AERODATABOX_API_KEY`). Without it, you enter flight details by hand. Checked in the web preview and with unit checks; still to try in the iOS Simulator.
+For now flights are entered by hand (tested in the iOS Simulator). Lookup turns on by itself once the server has an AeroDataBox key (`AERODATABOX_API_KEY`); the free plan doesn't allow commercial use, so a public launch needs a paid plan (Starter, $19/month, when checked) or stays with manual entry.
 
 ## Milestone 3: Polish the loop
 

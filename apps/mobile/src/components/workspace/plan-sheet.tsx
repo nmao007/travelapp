@@ -11,11 +11,11 @@ import { BottomSheet } from '../sheet';
 import { autocomplete, newSession, placeDetails, type Suggestion } from '@/lib/places';
 import { clockParts, clockTime, formatClock, formatDay } from '@/lib/format';
 import { colors, fonts, sq } from '@/lib/theme';
+import { zoneOptions } from '@/lib/time-zones';
 import type { PlanItem, Trip } from '@/lib/trips';
 
 type Draft = PlanItem & { kind: string; time: string; timeZone: string; notes: string; reference: string };
 type Removal = { trip: Trip; removal: unknown };
-const zones = ['UTC', ...((Intl as unknown as { supportedValuesOf?(key: string): string[] }).supportedValuesOf?.('timeZone') ?? [])];
 
 function Chip({ icon, label, onPress, active, outline, wide, trailing }: { icon?: SymbolName; label: string; onPress(): void; active?: boolean; outline?: boolean; wide?: boolean; trailing?: SymbolName }) {
   return (
@@ -185,7 +185,7 @@ export function PlanSheet({ trip, editing, onClose, commit, onSaved, onDuplicate
               <Text style={styles.zoneLabel}>Time zone</Text>
               <Icon name="chevron" size={16} color={colors.muted} style={zoneOpen ? styles.flipped : undefined} />
             </Pressable>
-            {zoneOpen ? <Dropdown value={draft.timeZone} options={zones.map(zone => ({ value: zone, label: zone.replaceAll('_', ' ') }))} onChange={timeZone => save({ timeZone })} label="Time zone" fullWidth gap={12} triggerStyle={styles.dayTrigger} valueStyle={styles.dayValue} chevronColor="#333333" /> : null}
+            {zoneOpen ? <Dropdown value={draft.timeZone} options={zoneOptions(draft.timeZone)} onChange={timeZone => save({ timeZone })} label="Time zone" fullWidth gap={12} triggerStyle={styles.dayTrigger} valueStyle={styles.dayValue} chevronColor="#333333" /> : null}
           </View>
         ) : null}
         {noteOpen ? (

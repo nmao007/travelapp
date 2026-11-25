@@ -32,17 +32,20 @@ export default function ShareScreen() {
   }, [url]);
 
   const close = () => { if (router.canGoBack()) router.back(); else router.replace('/'); };
+  // 'new' is "New trip": the app asks for the destination afterwards.
   const trip = trips.find(entry => entry.id === tripId) || null;
+  const newTrip = tripId === 'new';
 
   const save = async () => {
     await saveShared({
-      id: `${Date.now()}`, url: preview?.url || url, savedAt: new Date().toISOString(), tripId: trip?.id,
+      id: `${Date.now()}`, url: preview?.url || url, savedAt: new Date().toISOString(), tripId: trip?.id, newTrip: newTrip || undefined,
       ...(preview ? { provider: preview.provider, title: preview.title, author: preview.author, handle: preview.handle, image: preview.image, places: preview.places } : { title: text && text !== url ? text : undefined }),
       place,
     });
-    setSaved(trip ? `Saved to ${tripTitle(trip)}` : 'Saved to Elsewhere');
-    // Back to the app the video came from, like the iOS share sheet.
-    setTimeout(() => { router.replace('/'); if (Platform.OS === 'android') BackHandler.exitApp(); }, 900);
+    setSaved(trip ? `Saved to ${tripTitle(trip)}` : newTrip ? 'Saved. Pick the trip\'s destination next.' : 'Saved to Elsewhere');
+    // Back to the app the video came from, like the iOS share sheet. A new
+    // trip stays in Elsewhere: home opens the New trip sheet for it.
+    setTimeout(() => { router.replace('/'); if (Platform.OS === 'android' && !newTrip) BackHandler.exitApp(); }, 900);
   };
 
   if (!url) {
@@ -71,7 +74,7 @@ export default function ShareScreen() {
             <SharedLinkPreview url={url} preview={preview} failed={failed} place={place} onPlace={setPlace} />
             <View style={styles.group}>
               <Text style={styles.label}>Trip</Text>
-              {[...trips.map(entry => ({ id: entry.id, name: tripTitle(entry) as string, detail: entry.startDate ? tripDateLabel(entry) : 'Ideas tab' })), { id: null, name: 'Decide later', detail: 'Add it to a trip in the app' }].map(option => {
+              {[...trips.map(entry => ({ id: entry.id, name: tripTitle(entry) as string, detail: entry.startDate ? tripDateLabel(entry) : 'Ideas tab' })), { id: 'new', name: 'New trip', detail: 'Pick the destination next' }, { id: null, name: 'Decide later', detail: 'Add it to a trip in the app' }].map(option => {
                 const selected = option.id === tripId;
                 return (
                   <Pressable key={option.id ?? 'later'} accessibilityRole="radio" accessibilityState={{ checked: selected }} onPress={() => setTripId(option.id)} style={[styles.trip, selected && styles.tripSelected]}>

@@ -27,12 +27,13 @@ type Removal = { tripId: string; collection: string; record: PlanItem | Flight; 
 
 // The trip workspace on phones (showWorkspace + itinerary-ui.js in the site).
 export default function TripWorkspace() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  // tab=ideas opens on Ideas (a trip just started from a shared video).
+  const { id, tab: startTab } = useLocalSearchParams<{ id: string; tab?: string }>();
   const { trips, saveTrip, deleteTrip, account, signOut } = useTrips();
   const stored = trips.find(trip => trip.id === id);
   const [trip, setTrip] = useState<Trip | null>(null);
   const [mode, setMode] = useState<Mode>('list');
-  const [tab, setTab] = useState<'plan' | 'map' | 'ideas'>('plan');
+  const [tab, setTab] = useState<'plan' | 'map' | 'ideas'>(startTab === 'ideas' ? 'ideas' : 'plan');
   const [day, setDay] = useState('ideas');
   const [stopFilter, setStopFilter] = useState<string | null>(null);
   const [month, setMonth] = useState<string | null>(null);

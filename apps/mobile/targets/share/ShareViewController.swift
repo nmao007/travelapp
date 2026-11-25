@@ -56,6 +56,8 @@ final class ShareModel: ObservableObject {
   @Published var previewFailed = false
   @Published var place: PlaceChoice?
   @Published var trip: TripChoice?
+  // "New trip": the app asks for the destination when it opens.
+  @Published var newTrip = false
   @Published var trips: [TripChoice] = []
   private let context: NSExtensionContext?
   private var sharedText: String?
@@ -116,7 +118,7 @@ final class ShareModel: ObservableObject {
     if let stored = defaults.string(forKey: inboxKey), let data = stored.data(using: .utf8),
        let parsed = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] { inbox = parsed }
     var entry: [String: Any] = ["id": UUID().uuidString, "url": preview?.url ?? link, "savedAt": ISO8601DateFormatter().string(from: Date())]
-    if let trip { entry["tripId"] = trip.id }
+    if let trip { entry["tripId"] = trip.id } else if newTrip { entry["newTrip"] = true }
     if let preview {
       entry["provider"] = preview.provider; entry["title"] = preview.title; entry["author"] = preview.author
       entry["handle"] = preview.handle; entry["image"] = preview.image
@@ -130,7 +132,7 @@ final class ShareModel: ObservableObject {
       defaults.set(json, forKey: inboxKey)
     }
     if let trip { defaults.set(trip.id, forKey: lastTripKey) }
-    phase = .saved(trip.map { "Saved to \($0.name)" } ?? "Saved to Elsewhere")
+    phase = .saved(trip.map { "Saved to \($0.name)" } ?? (newTrip ? "Saved. Open Elsewhere to pick the trip's destination." : "Saved to Elsewhere"))
     Task { try? await Task.sleep(nanoseconds: 900_000_000); context?.completeRequest(returningItems: nil) }
   }
 
@@ -339,15 +341,16 @@ struct ShareSheet: View {
   private var tripPicker: some View {
     Menu {
       ForEach(model.trips, id: \.self) { trip in
-        Button { model.trip = trip } label: { Text(trip.dates.isEmpty ? trip.name : "\(trip.name) · \(trip.dates)") }
+        Button { model.trip = trip; model.newTrip = false } label: { Text(trip.dates.isEmpty ? trip.name : "\(trip.name) · \(trip.dates)") }
       }
-      Button { model.trip = nil } label: { Text("Decide later") }
+      Button { model.trip = nil; model.newTrip = true } label: { Label("New trip", systemImage: "plus") }
+      Button { model.trip = nil; model.newTrip = false } label: { Text("Decide later") }
     } label: {
       HStack(spacing: 10) {
         Image(systemName: "suitcase").font(.system(size: 16)).foregroundColor(Palette.action)
         VStack(alignment: .leading, spacing: 2) {
-          Text(model.trip?.name ?? "Decide later").font(Fonts.dm("600SemiBold", 16)).foregroundColor(Palette.ink).lineLimit(1)
-          Text(model.trip.map { $0.dates.isEmpty ? "Ideas tab" : $0.dates } ?? (model.trips.isEmpty ? "Open Elsewhere once to choose a trip here" : "Add it to a trip in the app"))
+          Text(model.trip?.name ?? (model.newTrip ? "New trip" : "Decide later")).font(Fonts.dm("600SemiBold", 16)).foregroundColor(Palette.ink).lineLimit(1)
+          Text(model.trip.map { $0.dates.isEmpty ? "Ideas tab" : $0.dates } ?? (model.newTrip ? "Pick the destination in Elsewhere" : model.trips.isEmpty ? "Open Elsewhere once to choose a trip here" : "Add it to a trip in the app"))
             .font(Fonts.dm("400Regular", 13)).foregroundColor(Palette.muted).lineLimit(1)
         }
         Spacer()
