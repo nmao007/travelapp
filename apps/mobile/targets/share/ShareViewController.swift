@@ -224,18 +224,28 @@ extension Color {
 
 struct ShareSheet: View {
   @ObservedObject var model: ShareModel
+  // iOS always shows a share extension as a full-height sheet, so the title
+  // stays at the top and everything else sits at the bottom, within thumb
+  // reach. Taller content scrolls.
   var body: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 0) {
-        header
-        switch model.phase {
-        case .loading: ProgressView().frame(maxWidth: .infinity, minHeight: 160)
-        case .failed(let message): Text(message).font(Fonts.dm("400Regular", 15)).foregroundColor(Palette.muted).padding(16).frame(maxWidth: .infinity, minHeight: 120)
-        case .ready: form
-        case .saved(let message): saved(message)
+    VStack(spacing: 0) {
+      header
+      GeometryReader { space in
+        ScrollView {
+          VStack(alignment: .leading, spacing: 0) {
+            Spacer(minLength: 0)
+            switch model.phase {
+            case .loading: ProgressView().frame(maxWidth: .infinity, minHeight: 160)
+            case .failed(let message): Text(message).font(Fonts.dm("400Regular", 15)).foregroundColor(Palette.muted).padding(16).frame(maxWidth: .infinity, minHeight: 120)
+            case .ready: form
+            case .saved(let message): saved(message)
+            }
+          }
+          .padding(.bottom, 8)
+          .frame(minHeight: space.size.height, alignment: .bottom)
         }
+        .scrollBounceBehavior(.basedOnSize)
       }
-      .padding(.bottom, 8)
     }
     .background(Color.white.ignoresSafeArea())
   }
