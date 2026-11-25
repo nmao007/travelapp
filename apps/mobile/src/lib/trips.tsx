@@ -111,7 +111,7 @@ export function TripsProvider({ children }: { children: ReactNode }) {
         user = accountFrom(data.session);
         if (user) await sync.loadTrips(user.id);
       } catch {
-        if (user) showHomeStatus('Could not load your Supabase trips. Your saved browser copy is still available.');
+        if (user) showHomeStatus("You're offline. Showing the trips saved on this phone.");
       }
       if (cancelled) return;
       setAccount(user);
@@ -122,12 +122,14 @@ export function TripsProvider({ children }: { children: ReactNode }) {
   }, [sync, refresh, showHomeStatus]);
 
   // Supabase recommends refreshing tokens only while the app is in the foreground.
+  // Changes saved while offline are sent when the app comes back.
   useEffect(() => {
     const subscription = AppState.addEventListener('change', state => {
       supabase().then(client => state === 'active' ? client.auth.startAutoRefresh() : client.auth.stopAutoRefresh()).catch(() => {});
+      if (state === 'active' && account) sync.flush(account.id).catch(() => {});
     });
     return () => subscription.remove();
-  }, []);
+  }, [account, sync]);
 
   const finishSignIn = useCallback(async (session: Session | null, missing: string) => {
     const user = accountFrom(session);
@@ -142,7 +144,7 @@ export function TripsProvider({ children }: { children: ReactNode }) {
 
   // Like the site: the device copy updates at once, the cloud copy follows.
   const persist = useCallback((operation: Promise<unknown>) => {
-    operation.catch(() => showHomeStatus('Your change is saved on this device but could not sync to Supabase.'));
+    operation.catch(() => showHomeStatus("Saved on this phone. It will sync when you're back online."));
   }, [showHomeStatus]);
   const saveTrip = useCallback((trip: Trip) => {
     const saved = normalizeTrip(trip) as Trip;

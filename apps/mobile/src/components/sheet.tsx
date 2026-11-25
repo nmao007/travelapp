@@ -1,5 +1,5 @@
-import { useEffect, type ReactNode } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
 import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, sq } from '@/lib/theme';
@@ -11,7 +11,15 @@ type Slot = ReactNode | ((close: () => void) => ReactNode);
 const fill = (slot: Slot, close: () => void) => typeof slot === 'function' ? slot(close) : slot;
 
 export function BottomSheet({ visible, onClose, children, footer, header }: { visible: boolean; onClose(): void; children: Slot; footer?: Slot; header?: Slot }) {
-  const insets = useSafeAreaInsets(), { height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  // With the keyboard up, the home indicator's space under the footer isn't needed.
+  const [keyboard, setKeyboard] = useState(false);
+  useEffect(() => {
+    const shown = Keyboard.addListener('keyboardWillShow', () => setKeyboard(true));
+    const hidden = Keyboard.addListener('keyboardWillHide', () => setKeyboard(false));
+    return () => { shown.remove(); hidden.remove(); };
+  }, []);
+  const bottom = keyboard ? 8 : insets.bottom;
   const backdrop = useSharedValue(0), card = useSharedValue(1);
   useEffect(() => {
     if (!visible) return;
@@ -24,12 +32,12 @@ export function BottomSheet({ visible, onClose, children, footer, header }: { vi
   return (
     <Modal visible={visible} transparent animationType="none" statusBarTranslucent onRequestClose={close}>
       <Animated.View style={[StyleSheet.absoluteFill, styles.backdrop, backdropStyle]} />
-      <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={[styles.fill, { paddingTop: insets.top + 12 }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel="Close" />
-        <Animated.View style={[styles.sheet, { maxHeight: height - insets.top - 12 }, cardStyle]} accessibilityViewIsModal>
+        <Animated.View style={[styles.sheet, cardStyle]} accessibilityViewIsModal>
           {fill(header, close)}
           {fill(children, close)}
-          {footer ? <View style={{ paddingBottom: insets.bottom }}>{fill(footer, close)}</View> : <View style={{ height: insets.bottom }} />}
+          {footer ? <View style={{ paddingBottom: bottom }}>{fill(footer, close)}</View> : <View style={{ height: bottom }} />}
         </Animated.View>
       </KeyboardAvoidingView>
     </Modal>
@@ -41,7 +49,8 @@ const styles = StyleSheet.create({
   backdrop: { backgroundColor: colors.backdrop },
   fill: { flex: 1, justifyContent: 'flex-end' },
   sheet: {
-    backgroundColor: colors.white, borderTopLeftRadius: sq(42), borderTopRightRadius: sq(42), borderCurve: 'continuous', overflow: 'hidden',
+    // Shrinks to the room above the keyboard; the sheet's own list scrolls.
+    flexShrink: 1, backgroundColor: colors.white, borderTopLeftRadius: sq(42), borderTopRightRadius: sq(42), borderCurve: 'continuous', overflow: 'hidden',
     shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 15, shadowOffset: { width: 0, height: -5 },
   },
 });

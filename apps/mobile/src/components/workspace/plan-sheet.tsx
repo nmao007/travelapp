@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from '@/components/text';
 import { datesForTrip, duplicatePlan, fixedItem, makePlan, removeItineraryEvent } from '@trippilot/core/itinerary-model';
 import { flightDayBlock } from '@trippilot/core/flight-window';
 import { destinationForDay } from '@trippilot/core/place-model';
@@ -133,7 +134,7 @@ export function PlanSheet({ trip, editing, onClose, commit, onSaved, onDuplicate
           </Pressable>
         </View>
       )}>
-      <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">
+      <ScrollView keyboardDismissMode="interactive" style={styles.body} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">
         <View style={styles.dayRow}>
           <Text style={styles.dayLabel}>{duplicating ? 'Duplicate to' : 'Day'}</Text>
           <Dropdown value={draft.day} options={dayOptions} onChange={chooseDay} label={duplicating ? 'Duplicate plan to day' : 'Move plan to day'} fullWidth

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from '@/components/text';
 import { datesForTrip, makeTransport, removeItineraryEvent, upsertTransport } from '@trippilot/core/itinerary-model';
 import { normalizeFlightNumber, sameFlightDetails } from '@trippilot/core/flight-model';
 import { destinationForDay } from '@trippilot/core/place-model';
@@ -126,7 +127,7 @@ export function FlightSheet({ trip, editing, onClose, commit, onSaved, onRemoved
           </Pressable>
         </View>
       )}>
-      <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">
+      <ScrollView keyboardDismissMode="interactive" style={styles.body} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">
         <View style={styles.field}>
           <Text style={styles.label}>Number</Text>
           <TextInput style={styles.input} value={form.service_id} placeholder="Flight number" placeholderTextColor={colors.inputPlaceholder} maxLength={40}

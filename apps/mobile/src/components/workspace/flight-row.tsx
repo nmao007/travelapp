@@ -1,5 +1,6 @@
 import { memo } from 'react';
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/text';
 import { Art } from '../icons';
 import { arrivalLabels, flightMetadata, journeyLabels, legLabel, legs, type Flight, type Leg } from '@/lib/flight-form';
 import { formatClock } from '@/lib/format';

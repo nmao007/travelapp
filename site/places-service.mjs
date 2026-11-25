@@ -34,13 +34,18 @@ export function createPlacesService({ request = fetch, now = Date.now, perMinute
 
   return {
     // Same request as the site: regions only for destinations, any place otherwise.
-    async autocomplete({ input, scope, session }, key, client) {
+    // near ("lat,lng") ranks places around a trip's destination first.
+    async autocomplete({ input, scope, session, near }, key, client) {
       const text = String(input || '').trim();
       if (!text || text.length > 120) throw failure('Type a place to search.', 400);
       allow(client);
       const regions = scope !== 'all';
-      return cached(`a:${regions}:${text.toLowerCase()}`, 10 * 60_000, async () => {
-        const data = await google('places:autocomplete', { method: 'POST', body: JSON.stringify({ input: text, languageCode: 'en', ...(regions ? { includedPrimaryTypes: ['(regions)'] } : {}), ...(session ? { sessionToken: String(session).slice(0, 64) } : {}) }) }, key);
+      const [latitude, longitude] = String(near || '').split(',').map(Number);
+      const bias = Number.isFinite(latitude) && Number.isFinite(longitude) && Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180
+        ? { locationBias: { circle: { center: { latitude, longitude }, radius: 30000 } } } : {};
+      const area = bias.locationBias ? `${latitude.toFixed(2)},${longitude.toFixed(2)}` : '';
+      return cached(`a:${regions}:${area}:${text.toLowerCase()}`, 10 * 60_000, async () => {
+        const data = await google('places:autocomplete', { method: 'POST', body: JSON.stringify({ input: text, languageCode: 'en', ...bias, ...(regions ? { includedPrimaryTypes: ['(regions)'] } : {}), ...(session ? { sessionToken: String(session).slice(0, 64) } : {}) }) }, key);
         return (data.suggestions || []).map(item => item.placePrediction).filter(Boolean).slice(0, 5).map(prediction => ({
           placeId: prediction.placeId,
           name: prediction.structuredFormat?.mainText?.text || prediction.text?.text || '',

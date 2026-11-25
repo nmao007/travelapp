@@ -1,5 +1,6 @@
 import { memo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/text';
 import { fixedItem } from '@trippilot/core/itinerary-model';
 import { placeIcon } from '@trippilot/core/place-search';
 import { phonePlaceSymbol } from '@trippilot/core/phone-motion';
@@ -17,12 +18,15 @@ export function PlaceMarker({ item }: { item: PlanItem }) {
   return <View style={[styles.marker, { backgroundColor: markerFill(art) }]}><Art name={art} size={34} /></View>;
 }
 
+// What VoiceOver reads for a plan: its name, time and whether it's booked.
+const planLabel = (item: PlanItem) => [item.name, item.time ? formatClock(item.time) : '', item.booked ? 'booked' : ''].filter(Boolean).join(', ');
+
 // .place-item.timeline-item on phones: marker, name with reference or note,
 // and either a time (with lock/check) or a drag handle for flexible plans.
 export const TimelineRow = memo(function TimelineRow({ item, onOpen, dragHandle }: { item: PlanItem; onOpen(item: PlanItem): void; dragHandle?: React.ReactNode }) {
   const fixed = fixedItem(item);
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={`Open ${item.name}`} onPress={() => onOpen(item)} style={({ pressed }) => [styles.row, !fixed && styles.flexibleRow, pressed && styles.pressed]}>
+    <Pressable accessibilityRole="button" accessibilityLabel={planLabel(item)} accessibilityHint="Opens the plan" onPress={() => onOpen(item)} style={({ pressed }) => [styles.row, !fixed && styles.flexibleRow, pressed && styles.pressed]}>
       <PlaceMarker item={item} />
       <View style={styles.copy}>
         <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
@@ -45,7 +49,7 @@ export const DayCard = memo(function DayCard({ item, onOpen, dragHandle }: { ite
   const fixed = fixedItem(item);
   const category = item.kind && item.kind !== 'Activity' ? item.kind : '';
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={`Open ${item.name}`} onPress={() => onOpen(item)} style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
+    <Pressable accessibilityRole="button" accessibilityLabel={planLabel(item)} accessibilityHint="Opens the plan" onPress={() => onOpen(item)} style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
       {item.time || fixed ? (
         <View style={styles.cardSchedule}>
           {item.time ? <Text style={styles.cardTime}>{formatClock(item.time)}</Text> : <View />}

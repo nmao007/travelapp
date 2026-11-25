@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Image, Linking, Pressable, StyleSheet, Text, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
+import { ActivityIndicator, Image, Linking, Pressable, StyleSheet, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
+import { Text } from '@/components/text';
 import Animated, { Easing, interpolate, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import MapView, { Marker, PROVIDER_DEFAULT, PROVIDER_GOOGLE, type Region } from 'react-native-maps';
 import Constants from 'expo-constants';
@@ -77,6 +78,17 @@ export function TripMap({ trip, stopFilter, commit, onNotice, onNeedDates, onOpe
     shown.current = stop.placeId; setChosen(null);
     map.current?.animateToRegion(regionAt(stop, 12, size), 850);
   }, [stop, size]);
+
+  // Once the map is up, frame every pin (plans and saved places) so none sit off
+  // screen; with one pin or none, the destination view above stays.
+  const framed = useRef(false);
+  useEffect(() => {
+    if (!ready || framed.current) return;
+    framed.current = true;
+    const points = [...entries, ...ideas].map(({ latitude, longitude }) => ({ latitude, longitude }));
+    if (points.length > 1) map.current?.fitToCoordinates(points, { edgePadding: { top: 80, right: 60, bottom: 120, left: 60 }, animated: false });
+    else if (points.length === 1) map.current?.animateToRegion(regionAt(points[0], 14, size), 0);
+  }, [ready, entries, ideas, size]);
 
   // The card follows its pin while the map moves, like Google's InfoWindow.
   const place = useCallback((point: Point | null) => {

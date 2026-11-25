@@ -1,4 +1,5 @@
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/text';
 import { Art, Icon } from '@/components/icons';
 import type { SharedPlace, SharedPreview } from '@/lib/share-inbox';
 import { colors, fonts, sq } from '@/lib/theme';

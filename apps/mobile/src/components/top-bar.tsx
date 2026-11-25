@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text, TIGHT_SCALE } from '@/components/text';
 import { BrandSlash, Icon } from './icons';
 import { colors, fonts, sq } from '@/lib/theme';
 import { useTrips } from '@/lib/trips';
@@ -12,9 +13,9 @@ export function TopBar({ onSignIn }: { onSignIn(): void }) {
   return (
     <View style={styles.bar}>
       <View style={styles.brand} accessibilityRole="header" accessibilityLabel="Elsewhere home">
-        <Text style={styles.wordmark}>ELSE</Text>
+        <Text maxFontSizeMultiplier={TIGHT_SCALE} style={styles.wordmark}>ELSE</Text>
         <BrandSlash color={colors.action} />
-        <Text style={styles.wordmark}>WHERE</Text>
+        <Text maxFontSizeMultiplier={TIGHT_SCALE} style={styles.wordmark}>WHERE</Text>
       </View>
       {account ? (
         <Pressable

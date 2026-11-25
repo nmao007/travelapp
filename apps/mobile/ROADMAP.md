@@ -17,6 +17,10 @@ Each milestone ends with something you can try in the iOS Simulator (`npx expo r
 - [x] Milestone 1, Ideas at the center: three tabs (Plan · Map · Ideas); saved videos with a place as cover pins on the map, whose card adds them to a day or opens the video; an empty Ideas tab that explains how to share a video in
 - [x] Milestone 2, booked flights in the plan: the Plan tab's + offers "Add flight"; flights show in the timeline, single day and calendar, and open for editing or removal with undo
 - [x] Saved videos on the home screen (add to a trip or start a new one) and "New trip" in the share sheets
+- [x] Home: an "Unsorted ideas" page and "See all trips"
+- [x] Milestone 3, polish: offline start, keyboard, larger text, haptics, small iPhones
+- [x] Adding to a day: the Plan tab's + and an empty day open "Add to" (`add-sheet.tsx`): search real places ranked around that day's destination, or put in one of the trip's saved ideas; writing a plan without a place is the fallback. The map opens framed on the trip's pins.
+- [x] Ideas tab: "Add an idea" saves a real place (searched around the trip), pastes a link, or writes a note, without putting it on a day (`idea-sheet.tsx`)
 
 ## Milestone 2: Booked flights in the plan
 
@@ -27,10 +31,10 @@ For now flights are entered by hand (tested in the iOS Simulator). Lookup turns 
 
 ## Milestone 3: Polish the loop
 
-- [ ] Loading, empty and error states on every screen. Trips already save on the phone first; check everything still works offline.
-- [ ] Keyboard handling in every sheet, VoiceOver labels, larger text sizes.
-- [ ] Haptics and motion.
-- [ ] Small iPhones (SE). Turn iPad support off for now.
+- [x] Loading, empty and error states on every screen. The trip screen shows a spinner while trips load and "This trip isn't here" for a missing trip. Offline: the app keeps the last server settings on the phone, so it stays signed in with its trips when the server can't be reached, and changes made offline are sent when the app comes back to the foreground.
+- [x] Keyboard handling in every sheet (sheets shrink above the keyboard and stay below the status bar; dragging a list closes the keyboard), VoiceOver labels (plans read their time and booked state), larger text sizes (text grows with the phone's setting up to 1.4×; brand marks and tab labels less, see `src/components/text.tsx`).
+- [x] Haptics (`src/lib/haptics.ts`: tabs, dragging plans, adding an idea to a day or trip, deleting a trip) and motion (Reanimated already skips animations when Reduce Motion is on).
+- [x] Small iPhones: checked on the iPhone SE (3rd generation) simulator. iPad support is off (`supportsTablet: false`).
 
 ## Milestone 4: Required before submitting to Apple
 

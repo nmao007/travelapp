@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text, TextInput, TIGHT_SCALE } from '@/components/text';
 import { router } from 'expo-router';
 import { Art, Icon } from './icons';
 import { RecentTrip } from './recent-trip';
@@ -9,6 +10,7 @@ import { autocomplete, newSession, placeDetails, placeZone, type Suggestion } fr
 import { destinationGuess, useSharedInbox, type SharedLink } from '@/lib/share-inbox';
 import { colors, fonts, sq } from '@/lib/theme';
 import { useTrips, type Trip } from '@/lib/trips';
+import { haptics } from '@/lib/haptics';
 
 const caption = (link: SharedLink) => (link.title || '').split('\n').map(line => line.replace(/#[\p{L}\p{N}_]+/gu, '').trim()).find(Boolean)
   || link.place?.name || PROVIDERS[link.provider || ''] || 'Saved link';
@@ -46,7 +48,7 @@ export function UnsortedIdeasLink() {
             <Text style={styles.linkTitle}>Unsorted ideas</Text>
             <Text style={styles.linkDetail}>{count === 1 ? '1 saved video to add to a trip' : `${count} saved videos to add to trips`}</Text>
           </View>
-          <View style={styles.badge}><Text style={styles.badgeText}>{count}</Text></View>
+          <View style={styles.badge}><Text maxFontSizeMultiplier={TIGHT_SCALE} style={styles.badgeText}>{count}</Text></View>
           <Icon name="arrow" size={17} color={colors.tripArrow} />
         </Pressable>
       ) : null}
@@ -121,7 +123,7 @@ function TripChooser({ link, onClose, onNewTrip }: { link: SharedLink | null; on
     <BottomSheet visible={Boolean(link)} onClose={() => { setError(''); setBusy(null); onClose(); }}
       header={close => <SheetHeading title="Add to trip" subtitle={link ? caption(link) : ''} onClose={close} />}>
       {close => (
-        <ScrollView style={styles.sheetBody} contentContainerStyle={styles.sheetContent}>
+        <ScrollView keyboardDismissMode="interactive" keyboardShouldPersistTaps="handled" style={styles.sheetBody} contentContainerStyle={styles.sheetContent}>
           <Pressable accessibilityRole="button" onPress={() => link && onNewTrip(link)} style={({ pressed }) => [styles.newTrip, pressed && styles.pressed]}>
             <View style={styles.newTripIcon}><Icon name="plus" size={20} color={colors.action} /></View>
             <View style={styles.copy}>
@@ -134,7 +136,7 @@ function TripChooser({ link, onClose, onNewTrip }: { link: SharedLink | null; on
               <RecentTrip trip={trip} index={index} onPress={async () => {
                 if (!link || busy) return;
                 setBusy(trip.id); setError('');
-                try { await addToTrip(link, trip); close(); }
+                try { await addToTrip(link, trip); haptics.success(); close(); }
                 catch (failure) { setError((failure as Error).message || 'Could not add this video.'); setBusy(null); }
               }} />
             </View>
@@ -185,6 +187,7 @@ function NewTripSheet({ link, onClose }: { link: SharedLink | null; onClose(link
       const place = await placeDetails(suggestion.placeId, session.current);
       const trip = createOrOpenTrip(place);
       await addToTrip(link, trip);
+      haptics.success();
       done.current = true;
       close();
       router.push({ pathname: '/trip/[id]', params: { id: trip.id, tab: 'ideas' } });
@@ -201,7 +204,7 @@ function NewTripSheet({ link, onClose }: { link: SharedLink | null; onClose(link
     <BottomSheet visible={Boolean(link)} onClose={() => { setResults([]); setError(''); onClose(done.current ? null : link); }}
       header={close => <SheetHeading title="New trip" subtitle={link ? caption(link) : ''} onClose={close} />}>
       {close => (
-        <ScrollView style={styles.sheetBody} contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled">
+        <ScrollView keyboardDismissMode="interactive" style={styles.sheetBody} contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled">
           <Text style={styles.fieldLabel}>Where to?</Text>
           <TextInput style={styles.input} value={query} onChangeText={search} placeholder="City, region, or place" placeholderTextColor={colors.placeholder}
             autoCorrect={false} returnKeyType="search" accessibilityLabel="Trip destination" />

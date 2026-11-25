@@ -1,14 +1,15 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ComponentRef, type ReactNode, type RefObject } from 'react';
-import { StyleSheet, Text, View, type ScrollView } from 'react-native';
-
-type ViewRef = ComponentRef<typeof View>;
-type ScrollRef = ComponentRef<typeof ScrollView>;
+import { StyleSheet, View, type ScrollView } from 'react-native';
+import { Text } from '@/components/text';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import { insertPlan, planDropPosition } from '@trippilot/core/itinerary-model';
 import { PlaceMarker, DragHandleIcon } from './plan-row';
 import { colors, fonts, sq } from '@/lib/theme';
 import type { PlanItem, Trip } from '@/lib/trips';
+import { haptics } from '@/lib/haptics';
 
+type ViewRef = ComponentRef<typeof View>;
+type ScrollRef = ComponentRef<typeof ScrollView>;
 type Rect = { x: number; y: number; width: number; height: number };
 type Target = { day: string; beforeId: string | null } | null;
 type Drag = { item: PlanItem; x: number; y: number; offsetY: number; width: number; target: Target };
@@ -70,6 +71,7 @@ export function DragProvider({ trip, commit, onDrop, scrollRef, scrollOffset, ch
       const own = views.current.get(`row:${item.id}`);
       own?.view.measureInWindow((_, ry, width) => { if (dragRef.current) update({ ...dragRef.current, offsetY: y - ry, width }); });
       update({ item, x, y, offsetY: 30, width: 340, target: null });
+      haptics.lift();
       // Scroll while the finger rests near the top or bottom edge.
       clearInterval(scrollTimer.current);
       scrollTimer.current = setInterval(() => {
@@ -83,7 +85,10 @@ export function DragProvider({ trip, commit, onDrop, scrollRef, scrollOffset, ch
     },
     move(x, y) {
       const current = dragRef.current;
-      if (current) update({ ...current, x, y, target: locate(y, current.item.id) });
+      if (!current) return;
+      const target = locate(y, current.item.id);
+      if (target && target.day !== current.target?.day) haptics.select();
+      update({ ...current, x, y, target });
     },
     end(drop) {
       clearInterval(scrollTimer.current);
@@ -91,7 +96,7 @@ export function DragProvider({ trip, commit, onDrop, scrollRef, scrollOffset, ch
       update(null);
       if (!drop || !current?.target) return;
       const next = insertPlan(tripRef.current, current.item.id, current.target.day, current.target.beforeId as never) as Trip;
-      if (next !== tripRef.current) { commit(next); onDrop(current.target.day); }
+      if (next !== tripRef.current) { commit(next); onDrop(current.target.day); haptics.drop(); }
     },
     draggingId: drag?.item.id ?? null,
     target: drag?.target ?? null,

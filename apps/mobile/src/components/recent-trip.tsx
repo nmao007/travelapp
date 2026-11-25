@@ -1,4 +1,5 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/text';
 import { tripTitle } from '@trippilot/core/trip-model';
 import { GuideArt, Icon } from './icons';
 import { colors, fonts, tripCardTints, sq } from '@/lib/theme';

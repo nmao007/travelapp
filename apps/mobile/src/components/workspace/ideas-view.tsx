@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/text';
 import { isContentIdea, removeBoardObjects, withBoardChange } from '@trippilot/core/board-model';
 import { datesForTrip, makePlan } from '@trippilot/core/itinerary-model';
 import { BottomSheet } from '../sheet';
@@ -9,6 +10,7 @@ import { useSharedInbox, type SharedLink } from '@/lib/share-inbox';
 import { PROVIDERS } from '../shared-preview';
 import { colors, fonts, sq } from '@/lib/theme';
 import type { PlanItem, Trip } from '@/lib/trips';
+import { haptics } from '@/lib/haptics';
 
 export type Idea = { id: string; type: string; title?: string; image?: string; url?: string; notes?: string; location?: string; category?: string; provider?: string; source?: string; placeId?: string; latitude?: number; longitude?: number; libraryIdeaId?: string; sharedAt?: string };
 
@@ -19,7 +21,7 @@ const SHARE_STEPS = ['Tap Share on the video', 'Choose Elsewhere. The first time
 
 // The Ideas tab as cards: videos and links shared into the app, and the
 // trip's other board ideas. Each can be added to a day of the plan.
-export function IdeasView({ trip, commit, onNotice, onNeedDates, onPaste }: { trip: Trip; commit(trip: Trip): void; onNotice(message: string): void; onNeedDates(): void; onPaste(): void }) {
+export function IdeasView({ trip, commit, onNotice, onNeedDates, onAddIdea }: { trip: Trip; commit(trip: Trip): void; onNotice(message: string): void; onNeedDates(): void; onAddIdea(): void }) {
   const { unassigned, addToTrip, dismiss } = useSharedInbox();
   const [scheduling, setScheduling] = useState<Idea | null>(null);
   const [adding, setAdding] = useState<string | null>(null);
@@ -33,16 +35,16 @@ export function IdeasView({ trip, commit, onNotice, onNeedDates, onPaste }: { tr
 
   return (
     <View style={styles.view}>
-      <Pressable accessibilityRole="button" onPress={onPaste} style={({ pressed }) => [styles.add, styles.paste, pressed && styles.addPressed]}>
-        <Icon name="link" size={17} color={colors.action} />
-        <Text style={styles.addText}>Paste link</Text>
+      <Pressable accessibilityRole="button" onPress={onAddIdea} style={({ pressed }) => [styles.add, styles.paste, pressed && styles.addPressed]}>
+        <Icon name="plus" size={17} color={colors.action} />
+        <Text style={styles.addText}>Add an idea</Text>
       </Pressable>
       {unassigned.length ? (
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Saved from other apps</Text>
           {unassigned.map(link => (
             <SharedCard key={link.id} link={link} busy={adding === link.id}
-              onAdd={async () => { setAdding(link.id); try { await addToTrip(link, trip); onNotice('Added to Ideas'); } catch (error) { onNotice((error as Error).message || 'Could not add this link.'); } finally { setAdding(null); } }}
+              onAdd={async () => { setAdding(link.id); try { await addToTrip(link, trip); haptics.success(); onNotice('Added to Ideas'); } catch (error) { onNotice((error as Error).message || 'Could not add this link.'); } finally { setAdding(null); } }}
               onDismiss={() => dismiss(link)} />
           ))}
         </View>
@@ -66,7 +68,7 @@ export function IdeasView({ trip, commit, onNotice, onNeedDates, onPaste }: { tr
                 </View>
               ))}
             </View>
-            <Text style={styles.emptyText}>{"Or copy the video's link and tap Paste link."}</Text>
+            <Text style={styles.emptyText}>Or tap Add an idea to save a place, paste a link or write a note.</Text>
           </View>
         )}
       </View>
@@ -110,6 +112,7 @@ function IdeaCard({ idea, scheduled, onSchedule, onRemove }: { idea: Idea; sched
         <Text style={styles.title} numberOfLines={2}>{idea.title || 'Saved idea'}</Text>
         {idea.location ? <View style={styles.metaRow}><Icon name="pin" size={14} color={colors.action} /><Text style={styles.location} numberOfLines={1}>{idea.location}</Text></View> : null}
         {source ? <Text style={styles.meta} numberOfLines={1}>{source}</Text> : null}
+        {!idea.url && idea.notes ? <Text style={styles.meta} numberOfLines={2}>{idea.notes}</Text> : null}
         <View style={styles.actions}>
           <Pressable accessibilityRole="button" onPress={onSchedule} style={({ pressed }) => [styles.add, pressed && styles.addPressed]}>
             <Icon name={scheduled ? 'check' : 'plus'} size={16} color={colors.action} />
@@ -168,9 +171,9 @@ export function DayPicker({ trip, idea, onClose, onPick }: { trip: Trip; idea: I
         </View>
       )}>
       {close => (
-        <ScrollView style={styles.dayList} contentContainerStyle={styles.dayListContent}>
+        <ScrollView keyboardDismissMode="interactive" keyboardShouldPersistTaps="handled" style={styles.dayList} contentContainerStyle={styles.dayListContent}>
           {days.map(day => (
-            <Pressable key={day} accessibilityRole="button" onPress={() => { const message = onPick(day); if (message) setError(message); else { setError(''); close(); } }}
+            <Pressable key={day} accessibilityRole="button" onPress={() => { const message = onPick(day); if (message) setError(message); else { haptics.success(); setError(''); close(); } }}
               style={({ pressed }) => [styles.dayRow, pressed && styles.pressed]}>
               <Icon name="calendar" size={18} color={colors.action} />
               <Text style={styles.dayText}>{formatDay(day)}</Text>

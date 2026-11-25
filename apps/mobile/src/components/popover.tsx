@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, View, useWindowDimensions, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
+import { Text } from '@/components/text';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { Icon } from './icons';
 import { colors, fonts, sq } from '@/lib/theme';

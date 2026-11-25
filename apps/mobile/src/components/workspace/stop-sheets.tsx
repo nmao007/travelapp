@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from '@/components/text';
 import { addStop, removeStop, reorderStops, setStopDates, stopSchedule, tripStops } from '@trippilot/core/trip-model';
 import { Icon } from '../icons';
 import { BottomSheet } from '../sheet';
@@ -105,7 +106,7 @@ function StopEditor({ visible, editing, trip, commit, onClose, onError, onStopAd
         </View>
       )}>
       {close => (
-        <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">
+        <ScrollView keyboardDismissMode="interactive" style={styles.body} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">
           {!pending ? (
             <>
               <View style={styles.searchField}>

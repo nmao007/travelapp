@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from '@/components/text';
 import { BottomSheet } from '../sheet';
 import { Icon } from '../icons';
 import { SharedLinkPreview } from '../shared-preview';
@@ -92,7 +93,7 @@ export function PasteLinkSheet({ visible, trip, onClose, onSaved }: { visible: b
           </Pressable>
         </View>
       )}>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+      <ScrollView keyboardDismissMode="interactive" style={styles.scroll} contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
         <View style={styles.field}>
           <Text style={styles.fieldLabel}>Link</Text>
           <TextInput style={styles.input} value={text} onChangeText={value => { setText(value); setError(''); }} placeholder="Paste a website or saved video" placeholderTextColor={colors.inputPlaceholder}

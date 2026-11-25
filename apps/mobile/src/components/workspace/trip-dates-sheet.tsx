@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/text';
 import { calendarMonth } from '@trippilot/core/date-range';
 import { changeTripDates, dateOffset, offsetDate, shiftTripDays } from '@trippilot/core/trip-dates';
 import { calendarStopOnDay, calendarStops } from '@trippilot/core/calendar-stops';
@@ -120,7 +121,7 @@ export function TripDatesSheet({ visible, trip, onClose, commit, onError, onReor
           </Pressable>
         </View>
       )}>
-      <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
+      <ScrollView keyboardDismissMode="interactive" keyboardShouldPersistTaps="handled" style={styles.body} contentContainerStyle={styles.bodyContent}>
         {context === 'trip' && trip.startDate ? (
           <View style={styles.modes}>
             {[['move', 'Move trip'], ['range', 'Change range']].map(([key, label]) => {

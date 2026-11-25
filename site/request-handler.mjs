@@ -163,7 +163,7 @@ export async function handleRequest(request, response) {
       const key = values.GOOGLE_MAPS_SERVER_KEY || values.GOOGLE_MAPS_ROUTES_KEY || values.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY || values.GOOGLE_MAPS_BROWSER_KEY;
       const client = clientAddress(request);
       const data = pathname === '/api/places-autocomplete'
-        ? { suggestions: await places.autocomplete({ input: params.get('input'), scope: params.get('scope'), session: params.get('session') }, key, client) }
+        ? { suggestions: await places.autocomplete({ input: params.get('input'), scope: params.get('scope'), session: params.get('session'), near: params.get('near') }, key, client) }
         : { place: await places.details({ id: params.get('id'), session: params.get('session') }, key, client) };
       response.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); response.end(JSON.stringify(data));
     } catch (error) {

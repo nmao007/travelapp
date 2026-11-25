@@ -1,5 +1,6 @@
 import { Fragment, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text, TextInput, TIGHT_SCALE } from '@/components/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { tripStops, stopSchedule } from '@trippilot/core/trip-model';
 import { Art, Icon } from '../icons';
@@ -8,6 +9,7 @@ import type { SymbolName } from '../icon-symbols';
 import { formatDay, rangeLabel } from '@/lib/format';
 import { colors, fonts, sq } from '@/lib/theme';
 import type { Trip } from '@/lib/trips';
+import { haptics } from '@/lib/haptics';
 
 // stopRangeLabel() in app.js.
 const dateLabel = (value: string) => formatDay(value, { month: 'short', day: 'numeric' });
@@ -124,9 +126,9 @@ export function WorkspaceNav({ active = 'plan', onSelect }: { active?: string; o
       {tabs.map(tab => {
         const selected = tab.key === active;
         return (
-          <Pressable key={tab.key} accessibilityRole="tab" accessibilityState={{ selected }} onPress={() => onSelect(tab.key)} style={styles.navButton}>
+          <Pressable key={tab.key} accessibilityRole="tab" accessibilityState={{ selected }} onPress={() => { if (!selected) haptics.select(); onSelect(tab.key); }} style={styles.navButton}>
             <View style={{ opacity: selected ? 1 : 0.6 }}><Art name={tab.art} size={tab.key === 'ideas' ? 30 : 28} /></View>
-            <Text style={[styles.navLabel, { color: selected ? colors.action : '#626262' }]}>{tab.label}</Text>
+            <Text maxFontSizeMultiplier={TIGHT_SCALE} style={[styles.navLabel, { color: selected ? colors.action : '#626262' }]}>{tab.label}</Text>
           </Pressable>
         );
       })}
@@ -138,7 +140,8 @@ const styles = StyleSheet.create({
   pressed: { backgroundColor: colors.pressed },
   iconPressed: { transform: [{ scale: 0.9 }] },
   masthead: { paddingHorizontal: 16, backgroundColor: colors.white },
-  hero: { height: 56, flexDirection: 'row', alignItems: 'flex-start' },
+  // Grows with larger text and long multi-stop titles.
+  hero: { minHeight: 56, flexDirection: 'row', alignItems: 'flex-start' },
   round: { width: 44, height: 44, borderRadius: sq(22), borderCurve: 'continuous', alignItems: 'center', justifyContent: 'center' },
   back: { marginLeft: -8 },
   titleWrap: { flex: 1, marginLeft: 12, marginRight: 8 },

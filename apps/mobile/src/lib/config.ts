@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
@@ -23,13 +24,23 @@ export type AppConfig = {
 };
 
 let configPromise: Promise<AppConfig> | null = null;
+const CONFIG_KEY = 'elsewhere:config';
 
+// The last settings that loaded are kept on the phone, so the app still finds
+// the signed-in account and its trips when it starts offline.
 export function loadConfig(): Promise<AppConfig> {
   configPromise ||= fetch(`${apiUrl}/api/config`, { cache: 'no-store' })
-    .then(response => {
+    .then(async response => {
       if (!response.ok) throw new Error('Could not load Supabase settings.');
-      return response.json() as Promise<AppConfig>;
+      const config = await response.json() as AppConfig;
+      AsyncStorage.setItem(CONFIG_KEY, JSON.stringify(config)).catch(() => {});
+      return config;
     })
-    .catch(error => { configPromise = null; throw error; });
+    .catch(async error => {
+      configPromise = null;
+      const saved = await AsyncStorage.getItem(CONFIG_KEY).catch(() => null);
+      if (saved) return JSON.parse(saved) as AppConfig;
+      throw error;
+    });
   return configPromise;
 }

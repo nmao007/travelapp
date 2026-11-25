@@ -13,8 +13,10 @@ async function getJSON<T>(path: string, signal?: AbortSignal): Promise<T> {
 // One Google autocomplete session per search, ended by the details request.
 export const newSession = () => crypto.randomUUID();
 
-export async function autocomplete(input: string, { scope = 'regions', session, signal }: { scope?: 'regions' | 'all'; session: string; signal?: AbortSignal }) {
+// near ranks places around a point first (a trip's destination).
+export async function autocomplete(input: string, { scope = 'regions', session, signal, near }: { scope?: 'regions' | 'all'; session: string; signal?: AbortSignal; near?: { latitude: number; longitude: number } }) {
   const params = new URLSearchParams({ input, scope, session });
+  if (near && Number.isFinite(near.latitude) && Number.isFinite(near.longitude)) params.set('near', `${near.latitude},${near.longitude}`);
   return (await getJSON<{ suggestions: Suggestion[] }>(`/api/places-autocomplete?${params}`, signal)).suggestions;
 }
 

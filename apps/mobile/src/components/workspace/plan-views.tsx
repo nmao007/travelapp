@@ -1,4 +1,5 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/text';
 import { calendarDisplayCells, datesForTrip, eventsForDay, monthsForTrip } from '@trippilot/core/itinerary-model';
 import { calendarStopOnDay, calendarStops } from '@trippilot/core/calendar-stops';
 import { flightDayBlock } from '@trippilot/core/flight-window';
@@ -88,7 +89,7 @@ export function DayView({ trip, day, stopFilter, onFindPlaces, ...handlers }: Ha
       {!events.length && !inFlight ? (
         <Pressable accessibilityRole="button" onPress={onFindPlaces} style={({ pressed }) => [styles.findPlaces, pressed && styles.pressed]}>
           <Art name="guide" size={42} />
-          <Text style={styles.findPlacesText}>Find something good</Text>
+          <Text style={styles.findPlacesText}>Add a place or idea</Text>
         </Pressable>
       ) : null}
     </View>

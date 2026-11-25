@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Text } from '@/components/text';
 import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -37,8 +38,8 @@ export default function Home() {
       <TopBar onSignIn={() => setAccountOpen(true)} />
       <ScrollView contentContainerStyle={styles.home} keyboardShouldPersistTaps="handled">
         <View style={styles.intro}>
-          <Animated.Text style={[styles.title, { fontSize: titleSize, lineHeight: titleSize * 1.08 }, titleStyle]} numberOfLines={1} accessibilityRole="header">
-            Where to<Text style={styles.punctuation}>?</Text>
+          <Animated.Text maxFontSizeMultiplier={1} style={[styles.title, { fontSize: titleSize, lineHeight: titleSize * 1.08 }, titleStyle]} numberOfLines={1} accessibilityRole="header">
+            Where to<Text maxFontSizeMultiplier={1} style={styles.punctuation}>?</Text>
           </Animated.Text>
           <HomeArt />
         </View>
