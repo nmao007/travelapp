@@ -13,28 +13,60 @@ import { useTrips, type Trip } from '@/lib/trips';
 const caption = (link: SharedLink) => (link.title || '').split('\n').map(line => line.replace(/#[\p{L}\p{N}_]+/gu, '').trim()).find(Boolean)
   || link.place?.name || PROVIDERS[link.provider || ''] || 'Saved link';
 
-// Home's inbox for videos and links shared with "Decide later" or "New trip":
-// add each to a trip, or start a trip from it. A share saved with "New trip"
-// opens the New trip sheet as soon as it arrives.
-export function SavedVideos() {
+// "New trip" shares already asked about, across home and the Unsorted page.
+const asked = new Set<string>();
+
+// A share saved with "New trip" opens the New trip sheet as soon as it arrives.
+function useNewTripPrompt(busy: boolean, setStarting: (link: SharedLink) => void) {
+  const { unassigned } = useSharedInbox();
+  useEffect(() => {
+    const next = unassigned.find(link => link.newTrip && !asked.has(link.id));
+    if (!next || busy) return;
+    asked.add(next.id);
+    setStarting(next);
+  }, [unassigned, busy, setStarting]);
+}
+
+// Home: one row that opens the Unsorted ideas page, shown while there are any.
+export function UnsortedIdeasLink() {
+  const { unassigned, postpone } = useSharedInbox();
+  const [starting, setStarting] = useState<SharedLink | null>(null);
+  useNewTripPrompt(Boolean(starting), setStarting);
+  const count = unassigned.length;
+  return (
+    <>
+      {count ? (
+        <Pressable accessibilityRole="button" onPress={() => router.push('/unsorted')} style={({ pressed }) => [styles.link, pressed && styles.linkPressed]}>
+          <View style={styles.linkCovers}>
+            {unassigned.slice(0, 3).map((link, index) => (
+              <View key={link.id} style={[styles.linkCover, { marginLeft: index ? -18 : 0, zIndex: 3 - index }]}><Cover image={link.image} small /></View>
+            ))}
+          </View>
+          <View style={styles.copy}>
+            <Text style={styles.linkTitle}>Unsorted ideas</Text>
+            <Text style={styles.linkDetail}>{count === 1 ? '1 saved video to add to a trip' : `${count} saved videos to add to trips`}</Text>
+          </View>
+          <View style={styles.badge}><Text style={styles.badgeText}>{count}</Text></View>
+          <Icon name="arrow" size={17} color={colors.tripArrow} />
+        </Pressable>
+      ) : null}
+      <NewTripSheet key={starting?.id || 'none'} link={starting} onClose={link => { setStarting(null); if (link?.newTrip) postpone(link); }} />
+    </>
+  );
+}
+
+// The Unsorted ideas page: videos and links shared with "Decide later" or
+// "New trip". Add each to a trip, start a trip from it, or dismiss it.
+export function UnsortedIdeas() {
   const { unassigned, dismiss, postpone } = useSharedInbox();
   const [choosing, setChoosing] = useState<SharedLink | null>(null);
   const [starting, setStarting] = useState<SharedLink | null>(null);
-  const asked = useRef(new Set<string>());
+  useNewTripPrompt(Boolean(starting || choosing), setStarting);
 
-  useEffect(() => {
-    const next = unassigned.find(link => link.newTrip && !asked.current.has(link.id));
-    if (!next || starting || choosing) return;
-    asked.current.add(next.id);
-    setStarting(next);
-  }, [unassigned, starting, choosing]);
-
-  if (!unassigned.length && !starting && !choosing) return null;
   return (
-    <View style={styles.section}>
+    <View>
       {unassigned.length ? (
         <>
-          <Text style={styles.label}>{unassigned.length === 1 ? '1 saved video' : `${unassigned.length} saved videos`}</Text>
           <View style={styles.list}>
             {unassigned.map(link => (
               <View key={link.id} style={styles.row}>
@@ -56,19 +88,25 @@ export function SavedVideos() {
             ))}
           </View>
         </>
-      ) : null}
+      ) : (
+        <View style={styles.empty}>
+          <Art name="ideas" size={44} />
+          <Text style={styles.emptyTitle}>All sorted</Text>
+          <Text style={styles.emptyText}>{'Videos you share with "Decide later" or "New trip" wait here until they\'re in a trip.'}</Text>
+        </View>
+      )}
       <TripChooser link={choosing} onClose={() => setChoosing(null)} onNewTrip={link => { setChoosing(null); setStarting(link); }} />
       <NewTripSheet key={starting?.id || 'none'} link={starting} onClose={link => { setStarting(null); if (link?.newTrip) postpone(link); }} />
     </View>
   );
 }
 
-function Cover({ image }: { image?: string }) {
+function Cover({ image, small }: { image?: string; small?: boolean }) {
   const [failed, setFailed] = useState(false);
   return (
-    <View style={styles.cover}>
+    <View style={[styles.cover, small && styles.coverSmall]}>
       {image && !failed ? <Image source={{ uri: image }} style={StyleSheet.absoluteFill} resizeMode="cover" onError={() => setFailed(true)} accessibilityIgnoresInvertColors />
-        : <Art name="ideas" size={26} />}
+        : <Art name="ideas" size={small ? 20 : 26} />}
     </View>
   );
 }
@@ -198,8 +236,18 @@ function SheetHeading({ title, subtitle, onClose }: { title: string; subtitle: s
 }
 
 const styles = StyleSheet.create({
-  section: { marginTop: 28 },
-  label: { marginBottom: 12, fontFamily: fonts.semibold, fontSize: 15, letterSpacing: -0.2, color: colors.sectionLabel },
+  link: { marginTop: 20, minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderWidth: 1, borderColor: '#ffd9be', borderRadius: sq(26), borderCurve: 'continuous', backgroundColor: '#fffaf6' },
+  linkPressed: { backgroundColor: '#fff2eb' },
+  linkCovers: { flexDirection: 'row' },
+  linkCover: { borderWidth: 2, borderColor: '#fffaf6', borderRadius: sq(12), borderCurve: 'continuous' },
+  linkTitle: { fontFamily: fonts.semibold, fontSize: 16, lineHeight: 20, letterSpacing: -0.3, color: colors.tripTitle },
+  linkDetail: { fontFamily: fonts.regular, fontSize: 13, color: colors.muted },
+  badge: { minWidth: 24, height: 24, paddingHorizontal: 7, alignItems: 'center', justifyContent: 'center', borderRadius: sq(12), borderCurve: 'continuous', backgroundColor: colors.accent },
+  badgeText: { fontFamily: fonts.semibold, fontSize: 13, color: colors.white },
+  coverSmall: { width: 36, height: 48, borderRadius: sq(10) },
+  empty: { alignItems: 'center', gap: 8, paddingVertical: 36, paddingHorizontal: 24, borderWidth: 1, borderStyle: 'dashed', borderColor: '#e5cfc5', borderRadius: sq(22), borderCurve: 'continuous' },
+  emptyTitle: { fontFamily: fonts.bold, fontSize: 17, color: colors.tripTitle },
+  emptyText: { fontFamily: fonts.regular, fontSize: 14, lineHeight: 20, color: colors.muted, textAlign: 'center' },
   list: { gap: 8 },
   row: { flexDirection: 'row', gap: 12, padding: 10, borderWidth: 1, borderColor: '#ffd9be', borderRadius: sq(22), borderCurve: 'continuous', backgroundColor: '#fffaf6' },
   cover: { width: 60, height: 80, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', borderRadius: sq(14), borderCurve: 'continuous', backgroundColor: '#fff2eb' },
