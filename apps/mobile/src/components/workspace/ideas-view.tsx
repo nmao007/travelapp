@@ -10,9 +10,12 @@ import { PROVIDERS } from '../shared-preview';
 import { colors, fonts, sq } from '@/lib/theme';
 import type { PlanItem, Trip } from '@/lib/trips';
 
-type Idea = { id: string; type: string; title?: string; image?: string; url?: string; notes?: string; location?: string; category?: string; provider?: string; source?: string; placeId?: string; latitude?: number; longitude?: number; libraryIdeaId?: string; sharedAt?: string };
+export type Idea = { id: string; type: string; title?: string; image?: string; url?: string; notes?: string; location?: string; category?: string; provider?: string; source?: string; placeId?: string; latitude?: number; longitude?: number; libraryIdeaId?: string; sharedAt?: string };
 
-const providerLabel = (idea: { provider?: string; url?: string }) => PROVIDERS[idea.provider || ''] || (() => { try { return new URL(idea.url || '').hostname.replace(/^www\./, ''); } catch { return ''; } })();
+export const providerLabel = (idea: { provider?: string; url?: string }) => PROVIDERS[idea.provider || ''] || (() => { try { return new URL(idea.url || '').hostname.replace(/^www\./, ''); } catch { return ''; } })();
+
+// How to send a video in from another app (the share extension / share screen).
+const SHARE_STEPS = ['Tap Share on the video', 'Choose Elsewhere. The first time, it may be under More', 'Pick this trip and the place, then Save'];
 
 // The Ideas tab as cards: videos and links shared into the app, and the
 // trip's other board ideas. Each can be added to a day of the plan.
@@ -47,30 +50,44 @@ export function IdeasView({ trip, commit, onNotice, onNeedDates, onPaste }: { tr
       <View style={styles.section}>
         {unassigned.length ? <Text style={styles.sectionLabel}>In this trip</Text> : null}
         {ideas.length ? ideas.map(idea => (
-          <IdeaCard key={idea.id} idea={idea} scheduled={(trip.items || []).some(plan => plan.ideaId === (idea.libraryIdeaId || idea.id))}
+          <IdeaCard key={idea.id} idea={idea} scheduled={ideaScheduled(trip, idea)}
             onSchedule={() => { if (!datesForTrip(trip).length) { onNeedDates(); return; } setScheduling(idea); }}
             onRemove={() => remove(idea)} />
         )) : (
           <View style={styles.empty}>
             <Art name="ideas" size={44} />
-            <Text style={styles.emptyTitle}>Save ideas from anywhere</Text>
-            <Text style={styles.emptyText}>Share a TikTok, Reel or link to Elsewhere and choose this trip, or paste a link. It lands here, ready to add to a day.</Text>
+            <Text style={styles.emptyTitle}>Save places from videos</Text>
+            <Text style={styles.emptyText}>Seen a spot on TikTok, Instagram or YouTube? Send it here. It shows up on your map, ready to add to a day.</Text>
+            <View style={styles.steps}>
+              {SHARE_STEPS.map((step, index) => (
+                <View key={step} style={styles.step}>
+                  <View style={styles.stepNumber}><Text style={styles.stepNumberText}>{index + 1}</Text></View>
+                  <Text style={styles.stepText}>{step}</Text>
+                </View>
+              ))}
+            </View>
+            <Text style={styles.emptyText}>{"Or copy the video's link and tap Paste link."}</Text>
           </View>
         )}
       </View>
       <DayPicker trip={trip} idea={scheduling} onClose={() => setScheduling(null)} onPick={day => {
-        const idea = scheduling!;
-        const ideaId = idea.libraryIdeaId || idea.id;
-        if ((trip.items || []).some(plan => plan.ideaId === ideaId && plan.day === day)) return 'This idea is already on that day.';
-        try {
-          const plan = makePlan(trip, { name: idea.title || 'Saved idea', day, kind: ['Food', 'Stay', 'Activity'].includes(idea.category || '') ? idea.category : 'Activity', address: idea.location || '', notes: [idea.notes, idea.url].filter(Boolean).join('\n\n'), ...(idea.placeId ? { placeId: idea.placeId, latitude: idea.latitude, longitude: idea.longitude } : {}) } as never) as PlanItem;
-          commit({ ...trip, items: [...(trip.items || []), { ...plan, ideaId }] });
-          onNotice(`Added to ${formatDay(day)}`);
-          return null;
-        } catch (error) { return (error as Error).message; }
+        try { commit(ideaOnDay(trip, scheduling!, day)); onNotice(`Added to ${formatDay(day)}`); return null; }
+        catch (error) { return (error as Error).message; }
       }} />
     </View>
   );
+}
+
+// Whether this idea is already a plan on some day.
+export const ideaScheduled = (trip: Trip, idea: Idea) => (trip.items || []).some(plan => plan.ideaId === (idea.libraryIdeaId || idea.id));
+
+// The trip with this idea added to a day as a plan, keeping its place, link
+// and notes. Throws a message to show when it can't be added.
+export function ideaOnDay(trip: Trip, idea: Idea, day: string): Trip {
+  const ideaId = idea.libraryIdeaId || idea.id;
+  if ((trip.items || []).some(plan => plan.ideaId === ideaId && plan.day === day)) throw new Error('This idea is already on that day.');
+  const plan = makePlan(trip, { name: idea.title || 'Saved idea', day, kind: ['Food', 'Stay', 'Activity'].includes(idea.category || '') ? idea.category : 'Activity', address: idea.location || '', notes: [idea.notes, idea.url].filter(Boolean).join('\n\n'), ...(idea.placeId ? { placeId: idea.placeId, latitude: idea.latitude, longitude: idea.longitude } : {}) } as never) as PlanItem;
+  return { ...trip, items: [...(trip.items || []), { ...plan, ideaId }] };
 }
 
 function Thumbnail({ image, provider }: { image?: string; provider?: string }) {
@@ -136,7 +153,7 @@ function SharedCard({ link, busy, onAdd, onDismiss }: { link: SharedLink; busy: 
 }
 
 // #ib-schedule-dialog: choose the day to add an idea to.
-function DayPicker({ trip, idea, onClose, onPick }: { trip: Trip; idea: Idea | null; onClose(): void; onPick(day: string): string | null }) {
+export function DayPicker({ trip, idea, onClose, onPick }: { trip: Trip; idea: Idea | null; onClose(): void; onPick(day: string): string | null }) {
   const [error, setError] = useState('');
   const days = datesForTrip(trip) as string[];
   return (
@@ -196,6 +213,11 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', gap: 8, paddingVertical: 36, paddingHorizontal: 24, borderWidth: 1, borderStyle: 'dashed', borderColor: '#e5cfc5', borderRadius: sq(22), borderCurve: 'continuous' },
   emptyTitle: { fontFamily: fonts.bold, fontSize: 17, color: colors.tripTitle },
   emptyText: { fontFamily: fonts.regular, fontSize: 14, lineHeight: 20, color: colors.muted, textAlign: 'center' },
+  steps: { alignSelf: 'stretch', gap: 10, marginVertical: 8 },
+  step: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  stepNumber: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center', borderRadius: sq(12), borderCurve: 'continuous', backgroundColor: '#fff2eb' },
+  stepNumberText: { fontFamily: fonts.semibold, fontSize: 12, color: colors.action },
+  stepText: { flex: 1, fontFamily: fonts.medium, fontSize: 14, lineHeight: 19, color: colors.ink },
   heading: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 16, paddingTop: 16, paddingHorizontal: 16 },
   headingCopy: { flex: 1, minWidth: 0 },
   sheetTitle: { fontFamily: fonts.semibold, fontSize: 20, lineHeight: 25, letterSpacing: -0.5, color: '#252525' },

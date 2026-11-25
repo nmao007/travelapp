@@ -13,13 +13,8 @@ Each milestone ends with something you can try in the iOS Simulator (`npx expo r
 - [x] Plan tab: timeline, single day, calendar; add, edit, move, duplicate and remove plans; drag between days
 - [x] Sharing in: iOS share extension, Android share screen, `/api/social-preview`
 - [x] Ideas tab as a list, and Paste link with the same preview and place chips as sharing in
-- [x] Map with numbered plan pins and the tapped pin's card, on Apple Maps (`src/components/workspace/explore-map.tsx`)
-
-## Milestone 1: Put Ideas at the center
-
-- [ ] **Saved videos on the map**: ideas that have a place get their own pin style next to the plans. Tapping one opens a card with the video's cover, a button to open the video, and "Add to day".
-- [ ] **Three tabs: Plan · Map · Ideas.** The map gets its own tab instead of living under Explore. Travel and Explore go away.
-- [ ] **An empty Ideas tab explains how to share a video in**, so a new trip has an obvious first step.
+- [x] Map with numbered plan pins and the tapped pin's card, on Apple Maps (`src/components/workspace/trip-map.tsx`)
+- [x] Milestone 1, Ideas at the center: three tabs (Plan · Map · Ideas); saved videos with a place as cover pins on the map, whose card adds them to a day or opens the video; an empty Ideas tab that explains how to share a video in
 
 ## Milestone 2: Booked flights in the plan
 

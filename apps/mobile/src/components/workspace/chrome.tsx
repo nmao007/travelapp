@@ -108,12 +108,11 @@ function TitleInput({ initial, onDone }: { initial: string; onDone(value: string
 
 const tabs: { key: string; label: string; art: string }[] = [
   { key: 'plan', label: 'Plan', art: 'list' },
-  { key: 'travel', label: 'Travel', art: 'plane' },
-  { key: 'explore', label: 'Explore', art: 'map' },
+  { key: 'map', label: 'Map', art: 'map' },
   { key: 'ideas', label: 'Ideas', art: 'ideas' },
 ];
 
-// .workspace-nav: the phone tab bar. Travel arrives in a later milestone.
+// .workspace-nav: the phone tab bar, cut down to Plan · Map · Ideas (ROADMAP.md).
 export function WorkspaceNav({ active = 'plan', onSelect }: { active?: string; onSelect(key: string): void }) {
   const insets = useSafeAreaInsets();
   return (
