@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isDate, isTimeZone, parseMoney, formatMoney, moneyInput, dateInZone, activityInstant, nextActivity } from "../lib/domain.ts";
+import { isDate, isTimeZone, parseMoney, formatMoney, moneyInput, dateInZone, activityInstant, nextActivity } from "../dist/domain.js";
 
 test("calendar dates reject rollovers and accept leap years", () => {
   assert.equal(isDate("2028-02-29"), true);

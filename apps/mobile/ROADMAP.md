@@ -72,4 +72,4 @@ Not ported to the app:
 - Weather and the currency converter.
 - Explore: nearby suggestions, "Search this area", place cards.
 - The Ideas canvas: zoom, frames, connections.
-- Offline itinerary export, route optimization, and everything else from the old Wanderlog/TripIt comparison (`docs/WANDERLOG_TRIPIT_PARITY.md`).
+- Offline itinerary export, route optimization, and everything else from the old Wanderlog/TripIt comparison (removed with the old planning docs; see git history).

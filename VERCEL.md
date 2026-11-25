@@ -1,6 +1,6 @@
 # Deploy TripPilot to Vercel
 
-This configuration deploys the current `site` app, including its device previews, rather than the separate Next.js UI.
+This configuration deploys the `site` app, including its device previews, and its API.
 
 ## Import the repository
 

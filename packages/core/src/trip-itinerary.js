@@ -1,30 +1,24 @@
-// Generated from lib/trip-itinerary.ts by site/prepare-shared.mjs.
-import { activityInstant,                                      } from "./domain.js";
+import { activityInstant } from "./domain.js";
 
-
-
-
-
-
-export function tripDates(start        , end        )           {
+export function tripDates(start, end) {
   const first = new Date(`${start}T12:00:00Z`);
   const last = new Date(`${end}T12:00:00Z`);
   if (Number.isNaN(first.getTime()) || Number.isNaN(last.getTime()) || first > last) return [];
-  const dates           = [];
+  const dates = [];
   for (const date = first; date <= last; date.setUTCDate(date.getUTCDate() + 1)) dates.push(date.toISOString().slice(0, 10));
   return dates;
 }
 
-export function tripCalendarMonths(start        , end        )                      {
+export function tripCalendarMonths(start, end) {
   const dates = tripDates(start, end);
   if (!dates.length) return [];
-  const months                      = [];
+  const months = [];
   const cursor = new Date(`${dates[0]}T12:00:00Z`);
   const final = new Date(`${dates[dates.length - 1]}T12:00:00Z`);
   while (cursor <= final) {
     const year = cursor.getUTCFullYear(), month = cursor.getUTCMonth();
     const count = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
-    const cells                    = Array(new Date(Date.UTC(year, month, 1)).getUTCDay()).fill(null);
+    const cells = Array(new Date(Date.UTC(year, month, 1)).getUTCDay()).fill(null);
     for (let day = 1; day <= count; day++) {
       const value = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
       cells.push(value >= start && value <= end ? value : null);
@@ -37,8 +31,8 @@ export function tripCalendarMonths(start        , end        )                  
   return months;
 }
 
-export function eventsForTripDay(date        , activities            , transport                    )                       {
-  const events                       = activities.filter((activity) => activity.date === date).map((activity) => ({
+export function eventsForTripDay(date, activities, transport) {
+  const events = activities.filter((activity) => activity.date === date).map((activity) => ({
     kind: "activity", id: activity.id,
     at: activity.time ? activityInstant(activity) : null,
     activity,

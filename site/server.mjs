@@ -3,7 +3,7 @@ import { networkInterfaces } from 'node:os';
 import { handleRequest } from './request-handler.mjs';
 
 const port = Number(process.env.PORT || 3010);
-// Like `next dev` and `expo start`, the development server listens on the
+// Like `expo start`, the development server listens on the
 // network so the native app on a phone (same Wi-Fi) can reach it. Set
 // HOST=127.0.0.1 to keep it to this computer.
 const host = process.env.HOST || '0.0.0.0';

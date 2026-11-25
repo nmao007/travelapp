@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { eventsForTripDay, tripCalendarMonths, tripDates } from '../lib/trip-itinerary.ts';
+import { eventsForTripDay, tripCalendarMonths, tripDates } from '../dist/trip-itinerary.js';
 
 const activity = (id, date, time = null, time_zone = 'Europe/Paris') => ({
   id, trip_id: 'trip', title: id, category: 'Activity', date, time, time_zone, location: '', notes: '',

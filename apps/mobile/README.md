@@ -8,7 +8,7 @@ Trip rules come from `packages/core/src` (imported as `@trippilot/core/*`). The 
 
 ## Run it
 
-1. Start the API in `site/`: `npm run dev` (port 3010). It listens on your network during development, like `next dev`.
+1. Start the API in `site/`: `npm run dev` (port 3010). It listens on your network during development, so a phone on the same Wi-Fi can reach it.
 2. In this folder (`apps/mobile`, not `site/`): `npm install`, then
    - `npx expo start` and scan the QR code with your phone's Camera to open it in Expo Go (same Wi-Fi as the computer), or
    - `npx expo run:ios` for the development build in the iOS Simulator (needs Xcode). Sharing into the app needs this build; Expo Go can't load share extensions.
