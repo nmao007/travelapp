@@ -5,19 +5,26 @@ import { flightDayBlock } from '@trippilot/core/flight-window';
 import { datesForStop, stopForPlan } from '@trippilot/core/trip-model';
 import { Art, Icon } from '../icons';
 import { DayCard, TimelineRow } from './plan-row';
+import { FlightCard, FlightRow } from './flight-row';
 import { DropZone } from './plan-drag';
+import type { Flight, Leg } from '@/lib/flight-form';
 import { formatDay, rangeLabel } from '@/lib/format';
 import { colors, fonts, sq } from '@/lib/theme';
 import type { PlanItem, Trip } from '@/lib/trips';
 
-type Handlers = { onOpen(item: PlanItem): void; renderHandle?(item: PlanItem): React.ReactNode };
+type Handlers = { onOpen(item: PlanItem): void; onOpenFlight(segment: Flight): void; renderHandle?(item: PlanItem): React.ReactNode };
 
-// stopEvents() in itinerary-ui.js: plans for this day within the chosen stop.
-// Booked flights and trains join the Plan views with the Travel tab (phase 3).
-export function dayPlans(trip: Trip, day: string, stopFilter: string | null): PlanItem[] {
-  return (eventsForDay(trip, day) as { kind: string; item?: PlanItem }[])
-    .filter(event => event.kind === 'activity' && (!stopFilter || stopForPlan(trip, event.item)?.placeId === stopFilter))
-    .map(event => event.item as PlanItem);
+export type DayEvent = { kind: 'activity'; key: string; item: PlanItem } | { kind: 'transport'; key: string; leg: Leg; transport: Flight };
+type CoreEvent = { kind: 'activity'; id: string; item: PlanItem } | { kind: 'transport'; id: string; leg: Leg; transport: Flight };
+
+// stopEvents() in itinerary-ui.js: the day's plans within the chosen stop, and
+// every booked flight leaving or landing that day, in itinerary order. The key
+// is the event's key in trip.dayOrder (itineraryEventKey), used for drops.
+export function dayEvents(trip: Trip, day: string, stopFilter: string | null): DayEvent[] {
+  return (eventsForDay(trip, day) as CoreEvent[]).flatMap((event): DayEvent[] => {
+    if (event.kind === 'transport') return event.transport.draft ? [] : [{ kind: 'transport', key: `transport:${event.id}:${event.leg}`, leg: event.leg, transport: event.transport }];
+    return !stopFilter || stopForPlan(trip, event.item)?.placeId === stopFilter ? [{ kind: 'activity', key: event.item.id, item: event.item }] : [];
+  });
 }
 export const scopedDays = (trip: Trip, stopFilter: string | null): string[] => stopFilter ? datesForStop(trip, stopFilter) : datesForTrip(trip);
 
@@ -32,23 +39,23 @@ function OpenDay({ label, onPress }: { label: string; onPress(): void }) {
 // List mode: the day-by-day timeline with its rail and day markers.
 export function Timeline({ trip, stopFilter, onChooseDay, onChooseDates, onSetStopDates, ...handlers }: Handlers & { trip: Trip; stopFilter: string | null; onChooseDay(day: string): void; onChooseDates(): void; onSetStopDates(): void }) {
   const allDays = datesForTrip(trip), days = scopedDays(trip, stopFilter);
-  if (!allDays.length) return <View><OpenDay label="Choose your dates" onPress={onChooseDates} />{trip.items.map(item => <TimelineRow key={item.id} item={item} {...handlers} dragHandle={handlers.renderHandle?.(item)} />)}</View>;
+  if (!allDays.length) return <View><OpenDay label="Choose your dates" onPress={onChooseDates} />{trip.items.map(item => <TimelineRow key={item.id} item={item} onOpen={handlers.onOpen} dragHandle={handlers.renderHandle?.(item)} />)}</View>;
   if (!days.length) return <OpenDay label="Set stop dates" onPress={onSetStopDates} />;
   return (
     <View style={styles.timeline}>
       <View style={styles.rail} />
       {days.map(day => {
-        const plans = dayPlans(trip, day, stopFilter);
+        const events = dayEvents(trip, day, stopFilter);
         return (
           <DropZone key={day} kind="day" id={day} day={day}><View style={styles.daySection}>
-            <View style={[styles.dayHeading, !plans.length && styles.dayHeadingEmpty]}>
-              <View style={[styles.dayMarker, { backgroundColor: plans.length ? colors.accent : '#d4d7dd' }]} />
+            <View style={[styles.dayHeading, !events.length && styles.dayHeadingEmpty]}>
+              <View style={[styles.dayMarker, { backgroundColor: events.length ? colors.accent : '#d4d7dd' }]} />
               <Pressable accessibilityRole="button" onPress={() => onChooseDay(day)} style={({ pressed }) => [styles.dayButton, pressed && styles.pressed]}>
-                <Text style={plans.length ? styles.dayTitle : styles.dayTitleEmpty}>{formatDay(day)}</Text>
+                <Text style={events.length ? styles.dayTitle : styles.dayTitleEmpty}>{formatDay(day)}</Text>
                 <Icon name="chevron" size={12} color="#9b9fa6" style={styles.chevronRight} />
               </Pressable>
             </View>
-            {plans.map(item => <DropZone key={item.id} kind="row" id={item.id} day={day}><View style={styles.timelineItem}><TimelineRow item={item} {...handlers} dragHandle={handlers.renderHandle?.(item)} /></View></DropZone>)}
+            {events.map(event => <DropZone key={event.key} kind="row" id={event.key} day={day}><View style={styles.timelineItem}><EventRow event={event} {...handlers} /></View></DropZone>)}
           </View></DropZone>
         );
       })}
@@ -56,17 +63,29 @@ export function Timeline({ trip, stopFilter, onChooseDay, onChooseDates, onSetSt
   );
 }
 
-// Day mode: one day's plans as cards.
+// A plan or flight as a timeline row (planRow / transportJourney / arrivalJourney).
+function EventRow({ event, onOpen, onOpenFlight, renderHandle }: Handlers & { event: DayEvent }) {
+  if (event.kind === 'transport') return <FlightRow segment={event.transport} leg={event.leg} onOpen={onOpenFlight} />;
+  return <TimelineRow item={event.item} onOpen={onOpen} dragHandle={renderHandle?.(event.item)} />;
+}
+
+// Day mode: one day's plans as cards, a departing flight as its ticket card.
 export function DayView({ trip, day, stopFilter, onFindPlaces, ...handlers }: Handlers & { trip: Trip; day: string; stopFilter: string | null; onFindPlaces(): void }) {
-  const plans = dayPlans(trip, day, stopFilter);
+  const events = dayEvents(trip, day, stopFilter);
   const inFlight = flightDayBlock(trip, day);
   return (
     <View style={styles.dayCards}>
       {inFlight ? <View style={styles.inFlight}><Icon name="plane" size={18} color={colors.muted} /><Text style={styles.inFlightText}>{`In flight · ${inFlight.flights.map((flight: { service_id?: string }) => flight.service_id).filter(Boolean).join(' / ')}`}</Text></View> : null}
       <DropZone kind="day" id={day} day={day}><View style={styles.dayCardList}>
-        {plans.map(item => <DropZone key={item.id} kind="row" id={item.id} day={day}><DayCard item={item} {...handlers} dragHandle={handlers.renderHandle?.(item)} /></DropZone>)}
+        {events.map(event => (
+          <DropZone key={event.key} kind="row" id={event.key} day={day}>
+            {event.kind === 'activity' ? <DayCard item={event.item} onOpen={handlers.onOpen} dragHandle={handlers.renderHandle?.(event.item)} />
+              : event.leg === 'arrival' ? <FlightRow segment={event.transport} leg="arrival" onOpen={handlers.onOpenFlight} />
+                : <FlightCard segment={event.transport} onOpen={handlers.onOpenFlight} />}
+          </DropZone>
+        ))}
       </View></DropZone>
-      {!plans.length && !inFlight ? (
+      {!events.length && !inFlight ? (
         <Pressable accessibilityRole="button" onPress={onFindPlaces} style={({ pressed }) => [styles.findPlaces, pressed && styles.pressed]}>
           <Art name="guide" size={42} />
           <Text style={styles.findPlacesText}>Find something good</Text>
@@ -89,7 +108,7 @@ export function CalendarView({ trip, day, stopFilter, month, onMonth, onSelectDa
   if (!current) return null;
   const stops = calendarStops(trip) as { stop: { placeId: string; name: string }; color: string; start: string | null; end: string | null; index: number }[];
   const cells = calendarDisplayCells(current, { fullMonth: true }) as ({ date: string; inTrip: boolean } | null)[];
-  const plans = dayPlans(trip, day, stopFilter);
+  const events = dayEvents(trip, day, stopFilter);
   const step = (direction: number) => {
     const next = months[index + direction];
     if (!next) return;
@@ -130,7 +149,7 @@ export function CalendarView({ trip, day, stopFilter, month, onMonth, onSelectDa
           if (!cell) return <View key={`blank-${position}`} style={styles.cell} />;
           const inTrip = cell.inTrip && days.includes(cell.date);
           if (!inTrip) return <View key={cell.date} style={[styles.cell, styles.outside]}><Text style={styles.outsideDate}>{Number(cell.date.slice(-2))}</Text></View>;
-          const count = dayPlans(trip, cell.date, stopFilter).length;
+          const count = dayEvents(trip, cell.date, stopFilter).length;
           const stop = stops.length > 1 ? calendarStopOnDay(trip, cell.date, stops) as { color: string } | null : null;
           const active = cell.date === day;
           return (
@@ -151,9 +170,9 @@ export function CalendarView({ trip, day, stopFilter, month, onMonth, onSelectDa
           </Pressable>
         </View>
         <DropZone kind="day" id={day} day={day}>
-          {plans.map(item => <DropZone key={item.id} kind="row" id={item.id} day={day}><TimelineRow item={item} {...handlers} dragHandle={handlers.renderHandle?.(item)} /></DropZone>)}
+          {events.map(event => <DropZone key={event.key} kind="row" id={event.key} day={day}><EventRow event={event} {...handlers} /></DropZone>)}
         </DropZone>
-        {!plans.length ? <OpenDay label="Add a plan" onPress={() => onAddPlan(day)} /> : null}
+        {!events.length ? <OpenDay label="Add a plan" onPress={() => onAddPlan(day)} /> : null}
       </View>
     </View>
   );

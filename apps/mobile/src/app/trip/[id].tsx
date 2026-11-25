@@ -8,8 +8,9 @@ import { createPlanNavigation } from '@trippilot/core/plan-navigation';
 import { datesForStop, renameTrip, tripStops } from '@trippilot/core/trip-model';
 import { AccountSheet } from '@/components/account-sheet';
 import { WorkspaceHeader, WorkspaceNav, type MenuAction } from '@/components/workspace/chrome';
-import { CalendarView, DayView, Timeline, dayPlans, scopedDays } from '@/components/workspace/plan-views';
+import { CalendarView, DayView, Timeline, dayEvents, scopedDays } from '@/components/workspace/plan-views';
 import { PlanSheet } from '@/components/workspace/plan-sheet';
+import { FlightSheet } from '@/components/workspace/flight-sheet';
 import { RemovalNotice, TripNotice } from '@/components/workspace/notices';
 import { DragProvider, DragHandle } from '@/components/workspace/plan-drag';
 import { TripDatesSheet } from '@/components/workspace/trip-dates-sheet';
@@ -17,11 +18,12 @@ import { IdeasView } from '@/components/workspace/ideas-view';
 import { TripMap } from '@/components/workspace/trip-map';
 import { PasteLinkSheet } from '@/components/workspace/paste-link-sheet';
 import { StopSheets, type StopSheetState } from '@/components/workspace/stop-sheets';
+import type { Flight } from '@/lib/flight-form';
 import { colors } from '@/lib/theme';
 import { useTrips, type PlanItem, type Trip } from '@/lib/trips';
 
 type Mode = 'list' | 'calendar' | 'day';
-type Removal = { tripId: string; collection: string; record: PlanItem; [key: string]: unknown };
+type Removal = { tripId: string; collection: string; record: PlanItem | Flight; [key: string]: unknown };
 
 // The trip workspace on phones (showWorkspace + itinerary-ui.js in the site).
 export default function TripWorkspace() {
@@ -35,6 +37,7 @@ export default function TripWorkspace() {
   const [stopFilter, setStopFilter] = useState<string | null>(null);
   const [month, setMonth] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ item: PlanItem | null; day: string } | null>(null);
+  const [flight, setFlight] = useState<{ segment: Flight | null; day: string } | null>(null);
   const [datesOpen, setDatesOpen] = useState(false);
   const [stopSheet, setStopSheet] = useState<StopSheetState>(null);
   const [renaming, setRenaming] = useState(false);
@@ -96,8 +99,13 @@ export default function TripWorkspace() {
     if (!datesForTrip(trip!).length) { setDatesOpen(true); return; }
     setEditing({ item, day: onDay });
   }
+  // openTransport(segment, day) in itinerary-ui.js.
+  function openFlight(segment: Flight | null, onDay = activeDay) {
+    if (!datesForTrip(trip!).length) { setDatesOpen(true); return; }
+    setFlight({ segment, day: onDay });
+  }
   const dayStop = stops.find(stop => stop.placeId === stopFilter) || destinationForDay(trip, stops, activeDay);
-  const dayCount = dayPlans(trip, activeDay, stopFilter).length;
+  const dayCount = dayEvents(trip, activeDay, stopFilter).length;
   const menu: MenuAction[] = [
     { key: 'dates', label: 'Trip dates', icon: 'calendar', onPress: () => setDatesOpen(true) },
     { key: 'rename', label: 'Rename trip', icon: 'edit', onPress: () => { if (mode === 'day') showMode('list'); setRenaming(true); } },
@@ -112,6 +120,7 @@ export default function TripWorkspace() {
 
   const handlers = {
     onOpen: (item: PlanItem) => openPlan(item, item.day),
+    onOpenFlight: (segment: Flight) => openFlight(segment, segment.departure_date),
     renderHandle: (item: PlanItem) => <DragHandle item={item} />,
   };
 
@@ -120,7 +129,8 @@ export default function TripWorkspace() {
       <WorkspaceHeader
         trip={trip} mode={tab === 'map' ? 'list' : mode} day={activeDay} stopFilter={stopFilter} days={days}
         dayContext={`${dayStop?.name || trip.name} · ${dayCount} ${dayCount === 1 ? 'plan' : 'plans'}`}
-        onBack={tab === 'map' ? () => router.back() : back} onAdd={tab === 'map' ? undefined : () => tab === 'ideas' ? setPasteOpen(true) : openPlan(null)} addLabel={tab === 'ideas' ? 'Paste link' : undefined} showToggle={tab !== 'map'} onToggleMode={() => chooseDay(activeDay === 'ideas' ? days[0] || 'ideas' : activeDay, 'calendar')}
+        onBack={tab === 'map' ? () => router.back() : back} onAdd={tab === 'ideas' ? () => setPasteOpen(true) : undefined} addLabel={tab === 'ideas' ? 'Paste link' : undefined}
+        addMenu={tab === 'plan' ? [{ key: 'plan', label: 'Add plan', icon: 'day', onPress: () => openPlan(null) }, { key: 'flight', label: 'Add flight', icon: 'plane', onPress: () => openFlight(null) }] : undefined} showToggle={tab !== 'map'} onToggleMode={() => chooseDay(activeDay === 'ideas' ? days[0] || 'ideas' : activeDay, 'calendar')}
         onStop={selectStop} onDay={next => chooseDay(next)} onRename={() => setRenaming(true)} menu={menu} onMenuOpen={() => setConfirmDelete(false)}
         renaming={renaming} onRenameDone={value => {
           if (!renaming) return;
@@ -158,6 +168,9 @@ export default function TripWorkspace() {
       <PlanSheet trip={trip} editing={editing} onClose={() => setEditing(null)} commit={commit}
         onSaved={item => { setDay(item.day); }} onDuplicated={copy => { chooseDay(copy.day, 'day'); }}
         onRemoved={result => { commit(result.trip); setRemoval(result.removal as Removal); }} onNeedDates={() => setDatesOpen(true)} />
+      {flight ? <FlightSheet trip={trip} editing={flight} onClose={() => setFlight(null)} commit={commit}
+        onSaved={segment => { setDay(segment.departure_date); }}
+        onRemoved={result => { commit(result.trip); setRemoval(result.removal as Removal); }} /> : null}
       <TripDatesSheet visible={datesOpen} trip={trip} onClose={() => setDatesOpen(false)} commit={commit} onError={setNotice}
         onReorder={stops.length > 1 ? () => { setDatesOpen(false); setStopSheet({ kind: 'order' }); } : undefined}
         onSaved={() => { const first = datesForStop(trip, stopFilter || stops[0].placeId)[0]; if (first && !days.includes(day)) setDay(first); }} />

@@ -52,7 +52,9 @@ export function DragProvider({ trip, commit, onDrop, scrollRef, scrollOffset, ch
     const rows = [...rects.current.entries()].filter(([key, rect]) => rect.kind === 'row' && rect.day === day && key !== `row:${id}`).sort((a, b) => a[1].y - b[1].y);
     const before = rows.find(([, rect]) => y < rect.y - shift + rect.height / 2);
     const beforeId = before ? before[0].slice(4) : null;
-    const placement = planDropPosition(tripRef.current, id, day, (beforeId ? `plan:${beforeId}` : null) as never) as { allowed: boolean };
+    // Plan rows register their id and flight rows their "transport:…" event
+    // key; planDropPosition adds "plan:" to bare ids itself.
+    const placement = planDropPosition(tripRef.current, id, day, beforeId as never) as { allowed: boolean };
     return placement.allowed ? { day, beforeId } : null;
   }, [scrollOffset]);
 

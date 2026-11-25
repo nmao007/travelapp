@@ -15,14 +15,14 @@ Each milestone ends with something you can try in the iOS Simulator (`npx expo r
 - [x] Ideas tab as a list, and Paste link with the same preview and place chips as sharing in
 - [x] Map with numbered plan pins and the tapped pin's card, on Apple Maps (`src/components/workspace/trip-map.tsx`)
 - [x] Milestone 1, Ideas at the center: three tabs (Plan · Map · Ideas); saved videos with a place as cover pins on the map, whose card adds them to a day or opens the video; an empty Ideas tab that explains how to share a video in
+- [x] Milestone 2, booked flights in the plan: the Plan tab's + offers "Add flight"; flights show in the timeline, single day and calendar, and open for editing or removal with undo
 
 ## Milestone 2: Booked flights in the plan
 
-- [ ] **Add a flight by number and date**: the app looks it up and puts it on the right day in the timeline and calendar, showing local departure and arrival times. Edit and remove it too. Convert the site's code: `/api/flights`, `flight-model.js`, `flight-window.js`, `itinerary-model.js`.
-- [ ] **Trains and other booked transport by hand**, placed in the plan the same way.
-- [ ] "Add flight" goes under the Plan tab's +, not a Travel tab.
+- [x] **Add a flight by number and date**: the app looks it up and puts it on the right day in the timeline and calendar, showing local departure and arrival times. Edit and remove it too. Convert the site's code: `/api/flights`, `flight-model.js`, `flight-window.js`, `itinerary-model.js`.
+- [x] "Add flight" goes under the Plan tab's +, not a Travel tab.
 
-Needs an AeroDataBox key on the server (`AERODATABOX_API_KEY`). Without it, you enter flight details by hand.
+Needs an AeroDataBox key on the server (`AERODATABOX_API_KEY`). Without it, you enter flight details by hand. Checked in the web preview and with unit checks; still to try in the iOS Simulator.
 
 ## Milestone 3: Polish the loop
 

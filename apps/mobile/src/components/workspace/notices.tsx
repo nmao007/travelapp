@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { restoreItineraryEvent } from '@trippilot/core/itinerary-model';
 import { Icon } from '../icons';
 import { colors, fonts, sq } from '@/lib/theme';
-import type { PlanItem, Trip } from '@/lib/trips';
+import type { Trip } from '@/lib/trips';
 
 // Both notices float 12pt above the tab bar (#removal-notice: bottom 78px).
 function useBottom() { return 78 + useSafeAreaInsets().bottom; }
@@ -22,7 +22,8 @@ export function TripNotice({ message, onHide }: { message: string; onHide(): voi
   );
 }
 
-type Removal = { tripId: string; collection: string; record: PlanItem; [key: string]: unknown };
+// A removed plan (name, day) or flight (service_id, departure_date).
+type Removal = { tripId: string; collection: string; record: { name?: string; day?: string; service_id?: string; departure_date?: string }; [key: string]: unknown };
 
 // #removal-notice: "Removed X" with Undo for 12 seconds.
 export function RemovalNotice({ removal, trip, onUndo, onHide }: { removal: Removal | null; trip: Trip; onUndo(result: { trip: Trip; day: string }): void; onHide(): void }) {
@@ -32,9 +33,9 @@ export function RemovalNotice({ removal, trip, onUndo, onHide }: { removal: Remo
   if (!removal || removal.tripId !== trip.id) return null;
   return (
     <Animated.View entering={FadeInDown.duration(180)} exiting={FadeOutDown.duration(160)} style={[styles.notice, styles.removal, { bottom }]} accessibilityLiveRegion="polite">
-      <Text style={[styles.message, styles.removalMessage]} numberOfLines={2}>{error.current || `Removed ${removal.record.name}`}</Text>
+      <Text style={[styles.message, styles.removalMessage]} numberOfLines={2}>{error.current || `Removed ${removal.record.name || removal.record.service_id}`}</Text>
       <Pressable accessibilityRole="button" onPress={() => {
-        try { onUndo({ trip: restoreItineraryEvent(trip, removal) as Trip, day: removal.record.day }); }
+        try { onUndo({ trip: restoreItineraryEvent(trip, removal) as Trip, day: removal.record.day || removal.record.departure_date || '' }); }
         catch (failure) { error.current = (failure as Error).message; onHide(); }
       }} style={({ pressed }) => [styles.undo, pressed && styles.undoPressed]}>
         <Text style={styles.undoText}>Undo</Text>

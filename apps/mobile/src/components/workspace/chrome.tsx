@@ -27,13 +27,16 @@ function RoundButton({ icon, label, onPress, size = 18, color = '#333333', style
 // onPress returns true to keep the menu open (the two-step "Delete trip").
 export type MenuAction = { key: string; label: string; icon?: SymbolName; danger?: boolean; onPress(): boolean | void };
 
-// #trip-menu: a right-aligned list under the ⋯ button.
-function TripMenu({ actions, onOpen }: { actions: MenuAction[]; onOpen?(): void }) {
+// #trip-menu: a right-aligned list under the ⋯ button. The Plan tab's + uses
+// the same list for "Add plan" and "Add flight" (the site's #add-plan and
+// #add-transport buttons).
+function TripMenu({ actions, onOpen, trigger }: { actions: MenuAction[]; onOpen?(): void; trigger?(open: () => void): React.ReactNode }) {
   const { ref, anchor, open, close } = useAnchor();
+  const show = () => { onOpen?.(); open(); };
   return (
     <View ref={ref} collapsable={false}>
-      <RoundButton icon="more" label="Trip options" onPress={() => { onOpen?.(); open(); }} />
-      <Popover anchor={anchor} align="right" width={248} onClose={close} style={styles.menu}>
+      {trigger ? trigger(show) : <RoundButton icon="more" label="Trip options" onPress={show} />}
+      <Popover anchor={anchor} align="right" width={trigger ? 200 : 248} onClose={close} style={styles.menu}>
         {actions.map(action => (
           <Pressable key={action.key} accessibilityRole="menuitem" onPress={() => { if (!action.onPress()) close(); }} style={({ pressed }) => [styles.menuItem, pressed && styles.pressed]}>
             {action.icon ? <Icon name={action.icon} size={19} color={colors.muted} /> : null}
@@ -47,12 +50,12 @@ function TripMenu({ actions, onOpen }: { actions: MenuAction[]; onOpen?(): void 
 
 type HeaderProps = {
   trip: Trip; mode: 'list' | 'calendar' | 'day'; day: string; stopFilter: string | null; days: string[]; dayContext: string;
-  onBack(): void; onAdd?(): void; addLabel?: string; showToggle?: boolean; onToggleMode(): void; onStop(placeId: string): void; onDay(day: string): void; onRename(): void; menu: MenuAction[]; onMenuOpen?(): void; renaming: boolean; onRenameDone(value: string | null): void;
+  onBack(): void; onAdd?(): void; addLabel?: string; addMenu?: MenuAction[]; showToggle?: boolean; onToggleMode(): void; onStop(placeId: string): void; onDay(day: string): void; onRename(): void; menu: MenuAction[]; onMenuOpen?(): void; renaming: boolean; onRenameDone(value: string | null): void;
 };
 
 // The phone masthead: trip title or day picker, add (+) and ⋯, then the stop
 // picker and calendar switch while viewing the whole trip.
-export function WorkspaceHeader({ trip, mode, day, stopFilter, days, dayContext, onBack, onAdd, addLabel = 'Add a plan', showToggle = true, onToggleMode, onStop, onDay, onRename, menu, onMenuOpen, renaming, onRenameDone }: HeaderProps) {
+export function WorkspaceHeader({ trip, mode, day, stopFilter, days, dayContext, onBack, onAdd, addLabel = 'Add a plan', addMenu, showToggle = true, onToggleMode, onStop, onDay, onRename, menu, onMenuOpen, renaming, onRenameDone }: HeaderProps) {
   const insets = useSafeAreaInsets();
   const stops = tripStops(trip) as Trip['stops'];
   const entries = stopSchedule(trip) as { stop: Trip['stops'][number]; start: string | null; end: string | null }[];
@@ -82,7 +85,8 @@ export function WorkspaceHeader({ trip, mode, day, stopFilter, days, dayContext,
             {mode === 'list' ? <Text style={styles.subtitle}>{range}</Text> : null}
           </View>
         )}
-        {onAdd ? <RoundButton icon="plus" label={addLabel} onPress={onAdd} size={23} color={colors.white} style={styles.add} /> : null}
+        {addMenu ? <TripMenu actions={addMenu} trigger={open => <RoundButton icon="plus" label="Add" onPress={open} size={23} color={colors.white} style={styles.add} />} />
+          : onAdd ? <RoundButton icon="plus" label={addLabel} onPress={onAdd} size={23} color={colors.white} style={styles.add} /> : null}
         <TripMenu actions={menu} onOpen={onMenuOpen} />
       </View>
       {mode !== 'day' ? (
