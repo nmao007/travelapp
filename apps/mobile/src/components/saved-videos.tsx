@@ -9,6 +9,8 @@ import { PROVIDERS } from './shared-preview';
 import { autocomplete, newSession, placeDetails, placeZone, type Suggestion } from '@/lib/places';
 import { destinationGuess, useSharedInbox, type SharedLink } from '@/lib/share-inbox';
 import { colors, fonts, sq } from '@/lib/theme';
+import { palette, strokes, typefaces } from '@/lib/design';
+import { Display, LinkButton, SheetHeader } from './ui';
 import { useTrips, type Trip } from '@/lib/trips';
 import { haptics } from '@/lib/haptics';
 
@@ -30,35 +32,38 @@ function useNewTripPrompt(busy: boolean, setStarting: (link: SharedLink) => void
 }
 
 // Home: one row that opens the Unsorted ideas page, shown while there are any.
+// Home's "Fresh from your feed": videos shared without a trip, as tilted
+// covers. "Sort them" opens the Unsorted ideas page.
 export function UnsortedIdeasLink() {
   const { unassigned, postpone } = useSharedInbox();
   const [starting, setStarting] = useState<SharedLink | null>(null);
   useNewTripPrompt(Boolean(starting), setStarting);
   const count = unassigned.length;
+  const tilts = ['-4deg', '3deg', '-2deg'];
   return (
     <>
       {count ? (
-        <Pressable accessibilityRole="button" onPress={() => router.push('/unsorted')} style={({ pressed }) => [styles.link, pressed && styles.linkPressed]}>
-          <View style={styles.linkCovers}>
+        <View style={styles.feed}>
+          <View style={styles.feedHeading}>
+            <Display size="section" style={styles.flex}>Fresh from your feed <Text style={styles.feedCount}>{` ${count} `}</Text></Display>
+            <LinkButton label="Sort them →" onPress={() => router.push('/unsorted')} />
+          </View>
+          <Pressable accessibilityRole="button" accessibilityLabel={`${count} saved ${count === 1 ? 'video' : 'videos'} to sort`} onPress={() => router.push('/unsorted')} style={styles.feedRow}>
             {unassigned.slice(0, 3).map((link, index) => (
-              <View key={link.id} style={[styles.linkCover, { marginLeft: index ? -18 : 0, zIndex: 3 - index }]}><Cover image={link.image} small /></View>
+              <View key={link.id} style={[styles.feedCard, { transform: [{ rotate: tilts[index] }, { translateY: index === 1 ? 6 : 0 }] }]}>
+                <Cover image={link.image} fill />
+                {PROVIDERS[link.provider || ''] ? <Text maxFontSizeMultiplier={TIGHT_SCALE} style={styles.feedSource}>{PROVIDERS[link.provider || '']}</Text> : null}
+                <Text style={styles.feedCaption} numberOfLines={3}>{caption(link)}</Text>
+              </View>
             ))}
-          </View>
-          <View style={styles.copy}>
-            <Text style={styles.linkTitle}>Unsorted ideas</Text>
-            <Text style={styles.linkDetail}>{count === 1 ? '1 saved video to add to a trip' : `${count} saved videos to add to trips`}</Text>
-          </View>
-          <View style={styles.badge}><Text maxFontSizeMultiplier={TIGHT_SCALE} style={styles.badgeText}>{count}</Text></View>
-          <Icon name="arrow" size={17} color={colors.tripArrow} />
-        </Pressable>
+          </Pressable>
+        </View>
       ) : null}
       <NewTripSheet key={starting?.id || 'none'} link={starting} onClose={link => { setStarting(null); if (link?.newTrip) postpone(link); }} />
     </>
   );
 }
 
-// The Unsorted ideas page: videos and links shared with "Decide later" or
-// "New trip". Add each to a trip, start a trip from it, or dismiss it.
 export function UnsortedIdeas() {
   const { unassigned, dismiss, postpone } = useSharedInbox();
   const [choosing, setChoosing] = useState<SharedLink | null>(null);
@@ -78,11 +83,11 @@ export function UnsortedIdeas() {
                   {link.place ? <View style={styles.placeRow}><Icon name="pin" size={13} color={colors.action} /><Text style={styles.place} numberOfLines={1}>{link.place.name}</Text></View> : null}
                   <View style={styles.actions}>
                     <Pressable accessibilityRole="button" onPress={() => setChoosing(link)} style={({ pressed }) => [styles.add, pressed && styles.addPressed]}>
-                      <Icon name="plus" size={15} color={colors.action} />
+                      <Icon name="plus" size={15} color={palette.ink} strokeWidth={2.6} />
                       <Text style={styles.addText}>Add to trip</Text>
                     </Pressable>
                     <Pressable accessibilityRole="button" accessibilityLabel="Dismiss" onPress={() => dismiss(link)} style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}>
-                      <Icon name="close" size={17} color="#555555" />
+                      <Icon name="close" size={17} color={palette.ink} />
                     </Pressable>
                   </View>
                 </View>
@@ -103,10 +108,10 @@ export function UnsortedIdeas() {
   );
 }
 
-function Cover({ image, small }: { image?: string; small?: boolean }) {
+function Cover({ image, small, fill }: { image?: string; small?: boolean; fill?: boolean }) {
   const [failed, setFailed] = useState(false);
   return (
-    <View style={[styles.cover, small && styles.coverSmall]}>
+    <View style={[styles.cover, small && styles.coverSmall, fill && styles.coverFill]}>
       {image && !failed ? <Image source={{ uri: image }} style={StyleSheet.absoluteFill} resizeMode="cover" onError={() => setFailed(true)} accessibilityIgnoresInvertColors />
         : <Art name="ideas" size={small ? 20 : 26} />}
     </View>
@@ -224,63 +229,67 @@ function NewTripSheet({ link, onClose }: { link: SharedLink | null; onClose(link
   );
 }
 
+// A sheet's title row in the redesign, with a line under it.
 function SheetHeading({ title, subtitle, onClose }: { title: string; subtitle: string; onClose(): void }) {
   return (
-    <View style={styles.heading}>
-      <View style={styles.copy}>
-        <Text style={styles.sheetTitle}>{title}</Text>
-        {subtitle ? <Text style={styles.sheetSubtitle} numberOfLines={1}>{subtitle}</Text> : null}
-      </View>
-      <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={({ pressed }) => [styles.close, pressed && styles.closePressed]}>
-        <Icon name="close" size={18} color="#555555" />
-      </Pressable>
-    </View>
+    <SheetHeader title={title} onClose={onClose}>
+      {subtitle ? <Text style={styles.sheetSubtitle} numberOfLines={2}>{subtitle}</Text> : null}
+    </SheetHeader>
   );
 }
 
 const styles = StyleSheet.create({
-  link: { marginTop: 20, minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderWidth: 1, borderColor: '#ffd9be', borderRadius: sq(26), borderCurve: 'continuous', backgroundColor: '#fffaf6' },
-  linkPressed: { backgroundColor: '#fff2eb' },
+  flex: { flex: 1 },
+  feed: { marginTop: 28, gap: 12 },
+  feedHeading: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  feedCount: { fontFamily: typefaces.display, fontSize: 13, color: palette.ink, backgroundColor: palette.pink },
+  feedRow: { flexDirection: 'row', gap: 12, paddingHorizontal: 2, paddingBottom: 8 },
+  feedCard: { width: 102, height: 156, padding: 9, justifyContent: 'flex-end', overflow: 'hidden', borderRadius: 18, borderCurve: 'continuous', borderWidth: strokes.heavy, borderColor: palette.ink, backgroundColor: '#2A2140' },
+  coverFill: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: undefined, height: undefined, borderRadius: 0, opacity: 0.75 },
+  feedSource: { position: 'absolute', top: 8, left: 8, overflow: 'hidden', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999, backgroundColor: palette.paper, fontFamily: typefaces.bold, fontSize: 10, color: palette.ink },
+  feedCaption: { fontFamily: typefaces.bold, fontSize: 11, lineHeight: 14, color: palette.paper, textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 4 },
+  link: { marginTop: 20, minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderWidth: 1, borderColor: palette.ink, borderRadius: sq(26), borderCurve: 'continuous', backgroundColor: palette.paper },
+  linkPressed: { backgroundColor: palette.yellow },
   linkCovers: { flexDirection: 'row' },
-  linkCover: { borderWidth: 2, borderColor: '#fffaf6', borderRadius: sq(12), borderCurve: 'continuous' },
+  linkCover: { borderWidth: 2, borderColor: palette.paper, borderRadius: sq(12), borderCurve: 'continuous' },
   linkTitle: { fontFamily: fonts.semibold, fontSize: 16, lineHeight: 20, letterSpacing: -0.3, color: colors.tripTitle },
   linkDetail: { fontFamily: fonts.regular, fontSize: 13, color: colors.muted },
   badge: { minWidth: 24, height: 24, paddingHorizontal: 7, alignItems: 'center', justifyContent: 'center', borderRadius: sq(12), borderCurve: 'continuous', backgroundColor: colors.accent },
   badgeText: { fontFamily: fonts.semibold, fontSize: 13, color: colors.white },
   coverSmall: { width: 36, height: 48, borderRadius: sq(10) },
-  empty: { alignItems: 'center', gap: 8, paddingVertical: 36, paddingHorizontal: 24, borderWidth: 1, borderStyle: 'dashed', borderColor: '#e5cfc5', borderRadius: sq(22), borderCurve: 'continuous' },
-  emptyTitle: { fontFamily: fonts.bold, fontSize: 17, color: colors.tripTitle },
+  empty: { alignItems: 'center', gap: 8, paddingVertical: 36, paddingHorizontal: 24, borderWidth: 2, borderStyle: 'dashed', borderColor: palette.dash, borderRadius: 22, borderCurve: 'continuous' },
+  emptyTitle: { fontFamily: typefaces.display, fontSize: 22, color: palette.ink },
   emptyText: { fontFamily: fonts.regular, fontSize: 14, lineHeight: 20, color: colors.muted, textAlign: 'center' },
   list: { gap: 8 },
-  row: { flexDirection: 'row', gap: 12, padding: 10, borderWidth: 1, borderColor: '#ffd9be', borderRadius: sq(22), borderCurve: 'continuous', backgroundColor: '#fffaf6' },
-  cover: { width: 60, height: 80, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', borderRadius: sq(14), borderCurve: 'continuous', backgroundColor: '#fff2eb' },
+  row: { flexDirection: 'row', gap: 12, padding: 10, borderWidth: 1.5, borderColor: palette.line, borderRadius: 22, borderCurve: 'continuous', backgroundColor: palette.paper },
+  cover: { width: 60, height: 80, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', borderRadius: 14, borderCurve: 'continuous', backgroundColor: '#2A2140' },
   copy: { flex: 1, minWidth: 0, gap: 3 },
-  title: { fontFamily: fonts.semibold, fontSize: 15, lineHeight: 19.5, color: colors.tripTitle },
+  title: { fontFamily: typefaces.bold, fontSize: 15, lineHeight: 20, color: palette.ink },
   placeRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   place: { flex: 1, fontFamily: fonts.medium, fontSize: 13, color: colors.action },
   actions: { marginTop: 'auto', flexDirection: 'row', alignItems: 'center', gap: 4 },
-  add: { minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, borderRadius: sq(18), borderCurve: 'continuous', backgroundColor: '#fff2eb' },
-  addPressed: { backgroundColor: '#ffe6d6' },
-  addText: { fontFamily: fonts.semibold, fontSize: 14, color: colors.action },
+  add: { minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1.5, borderColor: palette.ink, backgroundColor: palette.yellow },
+  addPressed: { backgroundColor: '#F5D21F' },
+  addText: { fontFamily: typefaces.heavy, fontSize: 14, color: palette.ink },
   iconButton: { width: 36, height: 36, borderRadius: sq(18), borderCurve: 'continuous', alignItems: 'center', justifyContent: 'center' },
   pressed: { backgroundColor: colors.pressed },
   dimmed: { opacity: 0.5 },
   heading: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 16, paddingTop: 16, paddingHorizontal: 16 },
-  sheetTitle: { fontFamily: fonts.semibold, fontSize: 20, lineHeight: 25, letterSpacing: -0.5, color: '#252525' },
+  sheetTitle: { fontFamily: fonts.semibold, fontSize: 20, lineHeight: 25, letterSpacing: -0.5, color: palette.ink },
   sheetSubtitle: { fontFamily: fonts.regular, fontSize: 14, color: colors.muted },
   close: { width: 44, height: 44, borderRadius: sq(22), borderCurve: 'continuous', backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' },
-  closePressed: { backgroundColor: '#ebecef' },
+  closePressed: { backgroundColor: palette.sand },
   sheetBody: { flexGrow: 0 },
   sheetContent: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 16, gap: 8 },
-  newTrip: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, borderWidth: 1, borderStyle: 'dashed', borderColor: '#e5cfc5', borderRadius: sq(26), borderCurve: 'continuous' },
-  newTripIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: sq(19), borderCurve: 'continuous', backgroundColor: '#fff2eb' },
+  newTrip: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, borderWidth: 1, borderStyle: 'dashed', borderColor: palette.dash, borderRadius: sq(26), borderCurve: 'continuous' },
+  newTripIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: sq(19), borderCurve: 'continuous', backgroundColor: palette.yellow },
   newTripTitle: { fontFamily: fonts.semibold, fontSize: 16, color: colors.ink },
   newTripDetail: { fontFamily: fonts.regular, fontSize: 13, color: colors.muted },
   fieldLabel: { fontFamily: fonts.bold, fontSize: 13, color: colors.muted },
-  input: { minHeight: 48, paddingVertical: 9, paddingHorizontal: 12, borderWidth: 1, borderColor: colors.inputLine, borderRadius: sq(22), borderCurve: 'continuous', backgroundColor: colors.white, fontFamily: fonts.regular, fontSize: 16, color: '#333333' },
+  input: { minHeight: 48, paddingVertical: 9, paddingHorizontal: 12, borderWidth: 1, borderColor: colors.inputLine, borderRadius: sq(22), borderCurve: 'continuous', backgroundColor: colors.white, fontFamily: fonts.regular, fontSize: 16, color: palette.ink },
   spinner: { marginVertical: 16 },
   suggestion: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 6, borderRadius: sq(18), borderCurve: 'continuous' },
-  suggestionIcon: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: sq(18), borderCurve: 'continuous', backgroundColor: '#fff2eb' },
+  suggestionIcon: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: sq(18), borderCurve: 'continuous', backgroundColor: palette.yellow },
   suggestionName: { fontFamily: fonts.semibold, fontSize: 16, color: colors.ink },
   suggestionDetail: { fontFamily: fonts.regular, fontSize: 13, color: colors.muted },
   error: { fontFamily: fonts.regular, fontSize: 13, color: colors.danger },

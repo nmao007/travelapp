@@ -6,6 +6,7 @@ import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming
 import { Icon } from './icons';
 import { apiUrl } from '@/lib/config';
 import { colors, fonts, sq } from '@/lib/theme';
+import { palette, radii, strokes, typefaces } from '@/lib/design';
 import { useTrips } from '@/lib/trips';
 
 // The site's #account-dialog on phones. It appears at once while the backdrop
@@ -111,26 +112,26 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   // 364pt wide on a 402pt screen (19pt margins), 20pt padding, 16pt gaps.
   card: {
-    width: '100%', maxWidth: 364, flexShrink: 1, marginHorizontal: 19, backgroundColor: colors.white,
-    borderTopLeftRadius: sq(42), borderTopRightRadius: sq(42), borderCurve: 'continuous',
+    width: '100%', maxWidth: 364, flexShrink: 1, marginHorizontal: 19, backgroundColor: palette.cream,
+    borderRadius: radii.sheet, borderCurve: 'continuous', borderWidth: strokes.heavy, borderColor: palette.ink,
     shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 15, shadowOffset: { width: 0, height: -5 },
   },
   cardContent: { padding: 20, gap: 16 },
   heading: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-  label: { fontFamily: fonts.bold, fontSize: 14, color: colors.ink },
-  title: { marginTop: 6, fontFamily: fonts.semibold, fontSize: 24, letterSpacing: -0.96, color: colors.ink },
+  label: { fontFamily: typefaces.heavy, fontSize: 12, letterSpacing: 0.8, color: palette.pinkText },
+  title: { marginTop: 6, fontFamily: typefaces.display, fontSize: 30, lineHeight: 34, letterSpacing: -1, color: palette.ink },
   close: { width: 44, height: 44, borderRadius: sq(22), borderCurve: 'continuous', backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' },
-  description: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 19.5, color: colors.muted },
+  description: { fontFamily: typefaces.semibold, fontSize: 14, lineHeight: 20, color: palette.muted },
   field: { gap: 7 },
   fieldLabel: { fontFamily: fonts.bold, fontSize: 13, color: colors.ink },
-  input: { height: 48, paddingHorizontal: 10, borderWidth: 1, borderColor: colors.inputLine, borderRadius: sq(22), borderCurve: 'continuous', backgroundColor: colors.white, fontFamily: fonts.regular, fontSize: 16, color: colors.ink },
+  input: { height: 50, paddingHorizontal: 16, borderWidth: strokes.thin, borderColor: palette.ink, borderRadius: radii.pill, backgroundColor: palette.paper, fontFamily: typefaces.medium, fontSize: 16, color: palette.ink },
   message: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 18.2, color: colors.muted },
   error: { color: colors.danger },
-  submit: { minHeight: 52, paddingVertical: 12, paddingHorizontal: 19, borderRadius: sq(22), borderCurve: 'continuous', backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
-  submitPressed: { backgroundColor: colors.accentPressed },
-  submitText: { fontFamily: fonts.semibold, fontSize: 16, lineHeight: 20.8, color: colors.white },
+  submit: { minHeight: 54, paddingVertical: 12, paddingHorizontal: 19, borderRadius: radii.pill, borderWidth: strokes.mid, borderColor: palette.ink, backgroundColor: palette.pink, alignItems: 'center', justifyContent: 'center' },
+  submitPressed: { backgroundColor: '#F0247A' },
+  submitText: { fontFamily: typefaces.heavy, fontSize: 16, lineHeight: 21, color: palette.ink },
   toggle: { alignSelf: 'center', minHeight: 44, paddingHorizontal: 6, borderRadius: sq(22), borderCurve: 'continuous', justifyContent: 'center' },
-  toggleText: { fontFamily: fonts.bold, fontSize: 14, color: colors.action, textDecorationLine: 'underline', textDecorationColor: colors.action },
+  toggleText: { fontFamily: typefaces.bold, fontSize: 14, color: palette.violet },
   privacy: { textAlign: 'center', fontFamily: fonts.regular, fontSize: 13, lineHeight: 19.5, color: colors.muted },
   privacyLink: { color: colors.action, textDecorationLine: 'underline' },
   pressed: { backgroundColor: colors.pressed },

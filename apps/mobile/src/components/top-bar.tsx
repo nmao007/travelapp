@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Pressable, StyleSheet, View } from 'react-native';
 import { Text, TIGHT_SCALE } from '@/components/text';
-import { BrandSlash, Icon } from './icons';
+import Svg, { Circle, Path } from 'react-native-svg';
+import { Icon } from './icons';
 import { Popover, useAnchor } from './popover';
 import { afterSheetCloses } from './sheet';
 import { apiUrl } from '@/lib/config';
 import { haptics } from '@/lib/haptics';
 import { colors, fonts, sq } from '@/lib/theme';
+import { palette, typefaces } from '@/lib/design';
 import { useTrips } from '@/lib/trips';
 
 // .topbar on phones: 44pt tall, 20pt side padding, 12pt gap. Signed out it
@@ -16,9 +18,8 @@ export function TopBar({ onSignIn }: { onSignIn(): void }) {
   return (
     <View style={styles.bar}>
       <View style={styles.brand} accessibilityRole="header" accessibilityLabel="Elsewhere home">
-        <Text maxFontSizeMultiplier={TIGHT_SCALE} style={styles.wordmark}>ELSE</Text>
-        <BrandSlash color={colors.action} />
-        <Text maxFontSizeMultiplier={TIGHT_SCALE} style={styles.wordmark}>WHERE</Text>
+        <Sun />
+        <Text maxFontSizeMultiplier={TIGHT_SCALE} style={styles.wordmark}>elsewhere</Text>
       </View>
       {account ? <AccountMenu email={account.email} /> : (
         <Pressable accessibilityRole="button" onPress={onSignIn} style={({ pressed }) => [styles.account, pressed && styles.pressed]}>
@@ -26,6 +27,16 @@ export function TopBar({ onSignIn }: { onSignIn(): void }) {
         </Pressable>
       )}
     </View>
+  );
+}
+
+// The mark: a pink sun with orange rays.
+function Sun() {
+  return (
+    <Svg width={26} height={26} viewBox="0 0 26 26">
+      <Circle cx={13} cy={13} r={7} fill={palette.pink} />
+      <Path d="M13 1v3M13 22v3M1 13h3M22 13h3M4.5 4.5l2 2M19.5 19.5l2 2M21.5 4.5l-2 2M6.5 19.5l-2 2" stroke={palette.orange} strokeWidth={2.4} strokeLinecap="round" />
+    </Svg>
   );
 }
 
@@ -75,14 +86,14 @@ function AccountMenu({ email }: { email: string }) {
 }
 
 const styles = StyleSheet.create({
-  bar: { height: 44, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.white },
-  brand: { flex: 1, flexDirection: 'row', alignItems: 'center', height: 22 },
-  wordmark: { fontFamily: fonts.bold, fontSize: 21, lineHeight: 21, letterSpacing: -0.9, color: colors.ink, includeFontPadding: false },
-  account: { height: 44, paddingHorizontal: 10, borderRadius: sq(22), borderCurve: 'continuous', justifyContent: 'center' },
-  accountText: { fontFamily: fonts.medium, fontSize: 14, color: colors.muted },
-  avatarButton: { width: 44, height: 44, borderRadius: sq(22), borderCurve: 'continuous', alignItems: 'center', justifyContent: 'center' },
-  avatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { fontFamily: fonts.semibold, fontSize: 15, color: colors.ink },
+  bar: { height: 56, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: palette.cream },
+  brand: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  wordmark: { fontFamily: typefaces.display, fontSize: 26, lineHeight: 30, letterSpacing: -1, color: palette.ink, includeFontPadding: false },
+  account: { height: 44, paddingHorizontal: 16, borderRadius: 999, borderWidth: 1.5, borderColor: palette.ink, backgroundColor: palette.paper, justifyContent: 'center' },
+  accountText: { fontFamily: typefaces.bold, fontSize: 14, color: palette.ink },
+  avatarButton: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  avatar: { width: 44, height: 44, borderRadius: 22, borderWidth: 2, borderColor: palette.ink, backgroundColor: palette.yellow, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { fontFamily: typefaces.display, fontSize: 18, color: palette.ink },
   menu: { borderRadius: sq(20), borderCurve: 'continuous' },
   email: { paddingTop: 8, paddingBottom: 6, paddingHorizontal: 12, fontFamily: fonts.regular, fontSize: 13, color: colors.muted },
   menuItem: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderRadius: sq(22), borderCurve: 'continuous' },

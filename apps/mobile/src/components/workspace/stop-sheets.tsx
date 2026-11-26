@@ -9,6 +9,7 @@ import { stopRangeLabel } from './chrome';
 import { autocomplete, newSession, placeDetails, placeZone, type Place, type Suggestion } from '@/lib/places';
 import { formatDay } from '@/lib/format';
 import { colors, fonts, sq } from '@/lib/theme';
+import { palette, radii, typefaces } from '@/lib/design';
 import type { Stop, Trip } from '@/lib/trips';
 
 export type StopSheetState = null | { kind: 'search' } | { kind: 'dates'; placeId: string } | { kind: 'order' };
@@ -102,7 +103,7 @@ function StopEditor({ visible, editing, trip, commit, onClose, onError, onStopAd
       header={close => (
         <View style={styles.heading}>
           <Text style={styles.title}>{editing ? 'Edit stop' : 'Add stop'}</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Close destination picker" onPress={close} style={({ pressed }) => [styles.close, pressed && styles.pressed]}><Icon name="close" size={18} color="#555555" /></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Close destination picker" onPress={close} style={({ pressed }) => [styles.close, pressed && styles.pressed]}><Icon name="close" size={18} color={palette.ink} /></Pressable>
         </View>
       )}>
       {close => (
@@ -132,7 +133,7 @@ function StopEditor({ visible, editing, trip, commit, onClose, onError, onStopAd
                   <Text style={styles.selectionName} numberOfLines={2}>{pending.name}</Text>
                   {pending.address ? <Text style={styles.selectionAddress} numberOfLines={2}>{pending.address}</Text> : null}
                 </View>
-                {!editing ? <Pressable accessibilityRole="button" accessibilityLabel="Change destination" onPress={() => setPending(null)} style={({ pressed }) => [styles.close, pressed && styles.pressed]}><Icon name="search" size={18} color="#555555" /></Pressable> : null}
+                {!editing ? <Pressable accessibilityRole="button" accessibilityLabel="Change destination" onPress={() => setPending(null)} style={({ pressed }) => [styles.close, pressed && styles.pressed]}><Icon name="search" size={18} color={palette.ink} /></Pressable> : null}
               </View>
               <View style={styles.dateFields}>
                 {(['start', 'end'] as const).map(key => (
@@ -148,7 +149,7 @@ function StopEditor({ visible, editing, trip, commit, onClose, onError, onStopAd
               {extendsTrip ? <Text style={styles.effect}>{`Trip dates will extend to ${dateLabel(trip.startDate && trip.startDate < dates.start ? trip.startDate : dates.start)} – ${dateLabel(trip.endDate && trip.endDate > dates.end ? trip.endDate : dates.end)}.`}</Text> : null}
               {editing ? (
                 <View style={styles.routeActions}>
-                  {entries.length > 1 ? <Pressable accessibilityRole="button" onPress={() => { close(); afterSheetCloses(onReorder); }} style={({ pressed }) => [styles.quiet, pressed && styles.pressed]}><Icon name="list" size={17} color="#555555" /><Text style={styles.quietText}>Reorder</Text></Pressable> : null}
+                  {entries.length > 1 ? <Pressable accessibilityRole="button" onPress={() => { close(); afterSheetCloses(onReorder); }} style={({ pressed }) => [styles.quiet, pressed && styles.pressed]}><Icon name="list" size={17} color={palette.ink} /><Text style={styles.quietText}>Reorder</Text></Pressable> : null}
                   <Pressable accessibilityRole="button" disabled={entries.length < 2} onPress={() => {
                     try { const name = pending.name; commit(removeStop(trip, pending.placeId) as Trip); close(); onStopRemoved(); onError(`Removed ${name}`); }
                     catch (error) { setStatus({ text: (error as Error).message, error: true }); }
@@ -193,14 +194,14 @@ function StopCalendar({ visible, name, endpoint, initial, onClose, onSave }: { v
       header={close => (
         <View style={styles.heading}>
           <Text style={[styles.title, styles.dateTitle]}>{`${name} dates`}</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Close date calendar" onPress={close} style={({ pressed }) => [styles.close, pressed && styles.pressed]}><Icon name="close" size={18} color="#555555" /></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Close date calendar" onPress={close} style={({ pressed }) => [styles.close, pressed && styles.pressed]}><Icon name="close" size={18} color={palette.ink} /></Pressable>
         </View>
       )}
       footer={close => (
         <View style={styles.footer}>
           <Pressable accessibilityRole="button" disabled={!range.start || !range.end} onPress={() => { const error = onSave({ start: range.start!, end: range.end! }); if (error) setMessage(error); else close(); }}
             style={({ pressed }) => [styles.primary, (!range.start || !range.end) && styles.disabled, pressed && styles.primaryPressed]}>
-            <Text style={styles.primaryText}>Use dates</Text><Icon name="arrow" size={18} color={colors.white} />
+            <Text style={styles.primaryText}>Use dates</Text><Icon name="arrow" size={18} color={palette.ink} />
           </Pressable>
         </View>
       )}>
@@ -251,7 +252,7 @@ function RouteOrder({ visible, trip, commit, onClose, onError }: { visible: bool
       header={close => (
         <View style={styles.heading}>
           <Text style={styles.title}>Reorder stops</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Cancel route changes" onPress={close} style={({ pressed }) => [styles.close, pressed && styles.pressed]}><Icon name="close" size={18} color="#555555" /></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Cancel route changes" onPress={close} style={({ pressed }) => [styles.close, pressed && styles.pressed]}><Icon name="close" size={18} color={palette.ink} /></Pressable>
         </View>
       )}
       footer={close => (
@@ -277,7 +278,7 @@ function RouteOrder({ visible, trip, commit, onClose, onError }: { visible: bool
             {[-1, 1].map(step => (
               <Pressable key={step} accessibilityRole="button" accessibilityLabel={`Move ${entry.stop.name} ${step < 0 ? 'earlier' : 'later'}`} disabled={index + step < 0 || index + step >= entries.length}
                 onPress={() => move(entry.stop.placeId, step)} style={({ pressed }) => [styles.close, (index + step < 0 || index + step >= entries.length) && styles.disabled, pressed && styles.pressed]}>
-                <Icon name="chevron" size={18} color="#555555" style={step < 0 ? { transform: [{ rotate: '180deg' }] } : undefined} />
+                <Icon name="chevron" size={18} color={palette.ink} style={step < 0 ? { transform: [{ rotate: '180deg' }] } : undefined} />
               </Pressable>
             ))}
           </View>
@@ -292,22 +293,22 @@ const styles = StyleSheet.create({
   pressed: { backgroundColor: colors.pressed },
   disabled: { opacity: 0.4 },
   danger: { color: colors.danger },
-  heading: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 16, paddingTop: 16, paddingHorizontal: 16 },
-  title: { flex: 1, fontFamily: fonts.semibold, fontSize: 24, lineHeight: 28.8, letterSpacing: -0.96, color: '#252525' },
-  dateTitle: { fontSize: 20, lineHeight: 25, letterSpacing: -0.5 },
-  close: { width: 44, height: 44, borderRadius: sq(22), borderCurve: 'continuous', backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' },
+  heading: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: 8, paddingBottom: 12, paddingLeft: 20, paddingRight: 16 },
+  title: { flex: 1, fontFamily: typefaces.display, fontSize: 30, lineHeight: 34, letterSpacing: -1, color: palette.ink },
+  dateTitle: { fontSize: 26, lineHeight: 30 },
+  close: { width: 44, height: 44, borderRadius: 22, backgroundColor: palette.sand, alignItems: 'center', justifyContent: 'center' },
   body: { flexGrow: 0 },
   bodyContent: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16, gap: 8 },
-  searchField: { height: 52, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, borderWidth: 1, borderColor: colors.inputLine, borderRadius: sq(18), borderCurve: 'continuous', backgroundColor: '#fafbfc' },
+  searchField: { height: 52, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, borderWidth: 1, borderColor: colors.inputLine, borderRadius: sq(18), borderCurve: 'continuous', backgroundColor: palette.paper },
   searchInput: { flex: 1, height: '100%', fontFamily: fonts.regular, fontSize: 16, color: colors.ink },
   result: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingHorizontal: 12, borderRadius: sq(20), borderCurve: 'continuous' },
-  resultIcon: { width: 36, height: 36, borderRadius: sq(13), borderCurve: 'continuous', backgroundColor: '#fff2eb', alignItems: 'center', justifyContent: 'center' },
+  resultIcon: { width: 36, height: 36, borderRadius: sq(13), borderCurve: 'continuous', backgroundColor: palette.yellow, alignItems: 'center', justifyContent: 'center' },
   resultCopy: { flex: 1, minWidth: 0, gap: 3 },
   resultName: { fontFamily: fonts.bold, fontSize: 16, color: colors.ink },
   resultDetail: { fontFamily: fonts.regular, fontSize: 13, color: colors.muted },
   status: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 19.5, color: colors.muted },
   panel: { paddingTop: 4, gap: 16 },
-  selection: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: sq(4), borderCurve: 'continuous', backgroundColor: '#fff2eb' },
+  selection: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: sq(4), borderCurve: 'continuous', backgroundColor: palette.yellow },
   selectionIcon: { width: 28, alignItems: 'center' },
   selectionCopy: { flex: 1, minWidth: 0 },
   selectionName: { fontFamily: fonts.bold, fontSize: 22, lineHeight: 26.4, letterSpacing: -0.88, color: colors.ink },
@@ -315,26 +316,26 @@ const styles = StyleSheet.create({
   dateFields: { flexDirection: 'row', gap: 10 },
   dateField: { flex: 1, gap: 8 },
   dateLabel: { fontFamily: fonts.semibold, fontSize: 14, color: colors.muted },
-  dateButton: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 8, borderWidth: 1, borderColor: '#ececec', borderRadius: sq(22), borderCurve: 'continuous', backgroundColor: colors.white },
+  dateButton: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 8, borderWidth: 1, borderColor: palette.line, borderRadius: sq(22), borderCurve: 'continuous', backgroundColor: colors.white },
   dateValue: { fontFamily: fonts.semibold, fontSize: 14, color: colors.ink },
   effect: { fontFamily: fonts.regular, fontSize: 13, color: colors.muted },
   routeActions: { flexDirection: 'row', gap: 8 },
-  quiet: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 7, paddingVertical: 9, paddingHorizontal: 12, borderRadius: sq(22), borderCurve: 'continuous', backgroundColor: colors.soft },
-  quietText: { fontFamily: fonts.medium, fontSize: 14, color: '#555555' },
-  primary: { minHeight: 48, flexDirection: 'row', gap: 7, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, borderRadius: sq(22), borderCurve: 'continuous', backgroundColor: colors.accent },
-  primaryPressed: { backgroundColor: colors.accentPressed },
-  primaryText: { fontFamily: fonts.semibold, fontSize: 16, lineHeight: 20.8, color: colors.white },
+  quiet: {  minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 7, paddingVertical: 9, paddingHorizontal: 12, borderRadius: radii.pill, borderWidth: 1.5, borderColor: palette.ink, backgroundColor: palette.paper  },
+  quietText: { fontFamily: typefaces.bold, fontSize: 14, color: palette.ink },
+  primary: {  minHeight: 52, flexDirection: 'row', gap: 7, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, borderRadius: radii.pill, borderWidth: 2, borderColor: palette.ink, backgroundColor: palette.pink  },
+  primaryPressed: { backgroundColor: '#F0247A' },
+  primaryText: {  fontFamily: typefaces.heavy, fontSize: 16, lineHeight: 20.8, color: palette.ink  },
   footer: { paddingTop: 12, paddingHorizontal: 16, paddingBottom: 12 },
   calendarBody: { paddingHorizontal: 20, paddingTop: 10, gap: 10 },
   hint: { fontFamily: fonts.regular, fontSize: 12, lineHeight: 18, color: '#777777' },
   summary: { flexDirection: 'row', gap: 4, padding: 4, borderRadius: sq(20), borderCurve: 'continuous', backgroundColor: colors.soft },
   endpoint: { flex: 1, minHeight: 52, paddingVertical: 6, paddingHorizontal: 10, gap: 2, borderRadius: sq(16), borderCurve: 'continuous' },
-  endpointActive: { backgroundColor: '#fff0e7' },
+  endpointActive: { backgroundColor: palette.yellow },
   endpointLabel: { fontFamily: fonts.regular, fontSize: 11, lineHeight: 16, color: '#777a82' },
   endpointValue: { fontFamily: fonts.semibold, fontSize: 14, lineHeight: 20, color: colors.muted },
   endpointValueActive: { color: '#ac451c' },
   orderBody: { paddingHorizontal: 16, paddingTop: 12, gap: 4 },
-  orderRow: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomWidth: 1, borderBottomColor: '#eeeeee' },
+  orderRow: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomWidth: 1, borderBottomColor: palette.line },
   orderNumber: { width: 24, textAlign: 'center', fontFamily: fonts.bold, fontSize: 14, color: colors.action },
   orderCopy: { flex: 1, minWidth: 0, gap: 2 },
   stopName: { fontFamily: fonts.semibold, fontSize: 15, color: colors.ink },

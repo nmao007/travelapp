@@ -1,31 +1,32 @@
-// Values measured from the site's phone layout (402pt wide, site/dist/*.css) so
-// the native screens match it exactly. Change them together with the site.
+// The old site-matched theme, now mapped onto the redesign's palette and Inter
+// (src/lib/design.ts) so screens not yet rebuilt still look like the rest.
+// New code uses design.ts directly.
 export const colors = {
-  ink: '#242424',
-  title: '#292c35', // rgb(41, 44, 53)
-  muted: '#666666',
-  action: '#c34e1f',
-  accent: '#f36b32',
-  accentPressed: '#ba4c1b',
-  punctuation: '#ef7541', // rgb(239, 117, 65)
-  searchIcon: '#e76632', // rgb(231, 102, 50)
-  danger: '#b13d38', // rgb(177, 61, 56)
-  line: '#ececec',
-  inputLine: '#dfe2e7', // rgb(223, 226, 231)
-  searchLine: '#e3e5eb', // rgb(227, 229, 235)
-  searchFocusLine: '#ef7541',
-  searchFocusFill: '#fffcfa',
-  searchFocusRing: '#fff0e6',
-  placeholder: '#8b8e99', // rgb(139, 142, 153)
-  inputPlaceholder: '#858b95', // rgb(133, 139, 149)
-  soft: '#f5f6f8',
-  pressed: '#f4f4f4',
-  sectionLabel: '#5d6270', // rgb(93, 98, 112)
-  tripTitle: '#313541', // rgb(49, 53, 65)
-  tripMeta: '#7d8290', // rgb(125, 130, 144)
-  tripArrow: '#969ca9', // rgb(150, 156, 169)
-  closeIcon: '#555555',
-  backdrop: 'rgba(0, 0, 0, 0.333)',
+  ink: '#1A1033',
+  title: '#1A1033',
+  muted: '#5B4F73',
+  action: '#3B2BFF', // links and text actions (violet)
+  accent: '#1A1033', // primary buttons: ink with white text
+  accentPressed: '#2E2350',
+  punctuation: '#FF3D8B',
+  searchIcon: '#1A1033',
+  danger: '#C0262D',
+  line: '#EADCC6',
+  inputLine: '#EADCC6',
+  searchLine: '#1A1033',
+  searchFocusLine: '#1A1033',
+  searchFocusFill: '#FFFFFF',
+  searchFocusRing: '#FFE14D',
+  placeholder: '#8C8299',
+  inputPlaceholder: '#8C8299',
+  soft: '#F1E6D3',
+  pressed: '#F1E6D3',
+  sectionLabel: '#5B4F73',
+  tripTitle: '#1A1033',
+  tripMeta: '#5B4F73',
+  tripArrow: '#1A1033',
+  closeIcon: '#1A1033',
+  backdrop: 'rgba(26, 16, 51, 0.55)',
   white: '#ffffff',
 };
 
@@ -37,10 +38,10 @@ export const tripCardTints = [
 ];
 
 export const fonts = {
-  regular: 'DMSans_400Regular',
-  medium: 'DMSans_500Medium',
-  semibold: 'DMSans_600SemiBold',
-  bold: 'DMSans_700Bold',
+  regular: 'Inter_400Regular',
+  medium: 'Inter_500Medium',
+  semibold: 'Inter_600SemiBold',
+  bold: 'Inter_700Bold',
 };
 
 // CSS --ease-out: cubic-bezier(.16, 1, .3, 1)

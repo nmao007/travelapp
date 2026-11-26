@@ -11,6 +11,7 @@ import { BottomSheet } from '../sheet';
 import { stopRangeLabel } from './chrome';
 import { formatDay } from '@/lib/format';
 import { colors, fonts, sq } from '@/lib/theme';
+import { palette, radii, typefaces } from '@/lib/design';
 import type { Trip } from '@/lib/trips';
 
 type Range = { start: string | null; end: string | null };
@@ -106,18 +107,18 @@ export function TripDatesSheet({ visible, trip, onClose, commit, onError, onReor
         <View style={styles.heading}>
           {inline ? (
             <Pressable accessibilityRole="button" accessibilityLabel="Back to trip dates" onPress={() => { setRange(inline.back.range); setEndpoint(inline.back.endpoint); setView(inline.back.view); setInline(null); setMessage(''); }} style={({ pressed }) => [styles.close, pressed && styles.pressed]}>
-              <Icon name="back" size={18} color="#555555" />
+              <Icon name="back" size={18} color={palette.ink} />
             </Pressable>
           ) : null}
           <Text style={styles.title}>{title}</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Close date calendar" onPress={close} style={({ pressed }) => [styles.close, pressed && styles.pressed]}><Icon name="close" size={18} color="#555555" /></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Close date calendar" onPress={close} style={({ pressed }) => [styles.close, pressed && styles.pressed]}><Icon name="close" size={18} color={palette.ink} /></Pressable>
         </View>
       )}
       footer={close => (
         <View style={styles.footer}>
           <Pressable accessibilityRole="button" disabled={!range.start || !range.end} onPress={() => save(close)} style={({ pressed }) => [styles.save, (!range.start || !range.end) && styles.disabled, pressed && styles.savePressed]}>
             <Text style={styles.saveText}>{saveLabel}</Text>
-            <Icon name="arrow" size={18} color={colors.white} />
+            <Icon name="arrow" size={18} color={palette.ink} />
           </Pressable>
         </View>
       )}>
@@ -186,9 +187,9 @@ const cell = { width: '14.2857%', height: 44 } as const;
 const styles = StyleSheet.create({
   pressed: { backgroundColor: colors.pressed },
   disabled: { opacity: 0.4 },
-  heading: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8, paddingTop: 16, paddingHorizontal: 20, marginBottom: 10 },
-  title: { flex: 1, fontFamily: fonts.semibold, fontSize: 20, lineHeight: 25, letterSpacing: -0.5, color: '#252525' },
-  close: { width: 44, height: 44, borderRadius: sq(22), borderCurve: 'continuous', backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' },
+  heading: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: 8, paddingBottom: 12, paddingLeft: 20, paddingRight: 16, marginBottom: 6 },
+  title: { flex: 1, fontFamily: typefaces.display, fontSize: 30, lineHeight: 34, letterSpacing: -1, color: palette.ink },
+  close: { width: 44, height: 44, borderRadius: 22, backgroundColor: palette.sand, alignItems: 'center', justifyContent: 'center' },
   body: { flexGrow: 0 },
   bodyContent: { paddingLeft: 20, paddingRight: 26, gap: 10, paddingBottom: 12 },
   modes: { flexDirection: 'row', gap: 3, padding: 3, borderRadius: sq(16), borderCurve: 'continuous', backgroundColor: colors.soft },
@@ -199,7 +200,7 @@ const styles = StyleSheet.create({
   hint: { fontFamily: fonts.regular, fontSize: 12, lineHeight: 18, color: '#777777' },
   summary: { flexDirection: 'row', gap: 4, padding: 4, borderRadius: sq(20), borderCurve: 'continuous', backgroundColor: colors.soft },
   endpoint: { flex: 1, minHeight: 52, paddingVertical: 6, paddingHorizontal: 10, gap: 2, borderRadius: sq(16), borderCurve: 'continuous' },
-  endpointActive: { backgroundColor: '#fff0e7' },
+  endpointActive: { backgroundColor: palette.yellow },
   endpointLabel: { fontFamily: fonts.regular, fontSize: 11, lineHeight: 16, color: '#777a82' },
   endpointValue: { fontFamily: fonts.semibold, fontSize: 14, lineHeight: 20, color: colors.muted },
   endpointValueActive: { color: '#ac451c' },
@@ -209,22 +210,22 @@ const styles = StyleSheet.create({
   grid: { marginTop: 2, flexDirection: 'row', flexWrap: 'wrap' },
   weekday: { width: '14.2857%', paddingVertical: 5, textAlign: 'center', fontFamily: fonts.medium, fontSize: 11, lineHeight: 16, color: '#888888' },
   day: { ...cell, borderRadius: sq(14), borderCurve: 'continuous', alignItems: 'center', justifyContent: 'center' },
-  selected: { backgroundColor: '#ed703d' },
-  between: { backgroundColor: '#fff2e9' },
+  selected: { backgroundColor: palette.pink },
+  between: { backgroundColor: palette.yellow },
   dayNumber: { fontFamily: fonts.medium, fontSize: 14, color: colors.ink },
   selectedText: { color: colors.white },
   betweenText: { color: '#a94b26' },
   message: { fontFamily: fonts.regular, fontSize: 13, color: colors.danger },
-  stops: { marginTop: 4, borderTopWidth: 1, borderTopColor: '#eeeeee', paddingTop: 6 },
+  stops: { marginTop: 4, borderTopWidth: 1, borderTopColor: palette.line, paddingTop: 6 },
   stopsHeading: { height: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   stopsLabel: { fontFamily: fonts.semibold, fontSize: 13, color: colors.muted },
   reorder: { height: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 6, borderRadius: sq(22), borderCurve: 'continuous' },
   reorderText: { fontFamily: fonts.semibold, fontSize: 14, color: colors.action },
-  stopRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: 1, borderBottomColor: '#eeeeee' },
+  stopRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: 1, borderBottomColor: palette.line },
   stopName: { flex: 1, fontFamily: fonts.semibold, fontSize: 14, color: colors.ink },
   stopRange: { fontFamily: fonts.regular, fontSize: 13, color: '#777777' },
   footer: { paddingTop: 12, paddingHorizontal: 20, paddingBottom: 12 },
-  save: { minHeight: 48, flexDirection: 'row', gap: 7, alignItems: 'center', justifyContent: 'center', borderRadius: sq(22), borderCurve: 'continuous', backgroundColor: colors.accent },
-  savePressed: { backgroundColor: colors.accentPressed },
-  saveText: { fontFamily: fonts.semibold, fontSize: 16, color: colors.white },
+  save: {  minHeight: 52, flexDirection: 'row', gap: 7, alignItems: 'center', justifyContent: 'center', borderRadius: radii.pill, borderWidth: 2, borderColor: palette.ink, backgroundColor: palette.pink  },
+  savePressed: { backgroundColor: '#F0247A' },
+  saveText: {  fontFamily: typefaces.heavy, fontSize: 16, color: palette.ink  },
 });

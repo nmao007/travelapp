@@ -12,6 +12,7 @@ import { BottomSheet } from '../sheet';
 import { autocomplete, newSession, placeDetails, type Suggestion } from '@/lib/places';
 import { clockParts, clockTime, formatClock, formatDay } from '@/lib/format';
 import { colors, fonts, sq } from '@/lib/theme';
+import { palette, typefaces } from '@/lib/design';
 import { zoneOptions } from '@/lib/time-zones';
 import type { PlanItem, Trip } from '@/lib/trips';
 
@@ -22,9 +23,9 @@ function Chip({ icon, label, onPress, active, outline, wide, trailing }: { icon?
   return (
     <Pressable accessibilityRole="button" accessibilityState={{ selected: active }} onPress={onPress}
       style={({ pressed }) => [styles.chip, wide && styles.chipWide, outline && styles.chipOutline, active && styles.chipActive, pressed && styles.pressed]}>
-      {icon ? <Icon name={icon} size={17} color={active ? colors.action : '#555555'} /> : null}
+      {icon ? <Icon name={icon} size={17} color={active ? colors.action : palette.ink} /> : null}
       <Text style={[styles.chipText, active && styles.chipTextActive, wide && styles.chipTextWide]}>{label}</Text>
-      {trailing ? <Icon name={trailing} size={16} color="#555555" /> : null}
+      {trailing ? <Icon name={trailing} size={16} color={palette.ink} /> : null}
     </Pressable>
   );
 }
@@ -115,7 +116,7 @@ export function PlanSheet({ trip, editing, onClose, commit, onSaved, onDuplicate
             <Icon name={nameEditing ? 'check' : 'edit'} size={20} color="#858a94" />
           </Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={close} style={({ pressed }) => [styles.headingButton, styles.closeButton, pressed && styles.pressed]}>
-            <Icon name="close" size={18} color="#555555" />
+            <Icon name="close" size={18} color={palette.ink} />
           </Pressable>
         </View>
       )}
@@ -236,52 +237,52 @@ function PlaceSearch({ onPick, onError }: { onPick(place: { placeId: string; nam
 const styles = StyleSheet.create({
   pressed: { backgroundColor: colors.pressed },
   flipped: { transform: [{ rotate: '180deg' }] },
-  heading: { minHeight: 77, flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingTop: 16, paddingBottom: 16, paddingLeft: 20, paddingRight: 16, borderBottomWidth: 1, borderBottomColor: '#eeeeee' },
-  name: { flex: 1, paddingVertical: 6, fontFamily: fonts.bold, fontSize: 25, lineHeight: 31, letterSpacing: -0.7, color: '#30343b' },
-  nameInput: { flex: 1, minHeight: 44, paddingVertical: 6, fontFamily: fonts.bold, fontSize: 25, lineHeight: 31, letterSpacing: -0.7, color: '#30343b' },
+  heading: { minHeight: 56, flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingTop: 8, paddingBottom: 12, paddingLeft: 20, paddingRight: 16 },
+  name: { flex: 1, paddingVertical: 4, fontFamily: typefaces.display, fontSize: 30, lineHeight: 34, letterSpacing: -1, color: palette.ink },
+  nameInput: { flex: 1, minHeight: 44, paddingVertical: 4, fontFamily: typefaces.display, fontSize: 30, lineHeight: 34, letterSpacing: -1, color: palette.ink, borderBottomWidth: 2, borderBottomColor: palette.pink },
   headingButton: { width: 44, height: 44, borderRadius: sq(22), borderCurve: 'continuous', alignItems: 'center', justifyContent: 'center' },
-  closeButton: { backgroundColor: colors.white },
+  closeButton: { backgroundColor: palette.sand },
   body: { flexGrow: 0 },
   bodyContent: { paddingTop: 28, paddingHorizontal: 16, paddingBottom: 16, gap: 12 },
   dayRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   dayLabel: { fontFamily: fonts.regular, fontSize: 14, color: colors.muted },
-  dayTrigger: { minHeight: 48, paddingVertical: 9, paddingHorizontal: 10, borderWidth: 1, borderColor: '#dddddd', backgroundColor: colors.white, justifyContent: 'space-between' },
-  dayValue: { flexShrink: 1, fontFamily: fonts.regular, fontSize: 15, color: '#333333' },
+  dayTrigger: { minHeight: 48, paddingVertical: 9, paddingHorizontal: 10, borderWidth: 1, borderColor: palette.line, backgroundColor: colors.white, justifyContent: 'space-between' },
+  dayValue: { flexShrink: 1, fontFamily: fonts.regular, fontSize: 15, color: palette.ink },
   tools: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { flexBasis: '45%', flexGrow: 1, minHeight: 44, paddingVertical: 8, paddingHorizontal: 12, gap: 4, borderRadius: sq(22), borderCurve: 'continuous', backgroundColor: '#f7f7f7', flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  chip: { flexBasis: '45%', flexGrow: 1, minHeight: 44, paddingVertical: 8, paddingHorizontal: 12, gap: 4, borderRadius: sq(22), borderCurve: 'continuous', borderWidth: 1.5, borderColor: palette.line, backgroundColor: palette.paper, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
   chipWide: { flexBasis: '100%', justifyContent: 'space-between' },
-  chipOutline: { backgroundColor: colors.white, borderWidth: 1, borderColor: '#eeeeee' },
+  chipOutline: { backgroundColor: colors.white, borderWidth: 1, borderColor: palette.line },
   // .detail-chip[aria-pressed=true]: tint with a 1px inner line in --sun.
-  chipActive: { backgroundColor: '#fff2eb', borderWidth: 1, borderColor: '#ffd9be' },
-  chipText: { fontFamily: fonts.medium, fontSize: 14, lineHeight: 18.2, color: '#555555' },
-  chipTextActive: { color: colors.action },
+  chipActive: { backgroundColor: palette.yellow, borderWidth: 2, borderColor: palette.ink },
+  chipText: { fontFamily: fonts.medium, fontSize: 14, lineHeight: 18.2, color: palette.ink },
+  chipTextActive: { fontFamily: typefaces.heavy, color: palette.ink },
   chipTextWide: { flex: 1 },
   choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   field: { gap: 6 },
-  fieldLabel: { fontFamily: fonts.bold, fontSize: 13, color: colors.muted },
-  input: { minHeight: 48, paddingVertical: 9, paddingHorizontal: 10, borderWidth: 1, borderColor: colors.inputLine, borderRadius: sq(22), borderCurve: 'continuous', backgroundColor: colors.white, fontFamily: fonts.regular, fontSize: 16, lineHeight: 24, color: '#333333' },
+  fieldLabel: { fontFamily: typefaces.bold, fontSize: 13, color: palette.muted },
+  input: {  minHeight: 48, paddingVertical: 9, paddingHorizontal: 10, borderWidth: 1.5, borderColor: palette.line, borderRadius: 16, borderCurve: 'continuous', backgroundColor: colors.white, fontFamily: fonts.regular, fontSize: 16, lineHeight: 24, color: palette.ink  },
   note: { height: 92 },
-  timePanel: { gap: 10, padding: 12, borderWidth: 1, borderColor: '#ececec', backgroundColor: colors.soft },
+  timePanel: { gap: 10, padding: 12, borderWidth: 1, borderColor: palette.line, backgroundColor: colors.soft },
   timeRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 10 },
   timeField: { flex: 1, gap: 8 },
-  timePicker: { height: 48, flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 8, borderWidth: 1, borderColor: colors.inputLine, borderRadius: sq(16), borderCurve: 'continuous', backgroundColor: '#fafbfc' },
+  timePicker: { height: 48, flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 8, borderWidth: 1, borderColor: colors.inputLine, borderRadius: sq(16), borderCurve: 'continuous', backgroundColor: palette.paper },
   timeNumber: { width: 36, height: 44, textAlign: 'center', fontFamily: fonts.regular, fontSize: 16, color: colors.ink },
   colon: { width: 8, textAlign: 'center', fontFamily: fonts.regular, fontSize: 16, color: colors.muted },
   periodTrigger: { minHeight: 44, paddingVertical: 7, paddingHorizontal: 5, backgroundColor: colors.white, justifyContent: 'space-between' },
-  periodValue: { fontFamily: fonts.regular, fontSize: 16, color: '#333333' },
-  flexible: { height: 48, paddingHorizontal: 10, borderWidth: 1, borderColor: '#ececec', borderRadius: sq(22), borderCurve: 'continuous', backgroundColor: colors.white, justifyContent: 'center' },
+  periodValue: { fontFamily: fonts.regular, fontSize: 16, color: palette.ink },
+  flexible: { height: 48, paddingHorizontal: 10, borderWidth: 1, borderColor: palette.line, borderRadius: sq(22), borderCurve: 'continuous', backgroundColor: colors.white, justifyContent: 'center' },
   flexibleText: { fontFamily: fonts.medium, fontSize: 14, color: colors.muted },
-  zoneSummary: { minHeight: 45, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#ececec', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  zoneSummary: { minHeight: 45, paddingTop: 12, borderTopWidth: 1, borderTopColor: palette.line, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   zoneLabel: { fontFamily: fonts.medium, fontSize: 13, color: colors.ink },
   error: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 19.5, color: colors.danger },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 16, borderTopWidth: 1, borderTopColor: '#eeeeee', backgroundColor: colors.white },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 16, borderTopWidth: 1.5, borderTopColor: palette.line, backgroundColor: palette.cream },
   remove: { minHeight: 44, paddingVertical: 9, paddingHorizontal: 12, borderRadius: sq(22), borderCurve: 'continuous', backgroundColor: colors.soft, justifyContent: 'center' },
   removeText: { fontFamily: fonts.medium, fontSize: 14, lineHeight: 18.2, color: colors.danger },
   done: { flex: 1, minHeight: 48, paddingVertical: 12, paddingHorizontal: 19, borderRadius: sq(22), borderCurve: 'continuous', backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
   donePressed: { backgroundColor: colors.accentPressed },
   doneText: { fontFamily: fonts.semibold, fontSize: 16, lineHeight: 20.8, color: colors.white },
   result: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8, paddingHorizontal: 8, borderRadius: sq(20), borderCurve: 'continuous' },
-  resultIcon: { width: 36, height: 36, borderRadius: sq(13), borderCurve: 'continuous', backgroundColor: '#fff2eb', alignItems: 'center', justifyContent: 'center' },
+  resultIcon: { width: 36, height: 36, borderRadius: sq(13), borderCurve: 'continuous', backgroundColor: palette.yellow, alignItems: 'center', justifyContent: 'center' },
   resultCopy: { flex: 1, minWidth: 0, gap: 3 },
   resultName: { fontFamily: fonts.bold, fontSize: 16, color: colors.ink },
   resultDetail: { fontFamily: fonts.regular, fontSize: 13, color: colors.muted },

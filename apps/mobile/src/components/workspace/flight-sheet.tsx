@@ -13,6 +13,7 @@ import { flightForm, formWithFlight, legs, lookupNotes, transportInput, type Fli
 import { autocomplete, newSession, placeDetails, placeZone, type Suggestion } from '@/lib/places';
 import { formatClock, formatDay } from '@/lib/format';
 import { colors, fonts, sq } from '@/lib/theme';
+import { palette, typefaces } from '@/lib/design';
 import { zoneOptions } from '@/lib/time-zones';
 import type { Trip } from '@/lib/trips';
 
@@ -107,7 +108,7 @@ export function FlightSheet({ trip, editing, onClose, commit, onSaved, onRemoved
         <View style={styles.heading}>
           <Text style={styles.title} accessibilityRole="header" numberOfLines={1}>{stored ? editing.segment!.service_id || editing.segment!.mode : 'Add flight'}</Text>
           <Pressable accessibilityRole="button" accessibilityLabel="Close flight editor" onPress={close} style={({ pressed }) => [styles.close, pressed && styles.pressed]}>
-            <Icon name="close" size={18} color="#555555" />
+            <Icon name="close" size={18} color={palette.ink} />
           </Pressable>
         </View>
       )}
@@ -251,46 +252,46 @@ const styles = StyleSheet.create({
   pressed: { backgroundColor: colors.pressed },
   disabled: { opacity: 0.5 },
   flipped: { transform: [{ rotate: '180deg' }] },
-  heading: { minHeight: 77, flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 16, paddingLeft: 20, paddingRight: 16, borderBottomWidth: 1, borderBottomColor: '#eeeeee' },
-  title: { flex: 1, fontFamily: fonts.bold, fontSize: 25, lineHeight: 31, letterSpacing: -0.7, color: '#252525' },
-  close: { width: 44, height: 44, borderRadius: sq(22), borderCurve: 'continuous', backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' },
+  heading: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: 8, paddingBottom: 12, paddingLeft: 20, paddingRight: 16 },
+  title: { flex: 1, fontFamily: typefaces.display, fontSize: 30, lineHeight: 34, letterSpacing: -1, color: palette.ink },
+  close: { width: 44, height: 44, borderRadius: 22, backgroundColor: palette.sand, alignItems: 'center', justifyContent: 'center' },
   body: { flexGrow: 0 },
   bodyContent: { paddingTop: 20, paddingHorizontal: 16, paddingBottom: 16, gap: 12 },
   field: { gap: 8 },
-  label: { fontFamily: fonts.bold, fontSize: 13, color: colors.muted },
-  input: { minHeight: 48, paddingVertical: 9, paddingHorizontal: 10, borderWidth: 1, borderColor: '#dddddd', borderRadius: sq(22), borderCurve: 'continuous', backgroundColor: colors.white, fontFamily: fonts.regular, fontSize: 16, lineHeight: 24, color: '#333333' },
+  label: { fontFamily: typefaces.bold, fontSize: 13, color: palette.muted },
+  input: {  minHeight: 48, paddingVertical: 9, paddingHorizontal: 10, borderWidth: 1.5, borderColor: palette.line, borderRadius: 16, borderCurve: 'continuous', backgroundColor: colors.white, fontFamily: fonts.regular, fontSize: 16, lineHeight: 24, color: palette.ink  },
   // .transport-legs h3 on phones: 16pt, 18pt above, in the action color.
   leg: { gap: 12 },
-  legTitle: { marginTop: 6, fontFamily: fonts.bold, fontSize: 16, color: colors.action },
+  legTitle: { marginTop: 6, fontFamily: typefaces.display, fontSize: 22, color: palette.ink },
   // .transport-legs .editor-pair: date and time side by side (1fr / 1.3fr, 12pt apart).
   pair: { flexDirection: 'row', gap: 12 },
   pairDate: { flex: 1, minWidth: 0 },
   pairTime: { flex: 1.3, minWidth: 0 },
-  trigger: { minHeight: 48, paddingVertical: 9, paddingHorizontal: 10, borderWidth: 1, borderColor: '#dddddd', backgroundColor: colors.white, justifyContent: 'space-between' },
-  triggerValue: { flexShrink: 1, fontFamily: fonts.regular, fontSize: 15, color: '#333333' },
-  clock: { height: 48, flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 4, borderWidth: 1, borderColor: colors.inputLine, borderRadius: sq(16), borderCurve: 'continuous', backgroundColor: '#fafbfc' },
+  trigger: { minHeight: 48, paddingVertical: 9, paddingHorizontal: 10, borderWidth: 1, borderColor: palette.line, backgroundColor: colors.white, justifyContent: 'space-between' },
+  triggerValue: { flexShrink: 1, fontFamily: fonts.regular, fontSize: 15, color: palette.ink },
+  clock: { height: 48, flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 4, borderWidth: 1, borderColor: colors.inputLine, borderRadius: sq(16), borderCurve: 'continuous', backgroundColor: palette.paper },
   clockNumber: { width: 29, height: 44, textAlign: 'center', fontFamily: fonts.regular, fontSize: 16, color: colors.ink },
   colon: { width: 6, textAlign: 'center', fontFamily: fonts.regular, fontSize: 16, color: colors.muted },
   periodTrigger: { minHeight: 44, paddingVertical: 7, paddingHorizontal: 5, justifyContent: 'space-between' },
-  periodValue: { fontFamily: fonts.regular, fontSize: 16, color: '#333333' },
+  periodValue: { fontFamily: fonts.regular, fontSize: 16, color: palette.ink },
   // .flight-results: a bordered box with the note or one row per match.
   results: { padding: 12, borderWidth: 1, borderColor: colors.line, borderRadius: sq(18), borderCurve: 'continuous' },
   note: { fontFamily: fonts.regular, fontSize: 14, lineHeight: 21, color: colors.muted },
   choice: { gap: 8, padding: 12, borderBottomWidth: 1, borderBottomColor: colors.line },
-  choicePressed: { backgroundColor: '#fff2eb' },
+  choicePressed: { backgroundColor: palette.yellow },
   choiceTitle: { fontFamily: fonts.semibold, fontSize: 15, color: colors.ink },
   choiceDetail: { fontFamily: fonts.regular, fontSize: 13, color: colors.muted },
   source: { alignSelf: 'flex-start', marginTop: 4, fontFamily: fonts.regular, fontSize: 13, lineHeight: 19.5, color: colors.muted },
   suggestion: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6, paddingHorizontal: 6, borderRadius: sq(20), borderCurve: 'continuous' },
-  suggestionIcon: { width: 36, height: 36, borderRadius: sq(13), borderCurve: 'continuous', backgroundColor: '#fff2eb', alignItems: 'center', justifyContent: 'center' },
+  suggestionIcon: { width: 36, height: 36, borderRadius: sq(13), borderCurve: 'continuous', backgroundColor: palette.yellow, alignItems: 'center', justifyContent: 'center' },
   suggestionCopy: { flex: 1, minWidth: 0, gap: 3 },
   suggestionName: { fontFamily: fonts.bold, fontSize: 15, color: colors.ink },
   suggestionDetail: { fontFamily: fonts.regular, fontSize: 13, color: colors.muted },
-  summary: { minHeight: 45, marginTop: 6, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#ececec', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  summary: { minHeight: 45, marginTop: 6, paddingTop: 12, borderTopWidth: 1, borderTopColor: palette.line, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   summaryText: { fontFamily: fonts.medium, fontSize: 14, color: colors.ink },
   notes: { height: 76 },
   error: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 19.5, color: colors.danger },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 16, borderTopWidth: 1, borderTopColor: '#eeeeee', backgroundColor: colors.white },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 16, borderTopWidth: 1, borderTopColor: palette.line, backgroundColor: palette.cream },
   remove: { minHeight: 44, paddingVertical: 9, paddingHorizontal: 12, borderRadius: sq(22), borderCurve: 'continuous', backgroundColor: colors.soft, justifyContent: 'center' },
   removeText: { fontFamily: fonts.medium, fontSize: 14, lineHeight: 18.2, color: colors.danger },
   done: { flex: 1, minHeight: 48, paddingVertical: 12, paddingHorizontal: 19, borderRadius: sq(22), borderCurve: 'continuous', backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },

@@ -5,7 +5,8 @@ import { BottomSheet } from '../sheet';
 import { Icon } from '../icons';
 import { SharedLinkPreview } from '../shared-preview';
 import { fetchSharedPreview, useSharedInbox, type SharedPlace, type SharedPreview } from '@/lib/share-inbox';
-import { colors, fonts, sq } from '@/lib/theme';
+import { colors, fonts } from '@/lib/theme';
+import { palette, radii, typefaces } from '@/lib/design';
 import type { Trip } from '@/lib/trips';
 
 // The first web address in what was pasted, always https: /api/social-preview
@@ -82,7 +83,7 @@ export function PasteLinkSheet({ visible, trip, onClose, onSaved }: { visible: b
       header={close => (
         <View style={styles.heading}>
           <Text style={styles.title}>Paste link</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={close} style={({ pressed }) => [styles.close, pressed && styles.closePressed]}><Icon name="close" size={18} color="#555555" /></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={close} style={({ pressed }) => [styles.close, pressed && styles.closePressed]}><Icon name="close" size={18} color={palette.ink} /></Pressable>
         </View>
       )}
       footer={close => (
@@ -108,20 +109,20 @@ export function PasteLinkSheet({ visible, trip, onClose, onSaved }: { visible: b
 }
 
 const styles = StyleSheet.create({
-  heading: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 16, paddingTop: 16, paddingHorizontal: 16 },
-  title: { flex: 1, fontFamily: fonts.semibold, fontSize: 20, lineHeight: 25, letterSpacing: -0.5, color: '#252525' },
-  close: { width: 44, height: 44, borderRadius: sq(22), borderCurve: 'continuous', backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' },
-  closePressed: { backgroundColor: '#ebecef' },
+  heading: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: 8, paddingBottom: 12, paddingLeft: 20, paddingRight: 16 },
+  title: { flex: 1, fontFamily: typefaces.display, fontSize: 30, lineHeight: 34, letterSpacing: -1, color: palette.ink },
+  close: { width: 44, height: 44, borderRadius: 22, backgroundColor: palette.sand, alignItems: 'center', justifyContent: 'center' },
+  closePressed: { backgroundColor: '#E8D9C0' },
   scroll: { flexGrow: 0 },
   body: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8, gap: 18 },
   field: { gap: 6 },
-  fieldLabel: { fontFamily: fonts.bold, fontSize: 13, color: colors.muted },
-  input: { minHeight: 48, paddingVertical: 9, paddingHorizontal: 10, borderWidth: 1, borderColor: colors.inputLine, borderRadius: sq(22), borderCurve: 'continuous', backgroundColor: colors.white, fontFamily: fonts.regular, fontSize: 16, lineHeight: 24, color: '#333333' },
+  fieldLabel: { fontFamily: typefaces.bold, fontSize: 13, color: palette.muted },
+  input: {  minHeight: 48, paddingVertical: 9, paddingHorizontal: 10, borderWidth: 1.5, borderColor: palette.line, borderRadius: 16, borderCurve: 'continuous', backgroundColor: colors.white, fontFamily: fonts.regular, fontSize: 16, lineHeight: 24, color: palette.ink  },
   hint: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 18, color: colors.muted },
   error: { fontFamily: fonts.regular, fontSize: 13, color: colors.danger },
   footer: { paddingTop: 12, paddingHorizontal: 16, paddingBottom: 12 },
-  save: { minHeight: 48, flexDirection: 'row', gap: 7, alignItems: 'center', justifyContent: 'center', borderRadius: sq(22), borderCurve: 'continuous', backgroundColor: colors.accent },
-  savePressed: { backgroundColor: colors.accentPressed },
-  saveText: { fontFamily: fonts.semibold, fontSize: 16, color: colors.white },
+  save: {  minHeight: 52, flexDirection: 'row', gap: 7, alignItems: 'center', justifyContent: 'center', borderRadius: radii.pill, borderWidth: 2, borderColor: palette.ink, backgroundColor: palette.pink  },
+  savePressed: { backgroundColor: '#F0247A' },
+  saveText: {  fontFamily: typefaces.heavy, fontSize: 16, color: palette.ink  },
   disabled: { opacity: 0.5 },
 });

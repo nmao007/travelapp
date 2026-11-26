@@ -1,43 +1,41 @@
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { Text } from '@/components/text';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Icon } from '@/components/icons';
 import { RecentTrip } from '@/components/recent-trip';
-import { colors, fonts, sq } from '@/lib/theme';
-import { useTrips } from '@/lib/trips';
+import { Display, PageHeader } from '@/components/ui';
+import { gutter, palette } from '@/lib/design';
+import { useTrips, type Trip } from '@/lib/trips';
 
-// Every trip, opened from home's "See all trips" once there are more than home shows.
+const today = () => { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`; };
+
+// Every trip, opened from home's "All trips": upcoming ones (and ones without
+// dates yet), then the ones already over.
 export default function TripsScreen() {
   const insets = useSafeAreaInsets();
   const { trips } = useTrips();
+  const now = today();
+  const past = trips.filter(trip => trip.endDate && trip.endDate < now);
+  const upcoming = trips.filter(trip => !past.includes(trip));
+  const open = (trip: Trip) => router.push({ pathname: '/trip/[id]', params: { id: trip.id } });
+  const section = (title: string, list: Trip[]) => list.length ? (
+    <View style={styles.section}>
+      <Display size="section" accessibilityRole="header">{`${title} · ${list.length}`}</Display>
+      {list.map(trip => <RecentTrip key={trip.id} trip={trip} index={trips.indexOf(trip)} onPress={() => open(trip)} />)}
+    </View>
+  ) : null;
   return (
-    <View style={[styles.screen, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
-          style={({ pressed }) => [styles.back, pressed && styles.pressed]}>
-          <Icon name="back" size={24} color="#222222" />
-        </Pressable>
-        <View style={styles.titleWrap}>
-          <Text style={styles.title} accessibilityRole="header">Your trips</Text>
-          <Text style={styles.subtitle}>{trips.length === 1 ? '1 trip' : `${trips.length} trips`}</Text>
-        </View>
-      </View>
+    <View style={styles.screen}>
+      <PageHeader title="Your trips" />
       <ScrollView contentContainerStyle={[styles.body, { paddingBottom: 24 + insets.bottom }]}>
-        {trips.map((trip, index) => <RecentTrip key={trip.id} trip={trip} index={index} onPress={() => router.push({ pathname: '/trip/[id]', params: { id: trip.id } })} />)}
+        {section('Upcoming', upcoming)}
+        {section('Been there', past)}
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.white },
-  // Same masthead as the Unsorted ideas page.
-  header: { minHeight: 56, flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: 16 },
-  back: { width: 44, height: 44, marginLeft: -8, alignItems: 'center', justifyContent: 'center', borderRadius: sq(22), borderCurve: 'continuous' },
-  pressed: { backgroundColor: colors.pressed },
-  titleWrap: { flex: 1, marginLeft: 12 },
-  title: { marginTop: 2, fontFamily: fonts.bold, fontSize: 23, lineHeight: 26.45, letterSpacing: -0.7, color: colors.ink },
-  subtitle: { marginTop: 3, fontFamily: fonts.regular, fontSize: 13, lineHeight: 18, color: colors.muted },
-  body: { gap: 8, paddingHorizontal: 22, paddingTop: 12 },
+  screen: { flex: 1, backgroundColor: palette.cream },
+  body: { gap: 24, paddingHorizontal: gutter, paddingTop: 8 },
+  section: { gap: 12 },
 });

@@ -14,6 +14,7 @@ import { formatDay } from '@/lib/format';
 import { haptics } from '@/lib/haptics';
 import { autocomplete, newSession, placeDetails, type Place, type Suggestion } from '@/lib/places';
 import { colors, fonts, sq } from '@/lib/theme';
+import { palette, typefaces } from '@/lib/design';
 import type { PlanItem, Stop, Trip } from '@/lib/trips';
 
 // Food and Stay from Google's place types; everything else is an Activity.
@@ -79,7 +80,7 @@ function AddSheetBody({ trip, startDay, onClose, commit, onAdded, onCustom }: {
               triggerStyle={styles.dayTrigger} valueStyle={styles.dayValue} chevronColor={colors.action} />
           </View>
           <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={close} style={({ pressed }) => [styles.close, pressed && styles.pressed]}>
-            <Icon name="close" size={18} color="#555555" />
+            <Icon name="close" size={18} color={palette.ink} />
           </Pressable>
         </View>
       )}>
@@ -112,7 +113,7 @@ function AddSheetBody({ trip, startDay, onClose, commit, onAdded, onCustom }: {
           {error ? <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text> : null}
 
           <Pressable accessibilityRole="button" onPress={() => { close(); afterSheetCloses(() => onCustom(day)); }} style={({ pressed }) => [styles.custom, pressed && styles.pressed]}>
-            <Icon name="edit" size={17} color="#555555" />
+            <Icon name="edit" size={17} color={palette.ink} />
             <Text style={styles.customText}>Write your own plan</Text>
           </Pressable>
         </ScrollView>
@@ -199,12 +200,12 @@ function IdeaThumb({ idea }: { idea: Idea }) {
 
 const styles = StyleSheet.create({
   pressed: { backgroundColor: colors.pressed },
-  heading: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingTop: 16, paddingBottom: 12, paddingLeft: 20, paddingRight: 16, borderBottomWidth: 1, borderBottomColor: '#eeeeee' },
+  heading: { minHeight: 56, flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingTop: 8, paddingBottom: 12, paddingLeft: 20, paddingRight: 16 },
   headingCopy: { flex: 1, minWidth: 0 },
-  title: { paddingTop: 6, fontFamily: fonts.bold, fontSize: 25, lineHeight: 31, letterSpacing: -0.7, color: '#30343b' },
+  title: { paddingTop: 4, fontFamily: typefaces.display, fontSize: 30, lineHeight: 34, letterSpacing: -1, color: palette.ink },
   dayTrigger: { alignSelf: 'flex-start', minHeight: 36, marginLeft: -6, paddingHorizontal: 6 },
   dayValue: { flexShrink: 1, fontFamily: fonts.semibold, fontSize: 17, color: colors.action },
-  close: { width: 44, height: 44, borderRadius: sq(22), borderCurve: 'continuous', alignItems: 'center', justifyContent: 'center' },
+  close: { width: 44, height: 44, borderRadius: 22, backgroundColor: palette.sand, alignItems: 'center', justifyContent: 'center' },
   body: { flexGrow: 0 },
   bodyContent: { paddingTop: 16, paddingHorizontal: 16, paddingBottom: 12, gap: 14 },
   searchBox: { minHeight: 54, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, borderWidth: 1.5, borderColor: colors.searchFocusLine, borderRadius: sq(26), borderCurve: 'continuous', backgroundColor: colors.searchFocusFill },
@@ -213,13 +214,13 @@ const styles = StyleSheet.create({
   list: { gap: 2 },
   sectionLabel: { marginBottom: 6, fontFamily: fonts.semibold, fontSize: 14, letterSpacing: -0.2, color: colors.sectionLabel },
   row: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8, paddingHorizontal: 8, borderRadius: sq(20), borderCurve: 'continuous' },
-  pin: { width: 40, height: 40, borderRadius: sq(14), borderCurve: 'continuous', backgroundColor: '#fff2eb', alignItems: 'center', justifyContent: 'center' },
-  thumb: { width: 40, height: 54, borderRadius: sq(12), borderCurve: 'continuous', overflow: 'hidden', backgroundColor: '#fff2eb', alignItems: 'center', justifyContent: 'center' },
+  pin: { width: 40, height: 40, borderRadius: sq(14), borderCurve: 'continuous', backgroundColor: palette.yellow, alignItems: 'center', justifyContent: 'center' },
+  thumb: { width: 40, height: 54, borderRadius: sq(12), borderCurve: 'continuous', overflow: 'hidden', backgroundColor: palette.yellow, alignItems: 'center', justifyContent: 'center' },
   rowCopy: { flex: 1, minWidth: 0, gap: 3 },
   rowName: { fontFamily: fonts.semibold, fontSize: 16, lineHeight: 20, color: colors.ink },
   rowDetail: { fontFamily: fonts.regular, fontSize: 13, color: colors.muted },
   hint: { fontFamily: fonts.regular, fontSize: 14, lineHeight: 20, color: colors.muted, textAlign: 'center' },
   empty: { alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 12 },
-  custom: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1, borderColor: '#eeeeee', borderRadius: sq(22), borderCurve: 'continuous' },
-  customText: { fontFamily: fonts.medium, fontSize: 15, color: '#555555' },
+  custom: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1, borderColor: palette.line, borderRadius: sq(22), borderCurve: 'continuous' },
+  customText: { fontFamily: fonts.medium, fontSize: 15, color: palette.ink },
 });

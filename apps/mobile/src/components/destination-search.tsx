@@ -6,7 +6,7 @@ import { router } from 'expo-router';
 import { tripStops } from '@trippilot/core/trip-model';
 import { Icon } from './icons';
 import { autocomplete, newSession, placeDetails, placeZone, type Suggestion } from '@/lib/places';
-import { colors, fonts, sq } from '@/lib/theme';
+import { palette, radii, typefaces } from '@/lib/design';
 import { useTrips, type Trip } from '@/lib/trips';
 
 // The site's home search (setupAutocomplete('destination', ...) in app.js):
@@ -18,7 +18,7 @@ export function DestinationSearch() {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const session = useRef<string | null>(null), request = useRef(0), timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  // :focus-within draws a 1px inner line in #c85b2a (.2s).
+  // Focused, the pill's shadow turns yellow (.2s).
   const focus = useSharedValue(0);
   useEffect(() => { focus.value = withTiming(focused ? 1 : 0, { duration: 200 }); }, [focused, focus]);
   const focusStyle = useAnimatedStyle(() => ({ opacity: focus.value }));
@@ -68,17 +68,21 @@ export function DestinationSearch() {
 
   return (
     <View style={styles.block}>
-      <View style={[styles.field, focused && styles.fieldFocused]}>
-        <Animated.View style={[styles.focusLine, focusStyle]} pointerEvents="none" />
-        <Icon name="search" size={23} color={colors.searchIcon} />
+      <View style={styles.shadow}>
+        <Animated.View style={[styles.shadowFill, styles.shadowFocus, focusStyle]} pointerEvents="none" />
+      </View>
+      <View style={styles.field}>
+        <Icon name="search" size={22} color={palette.yellow} strokeWidth={2.4} />
         <TextInput
           style={styles.input}
           value={query}
           onChangeText={onChange}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
-          placeholder="City, region, or place"
-          placeholderTextColor={colors.placeholder}
+          placeholder="Search a city, island, anywhere"
+          placeholderTextColor="#CFC7E6"
+          keyboardAppearance="dark"
+          selectionColor={palette.yellow}
           accessibilityLabel="Search for a destination"
           autoComplete="off"
           autoCorrect={false}
@@ -91,12 +95,12 @@ export function DestinationSearch() {
         <Animated.View style={[styles.list, revealStyle]} accessibilityRole="list">
           {suggestions.map(item => (
             <Pressable key={item.placeId} accessibilityRole="button" onPress={() => choose(item)} style={({ pressed }) => [styles.suggestion, pressed && styles.pressed]}>
-              <View style={styles.suggestionIcon}><Icon name="pin" size={20} color={colors.action} /></View>
+              <View style={styles.suggestionIcon}><Icon name="pin" size={20} color={palette.ink} strokeWidth={2.2} /></View>
               <View style={styles.copy}>
                 <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
                 {item.detail ? <Text style={styles.detail} numberOfLines={1}>{item.detail}</Text> : null}
               </View>
-              <Icon name="arrow" size={20} color={colors.muted} />
+              <Icon name="arrow" size={20} color={palette.ink} strokeWidth={2.2} />
             </Pressable>
           ))}
         </Animated.View>
@@ -106,23 +110,21 @@ export function DestinationSearch() {
 }
 
 const styles = StyleSheet.create({
-  block: { zIndex: 60 },
-  field: {
-    height: 60, paddingHorizontal: 16, gap: 10, flexDirection: 'row', alignItems: 'center',
-    borderWidth: 1.5, borderColor: colors.searchLine, borderRadius: sq(24), borderCurve: 'continuous', backgroundColor: colors.white,
-  },
-  fieldFocused: { borderColor: colors.searchFocusLine, backgroundColor: colors.searchFocusFill },
-  focusLine: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: sq(22.5), borderCurve: 'continuous', borderWidth: 1, borderColor: '#c85b2a' },
-  input: { flex: 1, height: '100%', fontFamily: fonts.regular, fontSize: 16, letterSpacing: -0.2, color: colors.ink },
-  // .suggestions: absolute, 8pt under the field, over the trip list.
+  block: { zIndex: 60, marginRight: 4, marginBottom: 4 },
+  // The pill sits on a hard orange shadow, 4pt down and right.
+  shadow: { position: 'absolute', top: 4, left: 4, right: -4, height: 58, borderRadius: radii.pill, backgroundColor: palette.orange, overflow: 'hidden' },
+  shadowFill: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  shadowFocus: { backgroundColor: palette.yellow },
+  field: { height: 58, paddingHorizontal: 20, gap: 12, flexDirection: 'row', alignItems: 'center', borderRadius: radii.pill, backgroundColor: palette.ink },
+  input: { flex: 1, height: '100%', fontFamily: typefaces.medium, fontSize: 16, color: palette.paper },
   list: {
-    position: 'absolute', top: 68, left: 0, right: 0, padding: 6, borderWidth: 1, borderColor: '#e9ebef', borderRadius: sq(24), borderCurve: 'continuous', backgroundColor: colors.white,
-    shadowColor: '#202838', shadowOpacity: 0.07, shadowRadius: 14, shadowOffset: { width: 0, height: 10 },
+    position: 'absolute', top: 70, left: 0, right: -4, padding: 6, borderRadius: radii.lg, borderCurve: 'continuous', backgroundColor: palette.paper,
+    shadowColor: palette.ink, shadowOpacity: 0.28, shadowRadius: 20, shadowOffset: { width: 0, height: 16 }, elevation: 12,
   },
-  suggestion: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 68, paddingVertical: 10, paddingHorizontal: 12, borderRadius: sq(20), borderCurve: 'continuous' },
-  pressed: { backgroundColor: colors.pressed },
-  suggestionIcon: { width: 36, height: 36, borderRadius: sq(13), borderCurve: 'continuous', backgroundColor: '#fff2eb', alignItems: 'center', justifyContent: 'center' },
+  suggestion: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 64, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 16 },
+  pressed: { backgroundColor: palette.sand },
+  suggestionIcon: { width: 36, height: 36, borderRadius: 12, backgroundColor: palette.yellow, alignItems: 'center', justifyContent: 'center' },
   copy: { flex: 1, minWidth: 0, gap: 3 },
-  name: { fontFamily: fonts.bold, fontSize: 16, color: colors.ink },
-  detail: { fontFamily: fonts.regular, fontSize: 13, color: colors.muted },
+  name: { fontFamily: typefaces.bold, fontSize: 16, color: palette.ink },
+  detail: { fontFamily: typefaces.medium, fontSize: 13, color: palette.muted },
 });
