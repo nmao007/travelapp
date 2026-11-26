@@ -8,9 +8,9 @@ import { datesForTrip } from '@trippilot/core/itinerary-model';
 import { scheduleUnassigned, destinationForDay } from '@trippilot/core/place-model';
 import { createPlanNavigation } from '@trippilot/core/plan-navigation';
 import { datesForStop, renameTrip, tripStops } from '@trippilot/core/trip-model';
-import { AccountSheet } from '@/components/account-sheet';
 import { afterSheetCloses } from '@/components/sheet';
-import { WorkspaceHeader, WorkspaceNav, type MenuAction } from '@/components/workspace/chrome';
+import { ConfirmDelete, WorkspaceHeader, WorkspaceNav, tabBarSpace, type MenuAction } from '@/components/workspace/chrome';
+import { AddMenu, type AddKind } from '@/components/workspace/add-menu';
 import { CalendarView, DayView, Timeline, dayEvents, scopedDays } from '@/components/workspace/plan-views';
 import { PlanSheet } from '@/components/workspace/plan-sheet';
 import { AddSheet } from '@/components/workspace/add-sheet';
@@ -25,6 +25,7 @@ import { IdeaSheet } from '@/components/workspace/idea-sheet';
 import { StopSheets, type StopSheetState } from '@/components/workspace/stop-sheets';
 import type { Flight } from '@/lib/flight-form';
 import { colors, fonts, sq } from '@/lib/theme';
+import { palette } from '@/lib/design';
 import { Icon } from '@/components/icons';
 import { useTrips, type PlanItem, type Trip } from '@/lib/trips';
 import { haptics } from '@/lib/haptics';
@@ -36,7 +37,8 @@ type Removal = { tripId: string; collection: string; record: PlanItem | Flight; 
 export default function TripWorkspace() {
   // tab=ideas opens on Ideas (a trip just started from a shared video).
   const { id, tab: startTab } = useLocalSearchParams<{ id: string; tab?: string }>();
-  const { ready, trips, saveTrip, deleteTrip, account, signOut } = useTrips();
+  const { ready, trips, saveTrip, deleteTrip } = useTrips();
+  const insets = useSafeAreaInsets();
   const stored = trips.find(trip => trip.id === id);
   const [trip, setTrip] = useState<Trip | null>(null);
   const [mode, setMode] = useState<Mode>('list');
@@ -50,7 +52,7 @@ export default function TripWorkspace() {
   const [datesOpen, setDatesOpen] = useState(false);
   const [stopSheet, setStopSheet] = useState<StopSheetState>(null);
   const [renaming, setRenaming] = useState(false);
-  const [accountOpen, setAccountOpen] = useState(false);
+  const [addMenu, setAddMenu] = useState<string | null>(null);
   const [pasteOpen, setPasteOpen] = useState(false);
   const [ideaOpen, setIdeaOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -125,16 +127,29 @@ export default function TripWorkspace() {
   const dayStop = stops.find(stop => stop.placeId === stopFilter) || destinationForDay(trip, stops, activeDay);
   const dayCount = dayEvents(trip, activeDay, stopFilter).length;
   const menu: MenuAction[] = [
-    { key: 'dates', label: 'Trip dates', icon: 'calendar', onPress: () => setDatesOpen(true) },
-    { key: 'rename', label: 'Rename trip', icon: 'edit', onPress: () => { if (mode === 'day') showMode('list'); setRenaming(true); } },
-    { key: 'account', label: account ? 'Sign out' : 'Sign in', onPress: () => { if (account) signOut(); else setAccountOpen(true); } },
-    ...(stops.length > 1 ? [{ key: 'reorder', label: 'Reorder stops', icon: 'list' as const, onPress: () => setStopSheet({ kind: 'order' }) }] : []),
-    { key: 'add-stop', label: 'Add destination', icon: 'plus', onPress: () => setStopSheet({ kind: 'search' }) },
-    { key: 'delete', label: confirmDelete ? 'Confirm delete' : 'Delete trip', danger: true, onPress: () => {
-      if (!confirmDelete) { haptics.warning(); setConfirmDelete(true); return true; }
-      deleteTrip(trip.id); router.back();
-    } },
+    { key: 'dates', label: 'Trip dates', onPress: () => setDatesOpen(true) },
+    ...(stops.length > 1 ? [{ key: 'reorder', label: 'Reorder stops', onPress: () => afterSheetCloses(() => setStopSheet({ kind: 'order' })) }] : []),
+    { key: 'add-stop', label: 'Add a stop', onPress: () => afterSheetCloses(() => setStopSheet({ kind: 'search' })) },
+    { key: 'rename', label: 'Rename trip', onPress: () => { if (mode === 'day') showMode('list'); setTab('plan'); setRenaming(true); } },
+    ...(tab === 'plan' && mode !== 'calendar' ? [{ key: 'month', label: 'Month view', onPress: () => chooseDay(activeDay === 'ideas' ? days[0] || 'ideas' : activeDay, 'calendar') }] : []),
+    { key: 'delete', label: 'Delete trip…', danger: true, onPress: () => { haptics.warning(); afterSheetCloses(() => setConfirmDelete(true)); } },
   ];
+  const tripDays = datesForTrip(trip) as string[];
+  // The + menu adds to the day on screen, else the trip's first day.
+  function openAddMenu() {
+    if (tab === 'ideas') { setIdeaOpen(true); return; }
+    setAddMenu(tripDays.includes(activeDay) ? activeDay : tripDays[0] || '');
+  }
+  function pickAdd(kind: AddKind) {
+    const onDay = addMenu || activeDay;
+    if (kind === 'place') openAdd(onDay);
+    else if (kind === 'link') setPasteOpen(true);
+    else if (kind === 'flight') openFlight(null, onDay);
+    else openPlan(null, onDay);
+  }
+  const counts = [
+    [(trip.items || []).length, 'plan'], [(trip.transport || []).filter(segment => !segment.draft).length, 'flight'], [((trip.boardItems as unknown[] | undefined) || []).length, 'idea'],
+  ].filter(([count]) => count).map(([count, noun]) => `${count} ${noun}${count === 1 ? '' : 's'}`);
 
   const handlers = {
     onOpen: (item: PlanItem) => openPlan(item, item.day),
@@ -145,11 +160,11 @@ export default function TripWorkspace() {
   return (
     <View style={styles.screen}>
       <WorkspaceHeader
-        trip={trip} mode={tab === 'map' ? 'list' : mode} day={activeDay} stopFilter={stopFilter} days={days}
+        trip={trip} tab={tab} mode={mode} day={activeDay} stopFilter={stopFilter} days={days}
         dayContext={`${dayStop?.name || trip.name} · ${dayCount} ${dayCount === 1 ? 'plan' : 'plans'}`}
-        onBack={tab === 'map' ? () => router.back() : back} onAdd={tab === 'ideas' ? () => setIdeaOpen(true) : undefined} addLabel={tab === 'ideas' ? 'Add an idea' : undefined}
-        addMenu={tab === 'plan' ? [{ key: 'place', label: 'Add a place or idea', icon: 'pin', onPress: () => openAdd() }, { key: 'flight', label: 'Add flight', icon: 'plane', onPress: () => openFlight(null) }] : undefined} showToggle={tab !== 'map'} onToggleMode={() => chooseDay(activeDay === 'ideas' ? days[0] || 'ideas' : activeDay, 'calendar')}
-        onStop={selectStop} onDay={next => chooseDay(next)} onRename={() => setRenaming(true)} menu={menu} onMenuOpen={() => setConfirmDelete(false)}
+        onBack={tab === 'plan' ? back : () => router.back()}
+        onShowMode={next => { if (next === 'day') chooseDay(activeDay === 'ideas' ? days[0] || 'ideas' : activeDay, 'day'); else back(); }}
+        onStop={selectStop} onDay={next => chooseDay(next)} onDates={() => setDatesOpen(true)} onRename={() => setRenaming(true)} menu={menu}
         renaming={renaming} onRenameDone={value => {
           if (!renaming) return;
           if (value !== null) { try { commit(renameTrip(trip, value) as Trip); } catch (error) { setNotice((error as Error).message); return; } }
@@ -163,7 +178,7 @@ export default function TripWorkspace() {
           if (item) openPlan(item, item.day);
         }} />
       ) : <DragProvider trip={trip} commit={commit} onDrop={next => setDay(next)} scrollRef={scroll} scrollOffset={scrollOffset}>
-        <ScrollView ref={scroll} style={styles.body} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled" scrollEventThrottle={16} onScroll={event => { scrollOffset.current = event.nativeEvent.contentOffset.y; }}>
+        <ScrollView ref={scroll} style={styles.body} contentContainerStyle={[styles.bodyContent, { paddingBottom: tabBarSpace(insets) }]} keyboardShouldPersistTaps="handled" scrollEventThrottle={16} onScroll={event => { scrollOffset.current = event.nativeEvent.contentOffset.y; }}>
           <Animated.View style={enterStyle}>
             {tab === 'ideas' ? (
               <IdeasView trip={trip} commit={commit} onNotice={setNotice} onNeedDates={() => setDatesOpen(true)} onAddIdea={() => setIdeaOpen(true)} />
@@ -182,7 +197,9 @@ export default function TripWorkspace() {
       </DragProvider>}
       <TripNotice message={notice} onHide={() => setNotice('')} />
       <RemovalNotice removal={removal} onUndo={restored => { commit(restored.trip); chooseDay(restored.day, mode === 'list' ? undefined : 'day'); setRemoval(null); }} onHide={() => setRemoval(null)} trip={trip} />
-      <WorkspaceNav active={tab} onSelect={key => { if (key === 'plan' || key === 'map' || key === 'ideas') { setTab(key); scroll.current?.scrollTo({ y: 0, animated: false }); } }} />
+      <WorkspaceNav active={tab} onAdd={openAddMenu} addLabel={tab === 'ideas' ? 'Add an idea' : 'Add a place, link, flight or note'}
+        onSelect={key => { if (key === 'plan' || key === 'map' || key === 'ideas') { setTab(key); scroll.current?.scrollTo({ y: 0, animated: false }); } }} />
+      <AddMenu visible={addMenu !== null} tripName={trip.title?.trim() || stops[0].name} day={addMenu} days={tripDays} onDay={setAddMenu} onClose={() => setAddMenu(null)} onPick={pickAdd} />
       <PlanSheet trip={trip} editing={editing} onClose={() => setEditing(null)} commit={commit}
         onSaved={item => { setDay(item.day); }} onDuplicated={copy => { chooseDay(copy.day, 'day'); }}
         onRemoved={result => { commit(result.trip); setRemoval(result.removal as Removal); }} onNeedDates={() => setDatesOpen(true)} />
@@ -199,7 +216,9 @@ export default function TripWorkspace() {
       <IdeaSheet visible={ideaOpen} trip={trip} near={dayStop || stops[0]} onClose={() => setIdeaOpen(false)} commit={commit}
         onPaste={() => setPasteOpen(true)} onSaved={setNotice} />
       <PasteLinkSheet visible={pasteOpen} trip={trip} onClose={() => setPasteOpen(false)} onSaved={() => setNotice('Added to Ideas')} />
-      <AccountSheet visible={accountOpen} onClose={() => setAccountOpen(false)} />
+      <ConfirmDelete visible={confirmDelete} title={`Delete ${trip.title?.trim() || stops.map(stop => stop.name).join(' → ')}?`}
+        detail={`${counts.length ? `${counts.join(', ')} go with it. ` : ''}This can't be undone.`}
+        onCancel={() => setConfirmDelete(false)} onConfirm={() => { setConfirmDelete(false); deleteTrip(trip.id); router.back(); }} />
     </View>
   );
 }
@@ -230,7 +249,7 @@ function TripMissing({ loading }: { loading: boolean }) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.white },
+  screen: { flex: 1, backgroundColor: palette.cream },
   back: { width: 44, height: 44, marginLeft: 8, alignItems: 'center', justifyContent: 'center', borderRadius: sq(22), borderCurve: 'continuous' },
   pressed: { backgroundColor: colors.pressed },
   missing: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, paddingBottom: 80, gap: 8 },

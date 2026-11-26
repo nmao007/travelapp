@@ -4,6 +4,8 @@ import { Text } from '@/components/text';
 import Animated, { Easing, interpolate, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import MapView, { Marker, PROVIDER_DEFAULT, PROVIDER_GOOGLE, type Region } from 'react-native-maps';
 import Constants from 'expo-constants';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { tabBarSpace } from './chrome';
 import { isContentIdea } from '@trippilot/core/board-model';
 import { datesForTrip } from '@trippilot/core/itinerary-model';
 import { mapViewURL, placeMapsURL } from '@trippilot/core/maps-links';
@@ -47,6 +49,9 @@ export function TripMap({ trip, stopFilter, commit, onNotice, onNeedDates, onOpe
   const window = useWindowDimensions();
   const [size, setSize] = useState<Size>({ width: window.width, height: window.height - 260 });
   const [ready, setReady] = useState(false);
+  // The floating tab bar covers the map's bottom; keep Apple's Legal link and
+  // the centering above it.
+  const barSpace = tabBarSpace(useSafeAreaInsets()) - 16;
   const [region, setRegion] = useState<Region | null>(null);
   const [chosen, setChosen] = useState<Chosen | null>(null);
   const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(null);
@@ -113,7 +118,7 @@ export function TripMap({ trip, stopFilter, commit, onNotice, onNeedDates, onOpe
   return (
     <View style={styles.frame} onLayout={onLayout}>
       <MapView ref={map} provider={provider} style={StyleSheet.absoluteFill} initialRegion={regionAt(stop, 12, size)}
-        onMapReady={() => setReady(true)} rotateEnabled={false} pitchEnabled={false} toolbarEnabled={false} showsCompass={false}
+        onMapReady={() => setReady(true)} mapPadding={{ top: 0, right: 0, left: 0, bottom: barSpace }} rotateEnabled={false} pitchEnabled={false} toolbarEnabled={false} showsCompass={false}
         onRegionChange={() => place(active)} onRegionChangeComplete={next => { setRegion(next); place(active); }}>
         {ideas.map(idea => <IdeaPin key={idea.id} idea={idea} selected={activeIdea?.id === idea.id} onPress={() => open({ kind: 'idea', key: idea.id }, idea)} />)}
         {entries.map(entry => <PlacePin key={planKey(entry)} entry={entry} selected={activePlan ? planKey(activePlan) === planKey(entry) : false} onPress={() => open({ kind: 'plan', key: planKey(entry) }, entry)} />)}

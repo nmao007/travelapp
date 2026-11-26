@@ -3,7 +3,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, View, useWindowDimensions, ty
 import { Text } from '@/components/text';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { Icon } from './icons';
-import { colors, fonts, sq } from '@/lib/theme';
+import { palette, radii, typefaces } from '@/lib/design';
 
 type Anchor = { x: number; y: number; width: number; height: number };
 
@@ -38,7 +38,7 @@ export function useAnchor() {
 
 // .coded-dropdown on phones: a value with a chevron that flips while open, and
 // a list of options with a check on the selected one.
-export function Dropdown<T extends string>({ value, options, onChange, label, triggerStyle, valueStyle, chevronColor = '#555555', disabled, gap = 8, fullWidth }: {
+export function Dropdown<T extends string>({ value, options, onChange, label, triggerStyle, valueStyle, chevronColor = palette.ink, disabled, gap = 8, fullWidth }: {
   value: T; options: { value: T; label: string; disabled?: boolean }[]; onChange(value: T): void; label: string;
   triggerStyle?: StyleProp<ViewStyle>; valueStyle?: StyleProp<TextStyle>; chevronColor?: string; disabled?: boolean; gap?: number; fullWidth?: boolean;
 }) {
@@ -69,7 +69,7 @@ export function Dropdown<T extends string>({ value, options, onChange, label, tr
                 onPress={() => { close(); if (!selected) onChange(option.value); }}
                 style={({ pressed }) => [styles.option, selected && styles.optionSelected, pressed && !selected && styles.pressed, option.disabled && styles.disabled]}>
                 <Text style={[styles.optionText, selected && styles.optionTextSelected]} numberOfLines={1}>{option.label}</Text>
-                <Icon name="check" size={16} color={colors.action} style={{ opacity: selected ? 1 : 0 }} />
+                <Icon name="check" size={16} strokeWidth={2.6} color={palette.ink} style={{ opacity: selected ? 1 : 0 }} />
               </Pressable>
             );
           })}
@@ -81,18 +81,18 @@ export function Dropdown<T extends string>({ value, options, onChange, label, tr
 
 const OPTION = 44;
 const styles = StyleSheet.create({
+  // The redesign's menu panel: white, 22pt corners, a soft ink shadow.
   panel: {
-    position: 'absolute', padding: 6, borderWidth: 1, borderColor: '#e6e6e6', backgroundColor: colors.white, borderRadius: sq(18), borderCurve: 'continuous',
-    shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 12, shadowOffset: { width: 0, height: 6 },
+    position: 'absolute', padding: 6, backgroundColor: palette.paper, borderRadius: radii.lg, borderCurve: 'continuous',
+    shadowColor: palette.ink, shadowOpacity: 0.28, shadowRadius: 20, shadowOffset: { width: 0, height: 16 }, elevation: 12,
   },
-  trigger: { minHeight: 44, flexDirection: 'row', alignItems: 'center', borderRadius: sq(22), borderCurve: 'continuous' },
-  pressed: { backgroundColor: colors.pressed },
+  trigger: { minHeight: 44, flexDirection: 'row', alignItems: 'center', borderRadius: radii.pill },
+  pressed: { backgroundColor: palette.sand },
   flipped: { transform: [{ rotate: '180deg' }] },
   menu: {},
-  option: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 14, paddingVertical: 9, paddingHorizontal: 10, borderRadius: sq(16), borderCurve: 'continuous' },
-  optionSelected: { backgroundColor: '#fff2eb' },
-  // The site asks for weight 550; with DM Sans's static weights that renders as 600.
-  optionText: { flexShrink: 1, fontFamily: fonts.semibold, fontSize: 15, color: '#333333' },
-  optionTextSelected: { fontFamily: fonts.semibold },
-  disabled: { opacity: 0.25 },
+  option: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 14, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 14 },
+  optionSelected: { backgroundColor: palette.sand },
+  optionText: { flexShrink: 1, fontFamily: typefaces.semibold, fontSize: 16, color: palette.ink },
+  optionTextSelected: { fontFamily: typefaces.heavy },
+  disabled: { opacity: 0.3 },
 });

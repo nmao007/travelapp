@@ -2,14 +2,15 @@ import { useEffect, useRef } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/text';
 import Animated, { FadeInDown, FadeOutDown } from 'react-native-reanimated';
+import { tabBarSpace } from './chrome';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { restoreItineraryEvent } from '@trippilot/core/itinerary-model';
 import { Icon } from '../icons';
 import { colors, fonts, sq } from '@/lib/theme';
 import type { Trip } from '@/lib/trips';
 
-// Both notices float 12pt above the tab bar (#removal-notice: bottom 78px).
-function useBottom() { return 78 + useSafeAreaInsets().bottom; }
+// Both notices float 12pt above the floating tab bar.
+function useBottom() { return tabBarSpace(useSafeAreaInsets()) - 4; }
 
 // #trip-status: a short message that clears itself after 3.5s.
 export function TripNotice({ message, onHide }: { message: string; onHide(): void }) {

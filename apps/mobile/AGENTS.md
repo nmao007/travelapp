@@ -2,7 +2,7 @@ This is an Expo/React Native mobile application. Prioritize mobile-first pattern
 
 ## This project
 
-Elsewhere's native app, converted from the web app in `../../site`. The app leads: only features on `ROADMAP.md` are built. When a kept feature exists on the site, convert its code and match the site's phone layout (layout, copy, measurements, motion) rather than redesigning it; features the roadmap drops are not ported. Trip rules live in `../../packages/core/src`. How to run it and what's built: `README.md`. What's left, in order, through publishing: `ROADMAP.md`; tick items off there as they land.
+Elsewhere's native app, converted from the web app in `../../site`. The app leads: only features on `ROADMAP.md` are built. When a kept feature exists on the site, convert its logic from the site; features the roadmap drops are not ported. The look follows the redesign (Claude Design canvas "Elsewhere — maximalist redesign"): tokens in `src/lib/design.ts`, building blocks in `src/components/ui`, preview at `elsewhere://design` in development builds. Screens not yet redone still use `src/lib/theme.ts`. Trip rules live in `../../packages/core/src`. How to run it and what's built: `README.md`. What's left, in order, through publishing: `ROADMAP.md`; tick items off there as they land.
 
 ## Expo has changed — do not trust your training data
 
