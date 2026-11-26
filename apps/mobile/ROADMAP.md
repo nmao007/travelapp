@@ -38,14 +38,14 @@ For now flights are entered by hand (tested in the iOS Simulator). Lookup turns 
 
 ## Milestone 4: Required before submitting to Apple
 
-- [ ] **Delete account** inside the app (Apple requires it for apps with sign-up).
-- [ ] **Rename `trippilot` to Elsewhere**: bundle ID `app.trippilot.mobile`, Android package, `scheme`, `slug`, the app group `group.app.trippilot.mobile` and the share target bundle. Store IDs can't change after the first upload.
-- [ ] Privacy policy and support pages on the site.
-- [ ] Crash reporting (for example Sentry).
+- [x] **Delete account** inside the app: the home screen's account menu (your initial, top right) has Sign out, Delete account, and links to the privacy and support pages. Deleting calls `delete_account()` (`supabase/migrations/202611250001_delete_account.sql`), which removes the Supabase user; their trips and ideas go with it.
+- [x] **Rename `trippilot` to Elsewhere**: bundle ID `app.elsewhere.mobile` (share extension `app.elsewhere.mobile.share`), Android package, scheme `elsewhere`, slug, and app group `group.app.elsewhere.mobile`. Store IDs can't change after the first upload. Internal names (`@trippilot/core`, storage keys) stay.
+- [x] Privacy policy and support pages on the site: `/privacy` and `/support` (`site/dist/privacy.html`, `support.html`). Fill in the support email before publishing.
+- [x] Crash reporting with Sentry (`src/lib/crash-reports.ts`): off until `EXPO_PUBLIC_SENTRY_DSN` is set, and never in development builds. See `.env.example`.
 
 ## Milestone 5: Real people, real trips
 
-1. **Server**: fix the Vercel deploy so the live site runs current code; a server Google key with Places API (New); restrict the keys; set `EXPO_PUBLIC_API_URL` in `apps/mobile/.env`; check Supabase row-level security.
+1. **Server**: apply the Supabase migrations (`delete_account`); fix the Vercel deploy so the live site runs current code; a server Google key with Places API (New); restrict the keys; set `EXPO_PUBLIC_API_URL` in `apps/mobile/.env`; check Supabase row-level security.
 2. **Apple Developer Program ($99/year)**: `eas build`; move the sign-in to the shared keychain so the share extension saves straight to the account.
 3. **Test sharing** from the real TikTok and Instagram apps on an iPhone.
 4. **TestFlight** with friends planning real trips. Write down what they ask for.

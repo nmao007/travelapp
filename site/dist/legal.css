@@ -1,0 +1,15 @@
+/* The privacy policy and support pages (privacy.html, support.html). */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+:root { --ink: #30343b; --muted: #6b7280; --accent: #f75f25; --action: #2f6fdb; --line: #eeeeee; --bg: #ffffff; }
+@media (prefers-color-scheme: dark) { :root { --ink: #ececec; --muted: #a3a3a3; --line: #2c2c2c; --bg: #141414; --action: #7aa7ff; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 'DM Sans', system-ui, sans-serif; -webkit-text-size-adjust: 100%; }
+main { max-width: 680px; margin: 0 auto; padding: 32px 20px 64px; }
+.brand { display: inline-block; margin-bottom: 28px; font-weight: 700; font-size: 21px; letter-spacing: -0.9px; color: var(--ink); text-decoration: none; }
+.brand span { color: var(--accent); }
+h1 { margin: 0 0 4px; font-size: 32px; line-height: 1.15; letter-spacing: -1px; }
+h2 { margin: 36px 0 8px; font-size: 20px; letter-spacing: -0.5px; }
+.updated { margin: 0 0 24px; color: var(--muted); font-size: 14px; }
+ul { padding-left: 20px; }
+li { margin: 6px 0; }
+a { color: var(--action); }

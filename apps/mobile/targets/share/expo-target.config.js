@@ -4,7 +4,7 @@
 /** @type {import('@bacons/apple-targets/app.plugin').ConfigFunction} */
 module.exports = (config) => ({
   type: 'share',
-  name: 'TripPilotShare',
+  name: 'ElsewhereShare',
   displayName: 'Elsewhere',
   bundleIdentifier: '.share',
   deploymentTarget: '17.0',

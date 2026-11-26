@@ -19,6 +19,14 @@
       "destination": "/app.html"
     },
     {
+      "source": "/privacy",
+      "destination": "/privacy.html"
+    },
+    {
+      "source": "/support",
+      "destination": "/support.html"
+    },
+    {
       "source": "/preview",
       "destination": "/preview.html"
     }

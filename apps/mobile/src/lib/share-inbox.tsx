@@ -13,7 +13,7 @@ import { useTrips, type Trip } from './trips';
 // them to the app group inbox; Android's share screen (src/app/share.tsx)
 // calls saveShared directly. Shares with a trip become Inbox cards on that
 // trip's Ideas board; the rest wait here until they're added to a trip.
-const APP_GROUP = 'group.app.trippilot.mobile';
+const APP_GROUP = 'group.app.elsewhere.mobile';
 const INBOX_KEY = 'importInbox';
 const CONTEXT_KEY = 'shareContext';
 const UNASSIGNED_KEY = 'trippilot-shared-inbox';

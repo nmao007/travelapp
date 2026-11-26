@@ -11,7 +11,7 @@ import UniformTypeIdentifiers
 // The app writes "shareContext" (API address and trips) to the app group; see
 // src/lib/share-inbox.tsx. Fonts are the app's DM Sans, bundled in this folder.
 
-private let appGroup = "group.app.trippilot.mobile"
+private let appGroup = "group.app.elsewhere.mobile"
 private let inboxKey = "importInbox"
 private let contextKey = "shareContext"
 private let lastTripKey = "lastShareTrip"

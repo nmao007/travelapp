@@ -328,6 +328,10 @@ export async function handleRequest(request, response) {
   assets.set('/board-touch.js', 'board-touch.js');
   assets.set('/ideas-board.css', 'ideas-board.css');
   assets.set('/desktop.css', 'desktop.css');
+  // The privacy policy and support pages the App Store listing links to.
+  assets.set('/privacy', 'privacy.html');
+  assets.set('/support', 'support.html');
+  assets.set('/legal.css', 'legal.css');
   const asset = assets.get(pathname);
   if (!asset) { response.writeHead(404); response.end('Not found'); return; }
   try {

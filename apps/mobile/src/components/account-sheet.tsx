@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text, TextInput } from '@/components/text';
 import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { Icon } from './icons';
+import { apiUrl } from '@/lib/config';
 import { colors, fonts, sq } from '@/lib/theme';
 import { useTrips } from '@/lib/trips';
 
@@ -95,6 +96,9 @@ export function AccountSheet({ visible, onClose }: { visible: boolean; onClose()
             <Pressable accessibilityRole="button" onPress={switchMode} style={({ pressed }) => [styles.toggle, pressed && styles.pressed]}>
               <Text style={styles.toggleText}>{text.toggle}</Text>
             </Pressable>
+            <Text style={styles.privacy}>
+              Your trips are kept private. <Text accessibilityRole="link" onPress={() => Linking.openURL(`${apiUrl}/privacy`)} style={styles.privacyLink}>Privacy policy</Text>
+            </Text>
           </ScrollView>
         </Animated.View>
       </KeyboardAvoidingView>
@@ -127,6 +131,8 @@ const styles = StyleSheet.create({
   submitText: { fontFamily: fonts.semibold, fontSize: 16, lineHeight: 20.8, color: colors.white },
   toggle: { alignSelf: 'center', minHeight: 44, paddingHorizontal: 6, borderRadius: sq(22), borderCurve: 'continuous', justifyContent: 'center' },
   toggleText: { fontFamily: fonts.bold, fontSize: 14, color: colors.action, textDecorationLine: 'underline', textDecorationColor: colors.action },
+  privacy: { textAlign: 'center', fontFamily: fonts.regular, fontSize: 13, lineHeight: 19.5, color: colors.muted },
+  privacyLink: { color: colors.action, textDecorationLine: 'underline' },
   pressed: { backgroundColor: colors.pressed },
   iconPressed: { transform: [{ scale: 0.9 }] },
 });

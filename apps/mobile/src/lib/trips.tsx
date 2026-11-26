@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient, type Session, type SupabaseClient } from '@supabase/supabase-js';
-import { createCloudSync } from '@trippilot/core/cloud-sync';
+import { createCloudSync, TRIPS_KEY } from '@trippilot/core/cloud-sync';
 import { normalizeTrip } from '@trippilot/core/trip-model';
 import type { Place } from './places';
 import { loadConfig } from './config';
@@ -39,6 +39,7 @@ type TripsContextValue = {
   signIn(email: string, password: string): Promise<void>;
   createAccount(email: string, password: string): Promise<void>;
   signOut(): Promise<void>;
+  deleteAccount(): Promise<void>;
   saveTrip(trip: Trip): Trip;
   deleteTrip(id: string): void;
   createOrOpenTrip(place: Place): Trip;
@@ -185,6 +186,24 @@ export function TripsProvider({ children }: { children: ReactNode }) {
       try { await (await supabase()).auth.signOut({ scope: 'local' }); } catch { /* Clear the local session even if the network is unavailable. */ }
       setAccount(null);
       await refresh(null);
+    },
+    // Deletes the Supabase user (supabase/migrations/202611250001_delete_account.sql);
+    // their trips and ideas go with it. Then forget this phone's copy.
+    async deleteAccount() {
+      if (!account) return;
+      try { await restRequest('rpc/delete_account', { method: 'POST', body: '{}' }); }
+      catch (error) {
+        const message = (error as Error).message || '';
+        throw new Error(/schema cache|delete_account/i.test(message) ? "Account deletion isn't available on the server yet. Nothing was deleted."
+          : /network request failed/i.test(message) ? "You're offline. Nothing was deleted; try again when you're back online."
+          : message || "Your account couldn't be deleted. Nothing was changed.");
+      }
+      const prefix = `${TRIPS_KEY}:user:${account.id}`;
+      await AsyncStorage.multiRemove([prefix, `${prefix}:pending`, `${prefix}:versions`]).catch(() => {});
+      try { await (await supabase()).auth.signOut({ scope: 'local' }); } catch { /* The user no longer exists; clear the session regardless. */ }
+      setAccount(null);
+      await refresh(null);
+      showHomeStatus('Your account and its trips were deleted.');
     },
   }), [ready, account, trips, homeStatus, showHomeStatus, saveTrip, deleteTrip, createOrOpenTrip, finishSignIn, sync, refresh]);
 

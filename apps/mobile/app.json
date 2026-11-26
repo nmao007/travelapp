@@ -1,17 +1,17 @@
 {
   "expo": {
     "name": "Elsewhere",
-    "slug": "trippilot",
+    "slug": "elsewhere",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "app.trippilot.mobile",
+      "bundleIdentifier": "app.elsewhere.mobile",
       "entitlements": {
         "com.apple.security.application-groups": [
-          "group.app.trippilot.mobile"
+          "group.app.elsewhere.mobile"
         ]
       }
     },
@@ -23,7 +23,7 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "app.trippilot.mobile"
+      "package": "app.elsewhere.mobile"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -34,6 +34,6 @@
       "@bacons/apple-targets",
       ["expo-share-intent", { "disableIOS": true, "androidIntentFilters": ["text/*"] }]
     ],
-    "scheme": "trippilot"
+    "scheme": "elsewhere"
   }
 }

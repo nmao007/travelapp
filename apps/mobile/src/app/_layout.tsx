@@ -1,4 +1,5 @@
 import '@/lib/polyfills';
+import { withCrashReports } from '@/lib/crash-reports';
 import { DMSans_400Regular, DMSans_500Medium, DMSans_600SemiBold, DMSans_700Bold, useFonts } from '@expo-google-fonts/dm-sans';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -10,7 +11,7 @@ import { Platform } from 'react-native';
 import { SharedInboxProvider } from '@/lib/share-inbox';
 import { AndroidShareHandler } from '@/components/android-share';
 
-export default function RootLayout() {
+function RootLayout() {
   const [fontsLoaded] = useFonts({ DMSans_400Regular, DMSans_500Medium, DMSans_600SemiBold, DMSans_700Bold });
   if (!fontsLoaded) return null;
   return (
@@ -31,3 +32,5 @@ export default function RootLayout() {
     </ShareIntentProvider>
   );
 }
+
+export default withCrashReports(RootLayout);
