@@ -2,11 +2,12 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
 import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, sq } from '@/lib/theme';
+import { palette, radii } from '@/lib/design';
+import { Grabber } from './ui/surfaces';
 
-// The site's phone .editor-dialog: a sheet attached to the bottom edge with
-// 42pt top corners. It appears at once while the backdrop fades in (160ms) and
-// closes by fading down 18pt (closeDialogSmooth in motion.js).
+// A sheet attached to the bottom edge: cream, 34pt top corners and a drag
+// handle (the redesign). It appears at once while the backdrop fades in
+// (160ms) and closes by fading down 18pt.
 // iOS can't present a sheet while another is still dismissing, so a sheet that
 // hands over to another runs the next step once its own close has finished.
 export const afterSheetCloses = (next: () => void) => { setTimeout(next, 450); };
@@ -39,6 +40,7 @@ export function BottomSheet({ visible, onClose, children, footer, header }: { vi
       <KeyboardAvoidingView style={[styles.fill, { paddingTop: insets.top + 12 }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel="Close" />
         <Animated.View style={[styles.sheet, cardStyle]} accessibilityViewIsModal>
+          <View style={styles.handle}><Grabber /></View>
           {fill(header, close)}
           {fill(children, close)}
           {footer ? <View style={{ paddingBottom: bottom }}>{fill(footer, close)}</View> : <View style={{ height: bottom }} />}
@@ -50,11 +52,11 @@ export function BottomSheet({ visible, onClose, children, footer, header }: { vi
 
 
 const styles = StyleSheet.create({
-  backdrop: { backgroundColor: colors.backdrop },
+  backdrop: { backgroundColor: palette.scrim },
   fill: { flex: 1, justifyContent: 'flex-end' },
   sheet: {
     // Shrinks to the room above the keyboard; the sheet's own list scrolls.
-    flexShrink: 1, backgroundColor: colors.white, borderTopLeftRadius: sq(42), borderTopRightRadius: sq(42), borderCurve: 'continuous', overflow: 'hidden',
-    shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 15, shadowOffset: { width: 0, height: -5 },
+    flexShrink: 1, backgroundColor: palette.cream, borderTopLeftRadius: radii.sheet, borderTopRightRadius: radii.sheet, borderCurve: 'continuous', overflow: 'hidden',
   },
+  handle: { paddingTop: 12 },
 });
