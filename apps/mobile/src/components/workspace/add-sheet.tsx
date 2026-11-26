@@ -8,7 +8,7 @@ import { destinationForDay } from '@trippilot/core/place-model';
 import { tripStops } from '@trippilot/core/trip-model';
 import { Art, Icon } from '../icons';
 import { Dropdown } from '../popover';
-import { BottomSheet } from '../sheet';
+import { BottomSheet, afterSheetCloses } from '../sheet';
 import { ideaOnDay, ideaScheduled, providerLabel, type Idea } from './ideas-view';
 import { formatDay } from '@/lib/format';
 import { haptics } from '@/lib/haptics';
@@ -111,7 +111,7 @@ function AddSheetBody({ trip, startDay, onClose, commit, onAdded, onCustom }: {
           </PlaceSearch>
           {error ? <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text> : null}
 
-          <Pressable accessibilityRole="button" onPress={() => { close(); onCustom(day); }} style={({ pressed }) => [styles.custom, pressed && styles.pressed]}>
+          <Pressable accessibilityRole="button" onPress={() => { close(); afterSheetCloses(() => onCustom(day)); }} style={({ pressed }) => [styles.custom, pressed && styles.pressed]}>
             <Icon name="edit" size={17} color="#555555" />
             <Text style={styles.customText}>Write your own plan</Text>
           </Pressable>

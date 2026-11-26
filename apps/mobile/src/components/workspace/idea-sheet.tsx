@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from '@/components/text';
 import { addSharedIdea, unplacedIdea } from '@trippilot/core/board-model';
 import { Icon } from '../icons';
-import { BottomSheet } from '../sheet';
+import { BottomSheet, afterSheetCloses } from '../sheet';
 import { PlaceSearch, kindFor } from './add-sheet';
 import type { Idea } from './ideas-view';
 import { haptics } from '@/lib/haptics';
@@ -80,7 +80,7 @@ function IdeaSheetBody({ trip, near, onClose, commit, onPaste, onSaved }: {
             <PlaceSearch near={near} placeholder={`Search places in ${near.name}`} autoFocus onPick={place => savePlace(place, close)} onError={setError}
               extra={query => <Option icon="edit" label={`Save “${query}” as a note`} detail="Keep it without a place" onPress={() => { setTitle(query); setWriting(true); setError(''); }} />}>
               <View style={styles.options}>
-                <Option icon="link" label="Paste a link" detail="A video, article or website" onPress={() => { close(); onPaste(); }} />
+                <Option icon="link" label="Paste a link" detail="A video, article or website" onPress={() => { close(); afterSheetCloses(onPaste); }} />
                 <Option icon="edit" label="Write a note" detail="Something without a place yet" onPress={() => { setWriting(true); setError(''); }} />
               </View>
             </PlaceSearch>

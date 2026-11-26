@@ -7,6 +7,10 @@ import { colors, sq } from '@/lib/theme';
 // The site's phone .editor-dialog: a sheet attached to the bottom edge with
 // 42pt top corners. It appears at once while the backdrop fades in (160ms) and
 // closes by fading down 18pt (closeDialogSmooth in motion.js).
+// iOS can't present a sheet while another is still dismissing, so a sheet that
+// hands over to another runs the next step once its own close has finished.
+export const afterSheetCloses = (next: () => void) => { setTimeout(next, 450); };
+
 type Slot = ReactNode | ((close: () => void) => ReactNode);
 const fill = (slot: Slot, close: () => void) => typeof slot === 'function' ? slot(close) : slot;
 

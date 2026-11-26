@@ -9,6 +9,7 @@ import { scheduleUnassigned, destinationForDay } from '@trippilot/core/place-mod
 import { createPlanNavigation } from '@trippilot/core/plan-navigation';
 import { datesForStop, renameTrip, tripStops } from '@trippilot/core/trip-model';
 import { AccountSheet } from '@/components/account-sheet';
+import { afterSheetCloses } from '@/components/sheet';
 import { WorkspaceHeader, WorkspaceNav, type MenuAction } from '@/components/workspace/chrome';
 import { CalendarView, DayView, Timeline, dayEvents, scopedDays } from '@/components/workspace/plan-views';
 import { PlanSheet } from '@/components/workspace/plan-sheet';
@@ -191,7 +192,7 @@ export default function TripWorkspace() {
         onSaved={segment => { setDay(segment.departure_date); }}
         onRemoved={result => { commit(result.trip); setRemoval(result.removal as Removal); }} /> : null}
       <TripDatesSheet visible={datesOpen} trip={trip} onClose={() => setDatesOpen(false)} commit={commit} onError={setNotice}
-        onReorder={stops.length > 1 ? () => { setDatesOpen(false); setStopSheet({ kind: 'order' }); } : undefined}
+        onReorder={stops.length > 1 ? () => { setDatesOpen(false); afterSheetCloses(() => setStopSheet({ kind: 'order' })); } : undefined}
         onSaved={() => { const first = datesForStop(trip, stopFilter || stops[0].placeId)[0]; if (first && !days.includes(day)) setDay(first); }} />
       <StopSheets state={stopSheet} trip={trip} commit={commit} onClose={() => setStopSheet(null)} onError={setNotice}
         onStopAdded={placeId => selectStop(placeId)} onStopRemoved={() => { const first = (tripStops(trip) as Trip['stops'])[0]; selectStop(first.placeId); }} />

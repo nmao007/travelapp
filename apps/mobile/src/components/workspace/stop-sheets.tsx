@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from '@/components/text';
 import { addStop, removeStop, reorderStops, setStopDates, stopSchedule, tripStops } from '@trippilot/core/trip-model';
 import { Icon } from '../icons';
-import { BottomSheet } from '../sheet';
+import { BottomSheet, afterSheetCloses } from '../sheet';
 import { RangeCalendar } from './trip-dates-sheet';
 import { stopRangeLabel } from './chrome';
 import { autocomplete, newSession, placeDetails, placeZone, type Place, type Suggestion } from '@/lib/places';
@@ -148,7 +148,7 @@ function StopEditor({ visible, editing, trip, commit, onClose, onError, onStopAd
               {extendsTrip ? <Text style={styles.effect}>{`Trip dates will extend to ${dateLabel(trip.startDate && trip.startDate < dates.start ? trip.startDate : dates.start)} – ${dateLabel(trip.endDate && trip.endDate > dates.end ? trip.endDate : dates.end)}.`}</Text> : null}
               {editing ? (
                 <View style={styles.routeActions}>
-                  {entries.length > 1 ? <Pressable accessibilityRole="button" onPress={() => { onReorder(); close(); }} style={({ pressed }) => [styles.quiet, pressed && styles.pressed]}><Icon name="list" size={17} color="#555555" /><Text style={styles.quietText}>Reorder</Text></Pressable> : null}
+                  {entries.length > 1 ? <Pressable accessibilityRole="button" onPress={() => { close(); afterSheetCloses(onReorder); }} style={({ pressed }) => [styles.quiet, pressed && styles.pressed]}><Icon name="list" size={17} color="#555555" /><Text style={styles.quietText}>Reorder</Text></Pressable> : null}
                   <Pressable accessibilityRole="button" disabled={entries.length < 2} onPress={() => {
                     try { const name = pending.name; commit(removeStop(trip, pending.placeId) as Trip); close(); onStopRemoved(); onError(`Removed ${name}`); }
                     catch (error) { setStatus({ text: (error as Error).message, error: true }); }
