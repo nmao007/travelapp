@@ -55,6 +55,7 @@ export default function TripWorkspace() {
   const [addMenu, setAddMenu] = useState<string | null>(null);
   const [pasteOpen, setPasteOpen] = useState(false);
   const [ideaOpen, setIdeaOpen] = useState(false);
+  const [focusIdea, setFocusIdea] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [notice, setNotice] = useState('');
   const [removal, setRemoval] = useState<Removal | null>(null);
@@ -169,7 +170,7 @@ export default function TripWorkspace() {
         }}
       />
       {tab === 'map' ? (
-        <TripMap trip={trip} stopFilter={stopFilter} commit={commit} onNotice={setNotice} onNeedDates={() => setDatesOpen(true)} onOpenPlan={placeId => {
+        <TripMap trip={trip} stopFilter={stopFilter} day={activeDay} days={days} onDay={next => setDay(next)} focusIdea={focusIdea} onFocused={() => setFocusIdea(null)} commit={commit} onNotice={setNotice} onNeedDates={() => setDatesOpen(true)} onOpenPlan={placeId => {
           const items = (trip.items || []).filter(item => item.placeId === placeId || item.id === placeId);
           const item = items.find(item => item.day === activeDay) || items[0];
           if (item) openPlan(item, item.day);
@@ -178,7 +179,8 @@ export default function TripWorkspace() {
         <ScrollView ref={scroll} style={styles.body} contentContainerStyle={[styles.bodyContent, { paddingBottom: tabBarSpace(insets) }]} keyboardShouldPersistTaps="handled" scrollEventThrottle={16} onScroll={event => { scrollOffset.current = event.nativeEvent.contentOffset.y; }}>
           <Animated.View style={enterStyle}>
             {tab === 'ideas' ? (
-              <IdeasView trip={trip} commit={commit} onNotice={setNotice} onNeedDates={() => setDatesOpen(true)} onAddIdea={() => setIdeaOpen(true)} />
+              <IdeasView trip={trip} commit={commit} onNotice={setNotice} onNeedDates={() => setDatesOpen(true)} onAddIdea={() => setIdeaOpen(true)}
+                onPasteLink={() => setPasteOpen(true)} onShowOnMap={ideaId => { setFocusIdea(ideaId); setTab('map'); }} />
             ) : mode === 'list' ? (
               <Timeline trip={trip} stopFilter={stopFilter} {...handlers} onChooseDay={next => chooseDay(next, 'day')} onChooseDates={() => setDatesOpen(true)}
                 onSetStopDates={() => stopFilter && setStopSheet({ kind: 'dates', placeId: stopFilter })} onAddPlan={next => openAdd(next)} />

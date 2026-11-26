@@ -67,7 +67,7 @@ export function WorkspaceHeader({ trip, tab, mode, stopFilter, onBack, onShowMod
     <View style={[styles.masthead, { paddingTop: insets.top + 8 }]}>
       <View style={styles.bar}>
         <IconButton icon="back" label={inDay || mode === 'calendar' ? 'Back to plan' : 'Back to trips'} onPress={onBack} />
-        {inDay ? <Display size="card" numberOfLines={1} style={styles.barTitle}>{custom || stops.map(stop => stop.name).join(' → ')}</Display> : <View style={styles.flex} />}
+        {inDay || tab !== 'plan' ? <Display size="card" numberOfLines={1} style={styles.barTitle}>{custom || stops.map(stop => stop.name).join(' → ')}</Display> : <View style={styles.flex} />}
         {entries.length > 1 ? (
           <Dropdown value={stopFilter || entries[0].stop.placeId} label="Choose destination"
             options={entries.map(entry => ({ value: entry.stop.placeId, label: `${entry.stop.name} · ${stopRangeLabel(entry)}` }))}
@@ -76,7 +76,7 @@ export function WorkspaceHeader({ trip, tab, mode, stopFilter, onBack, onShowMod
         <TripMenu actions={menu} />
       </View>
 
-      {!inDay ? (
+      {tab === 'plan' && !inDay ? (
         renaming ? <TitleInput initial={custom || stops.map(stop => stop.name).join(' → ')} onDone={onRenameDone} /> : (
           <Pressable accessibilityRole="button" accessibilityLabel={`${custom || stops.map(stop => stop.name).join(' to ')}. Rename trip`} onPress={onRename} style={styles.titleButton}>
             <Display size="title" accessibilityRole="header">

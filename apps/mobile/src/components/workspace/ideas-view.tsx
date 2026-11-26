@@ -1,14 +1,16 @@
 import { useState } from 'react';
-import { Image, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { Text } from '@/components/text';
+import { ActionSheetIOS, Alert, Image, Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text, TIGHT_SCALE } from '@/components/text';
 import { isContentIdea, removeBoardObjects, withBoardChange } from '@trippilot/core/board-model';
 import { datesForTrip, makePlan } from '@trippilot/core/itinerary-model';
 import { BottomSheet } from '../sheet';
-import { Art, Icon } from '../icons';
+import { Icon } from '../icons';
+import { Accent, Button, Chip, Display, Raised, SheetHeader, Sticker } from '../ui';
+import { planKind } from './plan-row';
 import { formatDay } from '@/lib/format';
 import { useSharedInbox, type SharedLink } from '@/lib/share-inbox';
 import { PROVIDERS } from '../shared-preview';
-import { colors, fonts, sq } from '@/lib/theme';
+import { gutter, kindColors, palette, radii, strokes, typefaces } from '@/lib/design';
 import type { PlanItem, Trip } from '@/lib/trips';
 import { haptics } from '@/lib/haptics';
 
@@ -17,61 +19,96 @@ export type Idea = { id: string; type: string; title?: string; image?: string; u
 export const providerLabel = (idea: { provider?: string; url?: string }) => PROVIDERS[idea.provider || ''] || (() => { try { return new URL(idea.url || '').hostname.replace(/^www\./, ''); } catch { return ''; } })();
 
 // How to send a video in from another app (the share extension / share screen).
-const SHARE_STEPS = ['Tap Share on the video', 'Choose Elsewhere. The first time, it may be under More', 'Pick this trip and the place, then Save'];
+const SHARE_STEPS = ['Spot a place in a video', 'Tap Share, then Elsewhere', 'Pick this trip and Save'];
 
-// The Ideas tab as cards: videos and links shared into the app, and the
-// trip's other board ideas. Each can be added to a day of the plan.
-export function IdeasView({ trip, commit, onNotice, onNeedDates, onAddIdea }: { trip: Trip; commit(trip: Trip): void; onNotice(message: string): void; onNeedDates(): void; onAddIdea(): void }) {
+// The idea filters: every kind a plan can be, by its color.
+const FILTERS = [
+  { key: 'all', label: 'All' },
+  { key: 'Food', label: 'Food', dot: kindColors.food },
+  { key: 'Activity', label: 'See & do', dot: kindColors.see },
+  { key: 'Stay', label: 'Stay', dot: kindColors.stay },
+] as const;
+const ideaCategory = (idea: Idea) => (['Food', 'Stay'].includes(idea.category || '') ? idea.category! : 'Activity');
+export const ideaKind = (idea: Idea) => planKind({ kind: ideaCategory(idea) });
+
+// The Ideas tab: "Ideas" and how many are on a day yet, new videos from the
+// share inbox, kind filters, and the trip's ideas as a grid of covers. A
+// cover shows its place on the map; "+ Day" puts it on the plan.
+export function IdeasView({ trip, commit, onNotice, onNeedDates, onAddIdea, onPasteLink, onShowOnMap }: {
+  trip: Trip; commit(trip: Trip): void; onNotice(message: string): void; onNeedDates(): void; onAddIdea(): void; onPasteLink(): void; onShowOnMap(ideaId: string): void;
+}) {
   const { unassigned, addToTrip, dismiss } = useSharedInbox();
   const [scheduling, setScheduling] = useState<Idea | null>(null);
-  const [adding, setAdding] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [filter, setFilter] = useState<string>('all');
   const ideas = ((trip.boardItems as Idea[] | undefined) || []).filter(item => isContentIdea(item)).slice().reverse();
+  const shown = filter === 'all' ? ideas : ideas.filter(idea => ideaCategory(idea) === filter);
+  const planned = ideas.filter(idea => ideaScheduled(trip, idea)).length;
+  const place = trip.stops?.[0]?.name || trip.name;
 
   const remove = (idea: Idea) => {
     const result = removeBoardObjects(trip.boardItems || [], trip.boardLinks || [], [idea.id]);
     commit(withBoardChange(trip, result) as Trip);
     onNotice('Removed from Ideas');
   };
+  // Long-press a cover: open its video or remove it.
+  const more = (idea: Idea) => {
+    const options = [...(idea.url ? ['Open video'] : []), 'Remove from Ideas', 'Cancel'];
+    const pick = (index: number) => { const choice = options[index]; if (choice === 'Open video') Linking.openURL(idea.url!); else if (choice === 'Remove from Ideas') remove(idea); };
+    if (Platform.OS === 'ios') ActionSheetIOS.showActionSheetWithOptions({ options, cancelButtonIndex: options.length - 1, destructiveButtonIndex: options.length - 2, title: idea.title }, pick);
+    else Alert.alert(idea.title || 'Idea', undefined, options.map((text, index) => ({ text, style: text === 'Cancel' ? 'cancel' as const : text.startsWith('Remove') ? 'destructive' as const : 'default' as const, onPress: () => pick(index) })));
+  };
+  const addAll = async () => {
+    setAdding(true);
+    try { for (const link of unassigned) await addToTrip(link, trip); haptics.success(); onNotice(unassigned.length === 1 ? 'Added to Ideas' : `Added ${unassigned.length} to Ideas`); }
+    catch (error) { onNotice((error as Error).message || 'Could not add these.'); }
+    finally { setAdding(false); }
+  };
+
+  if (!ideas.length && !unassigned.length) return <IdeasEmpty place={place} onPasteLink={onPasteLink} onSearch={onAddIdea} />;
 
   return (
     <View style={styles.view}>
-      <Pressable accessibilityRole="button" onPress={onAddIdea} style={({ pressed }) => [styles.add, styles.paste, pressed && styles.addPressed]}>
-        <Icon name="plus" size={17} color={colors.action} />
-        <Text style={styles.addText}>Add an idea</Text>
-      </Pressable>
+      <View>
+        <Display size="title" accessibilityRole="header">Ideas</Display>
+        <Text style={styles.subtitle}>{ideas.length ? `${ideas.length} ${ideas.length === 1 ? 'maybe' : 'maybes'} for ${place}${planned ? `, ${planned} already on a day` : ''}` : `Nothing saved for ${place} yet`}</Text>
+      </View>
+
       {unassigned.length ? (
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Saved from other apps</Text>
-          {unassigned.map(link => (
-            <SharedCard key={link.id} link={link} busy={adding === link.id}
-              onAdd={async () => { setAdding(link.id); try { await addToTrip(link, trip); haptics.success(); onNotice('Added to Ideas'); } catch (error) { onNotice((error as Error).message || 'Could not add this link.'); } finally { setAdding(null); } }}
-              onDismiss={() => dismiss(link)} />
-          ))}
+        <View style={styles.feed}>
+          <Raised offset={4} radius={radii.lg}>
+            <View style={styles.feedCard}>
+              <View style={styles.flex}>
+                <Display size="card">{`${unassigned.length} new from your feed`}</Display>
+                <Text style={styles.feedText}>Saved from other apps, not on a trip yet</Text>
+              </View>
+              <Button label={adding ? 'Adding…' : unassigned.length === 1 ? 'Add it' : 'Add all'} size="sm" disabled={adding} onPress={addAll} />
+            </View>
+          </Raised>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.feedStrip} contentContainerStyle={styles.feedStripContent}>
+            {unassigned.map(link => <FeedCard key={link.id} link={link} onAdd={async () => { try { await addToTrip(link, trip); haptics.success(); onNotice('Added to Ideas'); } catch (error) { onNotice((error as Error).message); } }} onDismiss={() => dismiss(link)} />)}
+          </ScrollView>
         </View>
       ) : null}
-      <View style={styles.section}>
-        {unassigned.length ? <Text style={styles.sectionLabel}>In this trip</Text> : null}
-        {ideas.length ? ideas.map(idea => (
-          <IdeaCard key={idea.id} idea={idea} scheduled={ideaScheduled(trip, idea)}
-            onSchedule={() => { if (!datesForTrip(trip).length) { onNeedDates(); return; } setScheduling(idea); }}
-            onRemove={() => remove(idea)} />
-        )) : (
-          <View style={styles.empty}>
-            <Art name="ideas" size={44} />
-            <Text style={styles.emptyTitle}>Save places from videos</Text>
-            <Text style={styles.emptyText}>Seen a spot on TikTok, Instagram or YouTube? Send it here. It shows up on your map, ready to add to a day.</Text>
-            <View style={styles.steps}>
-              {SHARE_STEPS.map((step, index) => (
-                <View key={step} style={styles.step}>
-                  <View style={styles.stepNumber}><Text style={styles.stepNumberText}>{index + 1}</Text></View>
-                  <Text style={styles.stepText}>{step}</Text>
-                </View>
-              ))}
-            </View>
-            <Text style={styles.emptyText}>Or tap Add an idea to save a place, paste a link or write a note.</Text>
+
+      {ideas.length ? (
+        <>
+          <View style={styles.filters}>
+            {FILTERS.map(entry => <Chip key={entry.key} size="sm" label={entry.label} dot={'dot' in entry ? entry.dot : undefined} selected={filter === entry.key} onPress={() => setFilter(entry.key)} />)}
           </View>
-        )}
-      </View>
+          <View style={styles.grid}>
+            {shown.map(idea => (
+              <IdeaCover key={idea.id} idea={idea} scheduled={ideaScheduled(trip, idea)}
+                onOpen={() => { if (Number.isFinite(idea.latitude)) onShowOnMap(idea.id); else if (idea.url) Linking.openURL(idea.url); else more(idea); }}
+                onMore={() => more(idea)}
+                onSchedule={() => { if (!datesForTrip(trip).length) { onNeedDates(); return; } setScheduling(idea); }} />
+            ))}
+          </View>
+          {!shown.length ? <Text style={styles.none}>No ideas of this kind yet.</Text> : null}
+          <Button label="Add an idea" icon="plus" variant="outline" onPress={onAddIdea} />
+        </>
+      ) : null}
+
       <DayPicker trip={trip} idea={scheduling} onClose={() => setScheduling(null)} onPick={day => {
         try { commit(ideaOnDay(trip, scheduling!, day)); onNotice(`Added to ${formatDay(day)}`); return null; }
         catch (error) { return (error as Error).message; }
@@ -80,8 +117,39 @@ export function IdeasView({ trip, commit, onNotice, onNeedDates, onAddIdea }: { 
   );
 }
 
+// No ideas yet: two tilted cards and "SAVE ME", how sharing works, and the
+// two other ways in.
+function IdeasEmpty({ place, onPasteLink, onSearch }: { place: string; onPasteLink(): void; onSearch(): void }) {
+  return (
+    <View style={styles.empty}>
+      <View accessibilityElementsHidden style={styles.emptyArt}>
+        <View style={[styles.emptyCard, { backgroundColor: palette.yellow, left: '18%', transform: [{ rotate: '-10deg' }] }]} />
+        <View style={[styles.emptyCard, { backgroundColor: palette.mint, left: '50%', transform: [{ rotate: '9deg' }] }]} />
+        <Sticker tone="ink" tilt={-8} style={styles.emptySticker}>SAVE ME ✦</Sticker>
+      </View>
+      <View style={styles.emptyCopy}>
+        <Display size="title" style={styles.center} accessibilityRole="header">Nothing here <Accent size={46}>yet.</Accent></Display>
+        <Text style={styles.emptyText}>{`Your ${place} wish list fills up from the videos you share.`}</Text>
+      </View>
+      <View style={styles.steps}>
+        {SHARE_STEPS.map((step, index) => (
+          <View key={step} style={styles.step}>
+            <View style={styles.stepNumber}><Text maxFontSizeMultiplier={TIGHT_SCALE} style={styles.stepNumberText}>{index + 1}</Text></View>
+            <Text style={styles.stepText}>{step}</Text>
+          </View>
+        ))}
+      </View>
+      <View style={styles.emptyActions}>
+        <Button label="Paste a link" variant="accent" onPress={onPasteLink} style={styles.flex} />
+        <Button label="Search a place" variant="outline" onPress={onSearch} style={styles.flex} />
+      </View>
+    </View>
+  );
+}
+
 // Whether this idea is already a plan on some day.
 export const ideaScheduled = (trip: Trip, idea: Idea) => (trip.items || []).some(plan => plan.ideaId === (idea.libraryIdeaId || idea.id));
+const scheduledDay = (trip: Trip, idea: Idea) => (trip.items || []).find(plan => plan.ideaId === (idea.libraryIdeaId || idea.id))?.day;
 
 // The trip with this idea added to a day as a plan, keeping its place, link
 // and notes. Throws a message to show when it can't be added.
@@ -92,143 +160,139 @@ export function ideaOnDay(trip: Trip, idea: Idea, day: string): Trip {
   return { ...trip, items: [...(trip.items || []), { ...plan, ideaId }] };
 }
 
-function Thumbnail({ image, provider }: { image?: string; provider?: string }) {
+// A cover image, or a dark tile with a frame mark when there's none.
+export function Cover({ image, style, badge }: { image?: string; style?: object; badge?: string }) {
   const [failed, setFailed] = useState(false);
   return (
-    <View style={styles.thumb}>
+    <View style={[styles.cover, style]}>
       {image && !failed ? <Image source={{ uri: image }} style={StyleSheet.absoluteFill} resizeMode="cover" onError={() => setFailed(true)} accessibilityIgnoresInvertColors />
-        : <Art name="ideas" size={34} />}
-      {provider && PROVIDERS[provider] ? <View style={styles.badge}><Text style={styles.badgeText}>{PROVIDERS[provider]}</Text></View> : null}
+        : <Icon name="frame" size={22} color="rgba(255,255,255,0.7)" strokeWidth={2} />}
+      {badge ? <Text maxFontSizeMultiplier={TIGHT_SCALE} style={styles.badge}>{badge}</Text> : null}
     </View>
   );
 }
 
-function IdeaCard({ idea, scheduled, onSchedule, onRemove }: { idea: Idea; scheduled: boolean; onSchedule(): void; onRemove(): void }) {
+function IdeaCover({ idea, scheduled, onOpen, onMore, onSchedule }: { idea: Idea; scheduled: boolean; onOpen(): void; onMore(): void; onSchedule(): void }) {
   const source = providerLabel(idea);
+  const kind = ideaKind(idea);
   return (
-    <View style={styles.card}>
-      <Thumbnail image={idea.image} provider={idea.provider} />
-      <View style={styles.copy}>
-        <Text style={styles.title} numberOfLines={2}>{idea.title || 'Saved idea'}</Text>
-        {idea.location ? <View style={styles.metaRow}><Icon name="pin" size={14} color={colors.action} /><Text style={styles.location} numberOfLines={1}>{idea.location}</Text></View> : null}
-        {source ? <Text style={styles.meta} numberOfLines={1}>{source}</Text> : null}
-        {!idea.url && idea.notes ? <Text style={styles.meta} numberOfLines={2}>{idea.notes}</Text> : null}
-        <View style={styles.actions}>
-          <Pressable accessibilityRole="button" onPress={onSchedule} style={({ pressed }) => [styles.add, pressed && styles.addPressed]}>
-            <Icon name={scheduled ? 'check' : 'plus'} size={16} color={colors.action} />
-            <Text style={styles.addText}>{scheduled ? 'In plan' : 'Add to day'}</Text>
-          </Pressable>
-          {idea.url ? (
-            <Pressable accessibilityRole="link" accessibilityLabel={`Open ${source || 'link'}`} onPress={() => Linking.openURL(idea.url!)} style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}>
-              <Icon name="external" size={18} color="#555555" />
-            </Pressable>
-          ) : null}
-          <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${idea.title || 'idea'}`} onPress={onRemove} style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}>
-            <Icon name="trash" size={18} color="#555555" />
-          </Pressable>
-        </View>
+    <View style={styles.cell}>
+      <Pressable accessibilityRole="button" accessibilityLabel={`${idea.title || 'Saved idea'}${source ? `, from ${source}` : ''}`}
+        accessibilityHint="Shows it on the map. Long press for more" onPress={onOpen} onLongPress={onMore}
+        accessibilityActions={[{ name: 'longpress', label: 'More options' }]} onAccessibilityAction={onMore}
+        style={({ pressed }) => pressed && styles.coverPressed}>
+        <Cover image={idea.image} badge={PROVIDERS[idea.provider || ''] || (idea.url ? source : undefined)} style={styles.gridCover} />
+      </Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel={scheduled ? 'On a day. Add to another day' : 'Add to a day'} onPress={onSchedule} hitSlop={6}
+        style={({ pressed }) => [styles.dayButton, scheduled && styles.dayButtonOn, pressed && styles.coverPressed]}>
+        <Text maxFontSizeMultiplier={TIGHT_SCALE} style={styles.dayButtonText}>{scheduled ? '✓ Day' : '+ Day'}</Text>
+      </Pressable>
+      <View style={styles.cellTitle}>
+        <View accessibilityElementsHidden style={[styles.dot, { backgroundColor: kind.color }]} />
+        <Text style={styles.cellText} numberOfLines={2}>{idea.title || 'Saved idea'}</Text>
       </View>
     </View>
   );
 }
 
-function SharedCard({ link, busy, onAdd, onDismiss }: { link: SharedLink; busy: boolean; onAdd(): void; onDismiss(): void }) {
-  const caption = (link.title || '').split('\n').find(line => line.trim()) || '';
+// A video in the share inbox: its cover, add it to this trip or dismiss it.
+function FeedCard({ link, onAdd, onDismiss }: { link: SharedLink; onAdd(): void; onDismiss(): void }) {
+  const caption = (link.title || '').split('\n').find(line => line.trim()) || link.place?.name || providerLabel(link) || 'Shared link';
   return (
-    <View style={[styles.card, styles.sharedCard]}>
-      <Thumbnail image={link.image} provider={link.provider} />
-      <View style={styles.copy}>
-        <Text style={styles.title} numberOfLines={2}>{caption || link.place?.name || providerLabel(link) || 'Shared link'}</Text>
-        {link.place ? <View style={styles.metaRow}><Icon name="pin" size={14} color={colors.action} /><Text style={styles.location} numberOfLines={1}>{link.place.name}</Text></View> : null}
-        <Text style={styles.meta} numberOfLines={1}>{[providerLabel(link), link.handle].filter(Boolean).join(' · ')}</Text>
-        <View style={styles.actions}>
-          <Pressable accessibilityRole="button" disabled={busy} onPress={onAdd} style={({ pressed }) => [styles.add, styles.addPrimary, pressed && styles.addPrimaryPressed, busy && styles.disabled]}>
-            <Icon name="plus" size={16} color={colors.white} />
-            <Text style={[styles.addText, styles.addPrimaryText]}>{busy ? 'Adding…' : 'Add to this trip'}</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="Dismiss" onPress={onDismiss} style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}>
-            <Icon name="close" size={18} color="#555555" />
-          </Pressable>
-        </View>
-      </View>
+    <View style={styles.feedItem}>
+      <Cover image={link.image} badge={PROVIDERS[link.provider || '']} style={styles.feedCover} />
+      <Pressable accessibilityRole="button" accessibilityLabel="Dismiss" onPress={onDismiss} hitSlop={8} style={styles.dismiss}>
+        <Icon name="close" size={12} color={palette.ink} strokeWidth={2.6} />
+      </Pressable>
+      <Text style={styles.feedCaption} numberOfLines={2}>{caption}</Text>
+      <Button label="+ Add" size="sm" variant="outline" onPress={onAdd} accessibilityLabel={`Add ${caption} to this trip`} />
     </View>
   );
 }
 
-// #ib-schedule-dialog: choose the day to add an idea to.
+// "Add to which day?": the trip's days as chips. A day that already has this
+// idea is yellow.
 export function DayPicker({ trip, idea, onClose, onPick }: { trip: Trip; idea: Idea | null; onClose(): void; onPick(day: string): string | null }) {
   const [error, setError] = useState('');
-  const days = datesForTrip(trip) as string[];
   return (
     <BottomSheet visible={Boolean(idea)} onClose={() => { setError(''); onClose(); }}
-      header={close => (
-        <View style={styles.heading}>
-          <View style={styles.headingCopy}>
-            <Text style={styles.sheetTitle}>Add to a day</Text>
-            <Text style={styles.sheetSub} numberOfLines={1}>{idea?.title}</Text>
-          </View>
-          <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={close} style={({ pressed }) => [styles.close, pressed && styles.pressedDark]}><Icon name="close" size={18} color="#555555" /></Pressable>
-        </View>
-      )}>
+      header={close => <SheetHeader title={<>Add to <Accent>which day?</Accent></>} onClose={close}>
+        {idea?.title ? <Text style={styles.sheetSub} numberOfLines={1}>{idea.title}</Text> : null}
+      </SheetHeader>}>
       {close => (
-        <ScrollView keyboardDismissMode="interactive" keyboardShouldPersistTaps="handled" style={styles.dayList} contentContainerStyle={styles.dayListContent}>
-          {days.map(day => (
-            <Pressable key={day} accessibilityRole="button" onPress={() => { const message = onPick(day); if (message) setError(message); else { haptics.success(); setError(''); close(); } }}
-              style={({ pressed }) => [styles.dayRow, pressed && styles.pressed]}>
-              <Icon name="calendar" size={18} color={colors.action} />
-              <Text style={styles.dayText}>{formatDay(day)}</Text>
-              <Icon name="arrow" size={16} color={colors.tripArrow} />
-            </Pressable>
-          ))}
+        <View style={styles.pickerBody}>
+          {idea ? <DayChips trip={trip} idea={idea} onPick={day => { const message = onPick(day); if (message) setError(message); else { haptics.success(); setError(''); close(); } }} /> : null}
           {error ? <Text style={styles.error}>{error}</Text> : null}
-        </ScrollView>
+        </View>
       )}
     </BottomSheet>
   );
 }
 
+// The day chips shared by the day picker and the map's place card.
+export function DayChips({ trip, idea, onPick, inset = gutter }: { trip: Trip; idea: Idea; onPick(day: string): void; inset?: number }) {
+  const days = datesForTrip(trip) as string[];
+  const on = scheduledDay(trip, idea);
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.chips, { paddingHorizontal: inset }]} keyboardShouldPersistTaps="handled">
+      {days.map(day => (
+        <Pressable key={day} accessibilityRole="button" accessibilityLabel={`${formatDay(day, { weekday: 'long', month: 'long', day: 'numeric' })}${day === on ? ', already on this day' : ''}`}
+          onPress={() => onPick(day)} style={({ pressed }) => [styles.dayChip, day === on && styles.dayChipOn, pressed && styles.coverPressed]}>
+          <Text maxFontSizeMultiplier={TIGHT_SCALE} style={styles.dayChipDow}>{formatDay(day, { weekday: 'short' }).toUpperCase()}</Text>
+          <Text maxFontSizeMultiplier={TIGHT_SCALE} style={styles.dayChipDate}>{Number(day.slice(-2))}</Text>
+        </Pressable>
+      ))}
+    </ScrollView>
+  );
+}
+
 const styles = StyleSheet.create({
-  view: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 24, gap: 18 },
-  section: { gap: 10 },
-  sectionLabel: { fontFamily: fonts.semibold, fontSize: 15, color: colors.sectionLabel },
-  card: { flexDirection: 'row', gap: 12, padding: 10, borderWidth: 1, borderColor: colors.line, borderRadius: sq(22), borderCurve: 'continuous', backgroundColor: colors.white },
-  sharedCard: { borderColor: '#ffd9be', backgroundColor: '#fffaf6' },
-  thumb: { width: 84, height: 112, borderRadius: sq(16), borderCurve: 'continuous', overflow: 'hidden', backgroundColor: '#fff2eb', alignItems: 'center', justifyContent: 'center' },
-  badge: { position: 'absolute', left: 6, bottom: 6, paddingHorizontal: 6, paddingVertical: 2, borderRadius: sq(8), borderCurve: 'continuous', backgroundColor: 'rgba(32, 32, 31, 0.72)' },
-  badgeText: { fontFamily: fonts.semibold, fontSize: 10, color: colors.white },
-  copy: { flex: 1, minWidth: 0, gap: 4, paddingTop: 2 },
-  title: { fontFamily: fonts.bold, fontSize: 16, lineHeight: 20.8, color: colors.tripTitle },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  location: { flex: 1, fontFamily: fonts.medium, fontSize: 13, color: colors.action },
-  meta: { fontFamily: fonts.regular, fontSize: 13, color: colors.tripMeta },
-  actions: { marginTop: 'auto', flexDirection: 'row', alignItems: 'center', gap: 4 },
-  add: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, borderRadius: sq(20), borderCurve: 'continuous', backgroundColor: '#fff2eb' },
-  addPressed: { backgroundColor: '#ffe6d6' },
-  paste: { minHeight: 44, justifyContent: 'center', borderRadius: sq(22) },
-  addText: { fontFamily: fonts.semibold, fontSize: 14, color: colors.action },
-  addPrimary: { backgroundColor: colors.accent },
-  addPrimaryPressed: { backgroundColor: colors.accentPressed },
-  addPrimaryText: { color: colors.white },
-  iconButton: { width: 40, height: 40, borderRadius: sq(20), borderCurve: 'continuous', alignItems: 'center', justifyContent: 'center' },
-  pressed: { backgroundColor: colors.pressed },
-  pressedDark: { backgroundColor: '#ebecef' },
-  disabled: { opacity: 0.5 },
-  empty: { alignItems: 'center', gap: 8, paddingVertical: 36, paddingHorizontal: 24, borderWidth: 1, borderStyle: 'dashed', borderColor: '#e5cfc5', borderRadius: sq(22), borderCurve: 'continuous' },
-  emptyTitle: { fontFamily: fonts.bold, fontSize: 17, color: colors.tripTitle },
-  emptyText: { fontFamily: fonts.regular, fontSize: 14, lineHeight: 20, color: colors.muted, textAlign: 'center' },
-  steps: { alignSelf: 'stretch', gap: 10, marginVertical: 8 },
-  step: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  stepNumber: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center', borderRadius: sq(12), borderCurve: 'continuous', backgroundColor: '#fff2eb' },
-  stepNumberText: { fontFamily: fonts.semibold, fontSize: 12, color: colors.action },
-  stepText: { flex: 1, fontFamily: fonts.medium, fontSize: 14, lineHeight: 19, color: colors.ink },
-  heading: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 16, paddingTop: 16, paddingHorizontal: 16 },
-  headingCopy: { flex: 1, minWidth: 0 },
-  sheetTitle: { fontFamily: fonts.semibold, fontSize: 20, lineHeight: 25, letterSpacing: -0.5, color: '#252525' },
-  sheetSub: { fontFamily: fonts.regular, fontSize: 14, color: colors.muted },
-  close: { width: 44, height: 44, borderRadius: sq(22), borderCurve: 'continuous', backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' },
-  dayList: { flexGrow: 0 },
-  dayListContent: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 16, gap: 4 },
-  dayRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 12, borderRadius: sq(18), borderCurve: 'continuous' },
-  dayText: { flex: 1, fontFamily: fonts.semibold, fontSize: 16, color: colors.ink },
-  error: { fontFamily: fonts.regular, fontSize: 13, color: colors.danger, paddingHorizontal: 12 },
+  flex: { flex: 1 },
+  center: { textAlign: 'center' },
+  view: { gap: 16 },
+  subtitle: { marginTop: 2, fontFamily: typefaces.serif, fontSize: 21, lineHeight: 26, color: palette.blue },
+  feed: { gap: 12 },
+  feedCard: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingLeft: 16, paddingRight: 10, borderRadius: radii.lg, borderCurve: 'continuous', borderWidth: strokes.heavy, borderColor: palette.ink, backgroundColor: palette.pink },
+  feedText: { fontFamily: typefaces.semibold, fontSize: 13, color: palette.ink },
+  feedStrip: { marginHorizontal: -gutter },
+  feedStripContent: { paddingHorizontal: gutter, gap: 12 },
+  feedItem: { width: 120, gap: 6 },
+  feedCover: { height: 160 },
+  feedCaption: { fontFamily: typefaces.bold, fontSize: 12, lineHeight: 16, color: palette.ink },
+  dismiss: { position: 'absolute', top: 6, right: 6, width: 24, height: 24, borderRadius: 12, backgroundColor: palette.paper, alignItems: 'center', justifyContent: 'center' },
+  filters: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  // Two per row.
+  cell: { flexBasis: '47%', flexGrow: 1, maxWidth: '50%', gap: 6 },
+  cover: { overflow: 'hidden', alignItems: 'center', justifyContent: 'center', borderRadius: radii.md, borderCurve: 'continuous', backgroundColor: '#2A2140' },
+  gridCover: { height: 168 },
+  coverPressed: { opacity: 0.85 },
+  badge: { position: 'absolute', top: 8, left: 8, overflow: 'hidden', paddingHorizontal: 7, paddingVertical: 2, borderRadius: radii.pill, backgroundColor: palette.paper, fontFamily: typefaces.bold, fontSize: 10, color: palette.ink },
+  dayButton: { position: 'absolute', top: 128, right: 8, height: 30, paddingHorizontal: 10, justifyContent: 'center', borderRadius: radii.pill, borderWidth: strokes.thin, borderColor: palette.ink, backgroundColor: palette.paper },
+  dayButtonOn: { backgroundColor: palette.yellow },
+  dayButtonText: { fontFamily: typefaces.heavy, fontSize: 12, color: palette.ink },
+  cellTitle: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
+  dot: { width: 9, height: 9, marginTop: 4, borderRadius: 3 },
+  cellText: { flex: 1, fontFamily: typefaces.bold, fontSize: 14, lineHeight: 17, color: palette.ink },
+  none: { fontFamily: typefaces.semibold, fontSize: 14, color: palette.muted },
+  empty: { gap: 18, paddingTop: 4 },
+  emptyArt: { height: 190 },
+  emptyCard: { position: 'absolute', top: 14, width: 96, height: 156, borderRadius: radii.md, borderCurve: 'continuous', borderWidth: strokes.heavy, borderColor: palette.ink },
+  emptySticker: { position: 'absolute', top: 120, left: '62%' },
+  emptyCopy: { alignItems: 'center', gap: 10 },
+  emptyText: { maxWidth: 300, textAlign: 'center', fontFamily: typefaces.semibold, fontSize: 15, lineHeight: 21, color: palette.muted },
+  steps: { gap: 10, paddingVertical: 14, paddingHorizontal: 16, borderRadius: radii.lg, borderCurve: 'continuous', borderWidth: strokes.thin, borderColor: palette.line, backgroundColor: palette.paper },
+  step: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  stepNumber: { width: 28, height: 28, borderRadius: 14, backgroundColor: palette.ink, alignItems: 'center', justifyContent: 'center' },
+  stepNumberText: { fontFamily: typefaces.heavy, fontSize: 13, color: palette.paper },
+  stepText: { flex: 1, fontFamily: typefaces.semibold, fontSize: 15, lineHeight: 20, color: palette.ink },
+  emptyActions: { flexDirection: 'row', gap: 10 },
+  sheetSub: { fontFamily: typefaces.semibold, fontSize: 14, color: palette.muted },
+  pickerBody: { paddingBottom: 16, gap: 10 },
+  chips: { gap: 8 },
+  dayChip: { width: 58, height: 62, alignItems: 'center', justifyContent: 'center', borderRadius: 16, borderCurve: 'continuous', borderWidth: strokes.thin, borderColor: palette.ink, backgroundColor: palette.paper },
+  dayChipOn: { backgroundColor: palette.yellow, borderWidth: strokes.mid },
+  dayChipDow: { fontFamily: typefaces.bold, fontSize: 11, color: palette.ink },
+  dayChipDate: { fontFamily: typefaces.display, fontSize: 20, lineHeight: 24, color: palette.ink },
+  error: { paddingHorizontal: gutter, fontFamily: typefaces.semibold, fontSize: 13, color: palette.danger },
 });
