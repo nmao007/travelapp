@@ -4,7 +4,7 @@ import { Text } from '@/components/text';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import { insertPlan, planDropPosition } from '@trippilot/core/itinerary-model';
 import { PlaceMarker, DragHandleIcon } from './plan-row';
-import { colors, fonts, sq } from '@/lib/theme';
+import { palette, strokes, typefaces } from '@/lib/design';
 import type { PlanItem, Trip } from '@/lib/trips';
 import { haptics } from '@/lib/haptics';
 
@@ -155,10 +155,10 @@ const styles = StyleSheet.create({
   handle: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   ghost: {
     position: 'absolute', left: 20, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10,
-    borderWidth: 1, borderColor: '#f1c9b5', borderRadius: sq(20), borderCurve: 'continuous', backgroundColor: colors.white,
-    shadowColor: '#492b19', shadowOpacity: 0.09, shadowRadius: 12, shadowOffset: { width: 0, height: 8 },
+    borderWidth: strokes.mid, borderColor: palette.ink, borderRadius: 20, borderCurve: 'continuous', backgroundColor: palette.paper,
+    shadowColor: palette.ink, shadowOpacity: 1, shadowRadius: 0, shadowOffset: { width: 4, height: 4 },
   },
-  ghostName: { flex: 1, fontFamily: fonts.semibold, fontSize: 17, letterSpacing: -0.25, color: '#252525' },
-  dropTarget: { backgroundColor: '#fff2eb', borderRadius: sq(18), borderCurve: 'continuous', outlineWidth: 1, outlineStyle: 'dashed', outlineColor: '#e88c60', outlineOffset: -3 },
+  ghostName: { flex: 1, fontFamily: typefaces.bold, fontSize: 16, color: palette.ink },
+  dropTarget: { backgroundColor: '#FFF0C2', borderRadius: 20, borderCurve: 'continuous', outlineWidth: strokes.mid, outlineStyle: 'dashed', outlineColor: palette.ink, outlineOffset: -3 },
   source: { opacity: 0.35 },
 });

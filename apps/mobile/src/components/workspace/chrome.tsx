@@ -47,15 +47,16 @@ function MenuItem({ action, close }: { action: MenuAction; close(): void }) {
 }
 
 type HeaderProps = {
-  trip: Trip; tab: 'plan' | 'map' | 'ideas'; mode: 'list' | 'calendar' | 'day'; day: string; stopFilter: string | null; days: string[]; dayContext: string;
-  onBack(): void; onShowMode(mode: 'list' | 'day'): void; onStop(placeId: string): void; onDay(day: string): void; onDates(): void;
+  trip: Trip; tab: 'plan' | 'map' | 'ideas'; mode: 'list' | 'calendar' | 'day'; stopFilter: string | null;
+  onBack(): void; onShowMode(mode: 'list' | 'day'): void; onStop(placeId: string): void; onDates(): void;
   onRename(): void; menu: MenuAction[]; renaming: boolean; onRenameDone(value: string | null): void;
 };
 
 // The trip masthead: back, the dates (or, with several stops, the stop) pill
 // and ⋯; then the trip's name in display type, later stops in serif; then the
-// Whole trip / Day switch on the Plan tab.
-export function WorkspaceHeader({ trip, tab, mode, day, stopFilter, days, dayContext, onBack, onShowMode, onStop, onDay, onDates, onRename, menu, renaming, onRenameDone }: HeaderProps) {
+// Whole trip / Day switch on the Plan tab. In the day view the trip's name
+// moves into the bar and the day chips take the title's place.
+export function WorkspaceHeader({ trip, tab, mode, stopFilter, onBack, onShowMode, onStop, onDates, onRename, menu, renaming, onRenameDone }: HeaderProps) {
   const insets = useSafeAreaInsets();
   const stops = tripStops(trip) as Trip['stops'];
   const entries = stopSchedule(trip) as { stop: Trip['stops'][number]; start: string | null; end: string | null }[];
@@ -87,17 +88,11 @@ export function WorkspaceHeader({ trip, tab, mode, day, stopFilter, days, dayCon
       ) : null}
 
       {tab === 'plan' ? (
-        <Segmented<'list' | 'day'> label="Plan view" value={mode === 'day' ? 'day' : 'list'} onChange={onShowMode}
+        // In the month calendar neither side is chosen, so both switch views.
+        <Segmented<'list' | 'day' | 'calendar'> label="Plan view" value={mode} onChange={next => { if (next !== 'calendar') onShowMode(next); }}
           options={[{ value: 'list', label: 'Whole trip' }, { value: 'day', label: 'Day' }]} />
       ) : null}
 
-      {inDay ? (
-        <View>
-          <Dropdown value={day} label="Choose day" options={days.map(value => ({ value, label: formatDay(value) }))} onChange={onDay}
-            gap={6} triggerStyle={styles.dayTrigger} valueStyle={styles.dayValue} />
-          <Text style={styles.dayContext} numberOfLines={1}>{dayContext}</Text>
-        </View>
-      ) : null}
     </View>
   );
 }
@@ -179,9 +174,6 @@ const styles = StyleSheet.create({
   pillButton: { minHeight: 44 },
   titleButton: { alignSelf: 'flex-start' },
   titleInput: { fontFamily: typefaces.display, fontSize: 40, lineHeight: 46, letterSpacing: -1.6, color: palette.ink, paddingVertical: 0, borderBottomWidth: strokes.mid, borderBottomColor: palette.pink },
-  dayTrigger: { alignSelf: 'flex-start' },
-  dayValue: { fontFamily: typefaces.display, fontSize: 30, lineHeight: 34, letterSpacing: -1, color: palette.ink },
-  dayContext: { fontFamily: typefaces.semibold, fontSize: 13, color: palette.muted },
   divider: { height: 1.5, marginVertical: 4, marginHorizontal: 10, backgroundColor: palette.sand },
   menuItem: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 14 },
   menuPressed: { backgroundColor: palette.sand },

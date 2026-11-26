@@ -6,13 +6,13 @@ import { tabBarSpace } from './chrome';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { restoreItineraryEvent } from '@trippilot/core/itinerary-model';
 import { Icon } from '../icons';
-import { colors, fonts, sq } from '@/lib/theme';
+import { gutter, palette, radii, typefaces } from '@/lib/design';
 import type { Trip } from '@/lib/trips';
 
 // Both notices float 12pt above the floating tab bar.
 function useBottom() { return tabBarSpace(useSafeAreaInsets()) - 4; }
 
-// #trip-status: a short message that clears itself after 3.5s.
+// A short ink toast that clears itself after 3.5s.
 export function TripNotice({ message, onHide }: { message: string; onHide(): void }) {
   const bottom = useBottom();
   useEffect(() => { if (!message) return; const timer = setTimeout(onHide, 3500); return () => clearTimeout(timer); }, [message, onHide]);
@@ -27,7 +27,7 @@ export function TripNotice({ message, onHide }: { message: string; onHide(): voi
 // A removed plan (name, day) or flight (service_id, departure_date).
 type Removal = { tripId: string; collection: string; record: { name?: string; day?: string; service_id?: string; departure_date?: string }; [key: string]: unknown };
 
-// #removal-notice: "Removed X" with Undo for 12 seconds.
+// "Removed X" with a yellow Undo, for 12 seconds.
 export function RemovalNotice({ removal, trip, onUndo, onHide }: { removal: Removal | null; trip: Trip; onUndo(result: { trip: Trip; day: string }): void; onHide(): void }) {
   const bottom = useBottom();
   const error = useRef('');
@@ -43,7 +43,7 @@ export function RemovalNotice({ removal, trip, onUndo, onHide }: { removal: Remo
         <Text style={styles.undoText}>Undo</Text>
       </Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel="Dismiss" onPress={onHide} style={({ pressed }) => [styles.dismiss, pressed && styles.pressed]}>
-        <Icon name="close" size={18} color="#555555" />
+        <Icon name="close" size={18} color={palette.paper} strokeWidth={2.4} />
       </Pressable>
     </Animated.View>
   );
@@ -51,15 +51,15 @@ export function RemovalNotice({ removal, trip, onUndo, onHide }: { removal: Remo
 
 const styles = StyleSheet.create({
   notice: {
-    position: 'absolute', left: 12, right: 12, padding: 10, borderWidth: 1, borderColor: '#e8e8e8', borderRadius: sq(18), borderCurve: 'continuous', backgroundColor: colors.white,
-    shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 11, shadowOffset: { width: 0, height: 6 },
+    position: 'absolute', left: gutter, right: gutter, minHeight: 52, justifyContent: 'center', paddingVertical: 8, paddingLeft: 16, paddingRight: 8, borderRadius: 16, borderCurve: 'continuous', backgroundColor: palette.ink,
+    shadowColor: palette.ink, shadowOpacity: 0.25, shadowRadius: 12, shadowOffset: { width: 0, height: 8 }, elevation: 8,
   },
   removal: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  message: { fontFamily: fonts.regular, fontSize: 14, color: colors.ink },
-  removalMessage: { flex: 1, paddingLeft: 1 },
-  undo: { minHeight: 52, paddingHorizontal: 8, borderRadius: sq(22), borderCurve: 'continuous', backgroundColor: colors.accent, justifyContent: 'center' },
-  undoPressed: { backgroundColor: colors.accentPressed },
-  undoText: { fontFamily: fonts.semibold, fontSize: 16, lineHeight: 20.8, color: colors.white },
-  dismiss: { width: 44, height: 44, borderRadius: sq(22), borderCurve: 'continuous', backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' },
-  pressed: { backgroundColor: colors.pressed },
+  message: { fontFamily: typefaces.semibold, fontSize: 14, lineHeight: 19, color: palette.paper },
+  removalMessage: { flex: 1 },
+  undo: { minHeight: 40, paddingHorizontal: 14, borderRadius: 12, borderCurve: 'continuous', backgroundColor: palette.yellow, justifyContent: 'center' },
+  undoPressed: { backgroundColor: '#F5D21F' },
+  undoText: { fontFamily: typefaces.heavy, fontSize: 14, color: palette.ink },
+  dismiss: { width: 40, height: 40, borderRadius: radii.pill, alignItems: 'center', justifyContent: 'center' },
+  pressed: { backgroundColor: 'rgba(255, 255, 255, 0.12)' },
 });

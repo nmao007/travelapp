@@ -74,7 +74,13 @@ export function lookupResult(ok: boolean, data: unknown): LookupResult {
 }
 
 // Labels for the flight rows (transportJourney / arrivalJourney / transportCard).
-export const overviewLocation = (value: unknown) => String(value || '').replace(/\s+(?:International\s+)?Airport$/i, '').replace(/\s+International$/i, '');
+// A short name for an airport: its code when the name carries one
+// ("London Heathrow Airport (LHR)" → "LHR"), else the name without "Airport".
+export const overviewLocation = (value: unknown) => {
+  const text = String(value || '');
+  const code = /\(([A-Z]{3})\)\s*$/.exec(text)?.[1];
+  return code || text.replace(/\s+(?:International\s+)?Airport$/i, '').replace(/\s+International$/i, '');
+};
 const shortDay = (date: string) => formatDay(date, { month: 'short', day: 'numeric' });
 
 export function journeyLabels(segment: Flight) {

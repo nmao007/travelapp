@@ -11,7 +11,7 @@ import { datesForStop, renameTrip, tripStops } from '@trippilot/core/trip-model'
 import { afterSheetCloses } from '@/components/sheet';
 import { ConfirmDelete, WorkspaceHeader, WorkspaceNav, tabBarSpace, type MenuAction } from '@/components/workspace/chrome';
 import { AddMenu, type AddKind } from '@/components/workspace/add-menu';
-import { CalendarView, DayView, Timeline, dayEvents, scopedDays } from '@/components/workspace/plan-views';
+import { CalendarView, DayView, Timeline, scopedDays } from '@/components/workspace/plan-views';
 import { PlanSheet } from '@/components/workspace/plan-sheet';
 import { AddSheet } from '@/components/workspace/add-sheet';
 import { FlightSheet } from '@/components/workspace/flight-sheet';
@@ -125,13 +125,11 @@ export default function TripWorkspace() {
     setFlight({ segment, day: onDay });
   }
   const dayStop = stops.find(stop => stop.placeId === stopFilter) || destinationForDay(trip, stops, activeDay);
-  const dayCount = dayEvents(trip, activeDay, stopFilter).length;
   const menu: MenuAction[] = [
     { key: 'dates', label: 'Trip dates', onPress: () => setDatesOpen(true) },
     ...(stops.length > 1 ? [{ key: 'reorder', label: 'Reorder stops', onPress: () => afterSheetCloses(() => setStopSheet({ kind: 'order' })) }] : []),
     { key: 'add-stop', label: 'Add a stop', onPress: () => afterSheetCloses(() => setStopSheet({ kind: 'search' })) },
     { key: 'rename', label: 'Rename trip', onPress: () => { if (mode === 'day') showMode('list'); setTab('plan'); setRenaming(true); } },
-    ...(tab === 'plan' && mode !== 'calendar' ? [{ key: 'month', label: 'Month view', onPress: () => chooseDay(activeDay === 'ideas' ? days[0] || 'ideas' : activeDay, 'calendar') }] : []),
     { key: 'delete', label: 'Delete trip…', danger: true, onPress: () => { haptics.warning(); afterSheetCloses(() => setConfirmDelete(true)); } },
   ];
   const tripDays = datesForTrip(trip) as string[];
@@ -160,11 +158,10 @@ export default function TripWorkspace() {
   return (
     <View style={styles.screen}>
       <WorkspaceHeader
-        trip={trip} tab={tab} mode={mode} day={activeDay} stopFilter={stopFilter} days={days}
-        dayContext={`${dayStop?.name || trip.name} · ${dayCount} ${dayCount === 1 ? 'plan' : 'plans'}`}
+        trip={trip} tab={tab} mode={mode} stopFilter={stopFilter}
         onBack={tab === 'plan' ? back : () => router.back()}
-        onShowMode={next => { if (next === 'day') chooseDay(activeDay === 'ideas' ? days[0] || 'ideas' : activeDay, 'day'); else back(); }}
-        onStop={selectStop} onDay={next => chooseDay(next)} onDates={() => setDatesOpen(true)} onRename={() => setRenaming(true)} menu={menu}
+        onShowMode={next => chooseDay(activeDay === 'ideas' ? days[0] || 'ideas' : activeDay, next)}
+        onStop={selectStop} onDates={() => setDatesOpen(true)} onRename={() => setRenaming(true)} menu={menu}
         renaming={renaming} onRenameDone={value => {
           if (!renaming) return;
           if (value !== null) { try { commit(renameTrip(trip, value) as Trip); } catch (error) { setNotice((error as Error).message); return; } }
@@ -184,13 +181,14 @@ export default function TripWorkspace() {
               <IdeasView trip={trip} commit={commit} onNotice={setNotice} onNeedDates={() => setDatesOpen(true)} onAddIdea={() => setIdeaOpen(true)} />
             ) : mode === 'list' ? (
               <Timeline trip={trip} stopFilter={stopFilter} {...handlers} onChooseDay={next => chooseDay(next, 'day')} onChooseDates={() => setDatesOpen(true)}
-                onSetStopDates={() => stopFilter && setStopSheet({ kind: 'dates', placeId: stopFilter })} />
+                onSetStopDates={() => stopFilter && setStopSheet({ kind: 'dates', placeId: stopFilter })} onAddPlan={next => openAdd(next)} />
             ) : mode === 'calendar' ? (
               <CalendarView trip={trip} day={activeDay} stopFilter={stopFilter} month={month} {...handlers}
                 onMonth={(key, next) => { setMonth(key); setDay(next); }} onSelectDay={next => chooseDay(next)} onOpenDay={next => chooseDay(next, 'day')}
                 onAddPlan={next => openAdd(next)} onEditDates={() => setDatesOpen(true)} onEditStop={placeId => setStopSheet({ kind: 'dates', placeId })} />
             ) : (
-              <DayView trip={trip} day={activeDay} stopFilter={stopFilter} {...handlers} onFindPlaces={() => openAdd(activeDay)} />
+              <DayView trip={trip} day={activeDay} days={days} stopFilter={stopFilter} {...handlers} onDay={next => chooseDay(next)}
+                onMonth={() => chooseDay(activeDay, 'calendar')} onFindPlaces={() => openAdd(activeDay)} />
             )}
           </Animated.View>
         </ScrollView>

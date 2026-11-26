@@ -1,16 +1,20 @@
-import { Pressable, StyleSheet, View } from 'react-native';
-import { Text } from '@/components/text';
+import { useEffect, useRef, type ComponentRef } from 'react';
+import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Text, TIGHT_SCALE } from '@/components/text';
 import { calendarDisplayCells, datesForTrip, eventsForDay, monthsForTrip } from '@trippilot/core/itinerary-model';
 import { calendarStopOnDay, calendarStops } from '@trippilot/core/calendar-stops';
 import { flightDayBlock } from '@trippilot/core/flight-window';
-import { datesForStop, stopForPlan } from '@trippilot/core/trip-model';
-import { Art, Icon } from '../icons';
+import { datesForStop, stopForPlan, tripStops } from '@trippilot/core/trip-model';
+import { destinationForDay } from '@trippilot/core/place-model';
+import { Icon } from '../icons';
+import { Accent, DashedButton, Display } from '../ui';
 import { DayCard, TimelineRow } from './plan-row';
 import { FlightCard, FlightRow } from './flight-row';
 import { DropZone } from './plan-drag';
 import type { Flight, Leg } from '@/lib/flight-form';
 import { formatDay, rangeLabel } from '@/lib/format';
-import { colors, fonts, sq } from '@/lib/theme';
+import { palette, radii, strokes, typefaces } from '@/lib/design';
+import { haptics } from '@/lib/haptics';
 import type { PlanItem, Trip } from '@/lib/trips';
 
 type Handlers = { onOpen(item: PlanItem): void; onOpenFlight(segment: Flight): void; renderHandle?(item: PlanItem): React.ReactNode };
@@ -29,70 +33,140 @@ export function dayEvents(trip: Trip, day: string, stopFilter: string | null): D
 }
 export const scopedDays = (trip: Trip, stopFilter: string | null): string[] => stopFilter ? datesForStop(trip, stopFilter) : datesForTrip(trip);
 
-function OpenDay({ label, onPress }: { label: string; onPress(): void }) {
-  return (
-    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.openDay, pressed && styles.pressed]}>
-      <Text style={styles.openDayText}>{label}</Text>
-    </Pressable>
-  );
-}
-
-// List mode: the day-by-day timeline with its rail and day markers.
-export function Timeline({ trip, stopFilter, onChooseDay, onChooseDates, onSetStopDates, ...handlers }: Handlers & { trip: Trip; stopFilter: string | null; onChooseDay(day: string): void; onChooseDates(): void; onSetStopDates(): void }) {
-  const allDays = datesForTrip(trip), days = scopedDays(trip, stopFilter);
-  if (!allDays.length) return <View><OpenDay label="Choose your dates" onPress={onChooseDates} />{trip.items.map(item => <TimelineRow key={item.id} item={item} onOpen={handlers.onOpen} dragHandle={handlers.renderHandle?.(item)} />)}</View>;
-  if (!days.length) return <OpenDay label="Set stop dates" onPress={onSetStopDates} />;
+// Each day of the whole trip: its heading ("Sat, Nov 14 *arrival*" and
+// "Open day ›"), then its plans and flights on one white card, or a dashed
+// "Free day so far · + Add" row. A divider marks moving on to the next stop.
+export function Timeline({ trip, stopFilter, onChooseDay, onChooseDates, onSetStopDates, onAddPlan, ...handlers }: Handlers & {
+  trip: Trip; stopFilter: string | null; onChooseDay(day: string): void; onChooseDates(): void; onSetStopDates(): void; onAddPlan(day: string): void;
+}) {
+  const allDays = datesForTrip(trip) as string[], days = scopedDays(trip, stopFilter);
+  const stops = tripStops(trip) as Trip['stops'];
+  if (!allDays.length) {
+    return (
+      <View style={styles.timeline}>
+        <DashedButton label="Choose your dates" onPress={onChooseDates} />
+        {trip.items.length ? (
+          <View style={styles.dayCard}>
+            {trip.items.map((item, index) => <TimelineRow key={item.id} item={item} onOpen={handlers.onOpen} dragHandle={handlers.renderHandle?.(item)} last={index === trip.items.length - 1} />)}
+          </View>
+        ) : null}
+      </View>
+    );
+  }
+  if (!days.length) return <DashedButton label="Set this stop's dates" onPress={onSetStopDates} />;
   return (
     <View style={styles.timeline}>
-      <View style={styles.rail} />
-      {days.map(day => {
+      {days.map((day, index) => {
         const events = dayEvents(trip, day, stopFilter);
+        const tag = day === allDays[0] ? 'arrival' : day === allDays[allDays.length - 1] ? 'last day' : '';
+        const stop = stops.length > 1 && !stopFilter ? destinationForDay(trip, stops, day) as Trip['stops'][number] | null : null;
+        const previous = index && stop ? destinationForDay(trip, stops, days[index - 1]) as Trip['stops'][number] | null : null;
         return (
-          <DropZone key={day} kind="day" id={day} day={day}><View style={styles.daySection}>
-            <View style={[styles.dayHeading, !events.length && styles.dayHeadingEmpty]}>
-              <View style={[styles.dayMarker, { backgroundColor: events.length ? colors.accent : '#d4d7dd' }]} />
-              <Pressable accessibilityRole="button" onPress={() => onChooseDay(day)} style={({ pressed }) => [styles.dayButton, pressed && styles.pressed]}>
-                <Text style={events.length ? styles.dayTitle : styles.dayTitleEmpty}>{formatDay(day)}</Text>
-                <Icon name="chevron" size={12} color="#9b9fa6" style={styles.chevronRight} />
+          <View key={day}>
+            {stop && previous && stop.placeId !== previous.placeId ? (
+              <View style={styles.travelDivider} accessibilityRole="text">
+                <View style={styles.travelLine} />
+                <Text style={styles.travelPill}>{`${formatDay(day, { weekday: 'short', day: 'numeric' })} · on to ${stop.name}`}</Text>
+                <View style={styles.travelLine} />
+              </View>
+            ) : null}
+            <DropZone kind="day" id={day} day={day}><View style={styles.daySection}>
+              <Pressable accessibilityRole="button" accessibilityLabel={`${formatDay(day, { weekday: 'long', month: 'long', day: 'numeric' })}. Open day`} onPress={() => onChooseDay(day)} style={styles.dayHeading}>
+                <Display size="section" style={styles.flex}>
+                  {formatDay(day)}
+                  {tag ? <Accent color={palette.muted}>{` ${tag}`}</Accent> : null}
+                </Display>
+                <Text style={styles.openDay}>Open day ›</Text>
               </Pressable>
-            </View>
-            {events.map(event => <DropZone key={event.key} kind="row" id={event.key} day={day}><View style={styles.timelineItem}><EventRow event={event} {...handlers} /></View></DropZone>)}
-          </View></DropZone>
+              {events.length ? (
+                <View style={styles.dayCard}>
+                  {events.map((event, position) => (
+                    <DropZone key={event.key} kind="row" id={event.key} day={day}>
+                      <EventRow event={event} last={position === events.length - 1} {...handlers} />
+                    </DropZone>
+                  ))}
+                </View>
+              ) : <DashedButton label="Free day so far" trailing="+ Add" onPress={() => onAddPlan(day)} />}
+            </View></DropZone>
+          </View>
         );
       })}
     </View>
   );
 }
 
-// A plan or flight as a timeline row (planRow / transportJourney / arrivalJourney).
-function EventRow({ event, onOpen, onOpenFlight, renderHandle }: Handlers & { event: DayEvent }) {
-  if (event.kind === 'transport') return <FlightRow segment={event.transport} leg={event.leg} onOpen={onOpenFlight} />;
-  return <TimelineRow item={event.item} onOpen={onOpen} dragHandle={renderHandle?.(event.item)} />;
+// A plan or flight as a row in the whole-trip list.
+function EventRow({ event, onOpen, onOpenFlight, renderHandle, last }: Handlers & { event: DayEvent; last?: boolean }) {
+  if (event.kind === 'transport') return <FlightRow segment={event.transport} leg={event.leg} onOpen={onOpenFlight} last={last} />;
+  return <TimelineRow item={event.item} onOpen={onOpen} dragHandle={renderHandle?.(event.item)} last={last} />;
 }
 
-// Day mode: one day's plans as cards, a departing flight as its ticket card.
-export function DayView({ trip, day, stopFilter, onFindPlaces, ...handlers }: Handlers & { trip: Trip; day: string; stopFilter: string | null; onFindPlaces(): void }) {
+// One day: a row of day chips (with the month calendar at the end), the
+// day's heading, its plans as cards with flights as tickets, and "+ Add".
+export function DayView({ trip, day, days, stopFilter, onDay, onMonth, onFindPlaces, ...handlers }: Handlers & {
+  trip: Trip; day: string; days: string[]; stopFilter: string | null; onDay(day: string): void; onMonth(): void; onFindPlaces(): void;
+}) {
   const events = dayEvents(trip, day, stopFilter);
   const inFlight = flightDayBlock(trip, day);
+  const allDays = datesForTrip(trip) as string[];
+  const tag = day === allDays[0] ? 'arrival day' : day === allDays[allDays.length - 1] ? 'last day' : formatDay(day, { month: 'short', day: 'numeric' });
+  const stops = tripStops(trip) as Trip['stops'];
+  const stop = destinationForDay(trip, stops, day) as Trip['stops'][number] | null;
   return (
-    <View style={styles.dayCards}>
-      {inFlight ? <View style={styles.inFlight}><Icon name="plane" size={18} color={colors.muted} /><Text style={styles.inFlightText}>{`In flight · ${inFlight.flights.map((flight: { service_id?: string }) => flight.service_id).filter(Boolean).join(' / ')}`}</Text></View> : null}
+    <View style={styles.dayView}>
+      <DayStrip trip={trip} day={day} days={days} stopFilter={stopFilter} onDay={onDay} onMonth={onMonth} />
+      <View>
+        <Display size="sheet" accessibilityRole="header">{formatDay(day, { weekday: 'long' })} <Accent>{tag}</Accent></Display>
+        <Text style={styles.dayContext}>{`${stop?.name || trip.name} · ${events.length} ${events.length === 1 ? 'plan' : 'plans'}`}</Text>
+      </View>
+      {inFlight ? (
+        <View style={styles.inFlight}>
+          <Icon name="plane" size={18} color={palette.ink} strokeWidth={2.2} />
+          <Text style={styles.inFlightText}>{`In the air · ${inFlight.flights.map((flight: { service_id?: string }) => flight.service_id).filter(Boolean).join(' / ')}`}</Text>
+        </View>
+      ) : null}
       <DropZone kind="day" id={day} day={day}><View style={styles.dayCardList}>
         {events.map(event => (
           <DropZone key={event.key} kind="row" id={event.key} day={day}>
             {event.kind === 'activity' ? <DayCard item={event.item} onOpen={handlers.onOpen} dragHandle={handlers.renderHandle?.(event.item)} />
-              : event.leg === 'arrival' ? <FlightRow segment={event.transport} leg="arrival" onOpen={handlers.onOpenFlight} />
-                : <FlightCard segment={event.transport} onOpen={handlers.onOpenFlight} />}
+              : <FlightCard segment={event.transport} leg={event.leg} onOpen={handlers.onOpenFlight} />}
           </DropZone>
         ))}
       </View></DropZone>
-      {!events.length && !inFlight ? (
-        <Pressable accessibilityRole="button" onPress={onFindPlaces} style={({ pressed }) => [styles.findPlaces, pressed && styles.pressed]}>
-          <Art name="guide" size={42} />
-          <Text style={styles.findPlacesText}>Add a place or idea</Text>
-        </Pressable>
-      ) : null}
+      {!inFlight ? <DashedButton label={`+ Add to ${formatDay(day, { weekday: 'long' })}`} onPress={onFindPlaces} /> : null}
     </View>
+  );
+}
+
+// The day chips: weekday, date and a dot when the day has plans. The chosen
+// day is pink. Scrolls itself to keep the chosen day in view.
+const CHIP = 54, CHIP_GAP = 8;
+function DayStrip({ trip, day, days, stopFilter, onDay, onMonth }: { trip: Trip; day: string; days: string[]; stopFilter: string | null; onDay(day: string): void; onMonth(): void }) {
+  const strip = useRef<ComponentRef<typeof ScrollView>>(null);
+  const { width } = useWindowDimensions();
+  const index = days.indexOf(day);
+  useEffect(() => {
+    if (index < 0) return;
+    strip.current?.scrollTo({ x: Math.max(0, index * (CHIP + CHIP_GAP) - (width - CHIP) / 2 + 20), animated: true });
+  }, [index, width]);
+  return (
+    <ScrollView ref={strip} horizontal showsHorizontalScrollIndicator={false} style={styles.strip} contentContainerStyle={styles.stripContent}>
+      {days.map(value => {
+        const selected = value === day;
+        const busy = dayEvents(trip, value, stopFilter).length > 0;
+        return (
+          <Pressable key={value} accessibilityRole="button" accessibilityState={{ selected }} accessibilityLabel={`${formatDay(value, { weekday: 'long', month: 'long', day: 'numeric' })}${busy ? ', has plans' : ''}`}
+            onPress={() => { if (!selected) { haptics.select(); onDay(value); } }} style={[styles.chip, selected && styles.chipOn]}>
+            <Text maxFontSizeMultiplier={TIGHT_SCALE} style={styles.chipDay}>{formatDay(value, { weekday: 'short' }).toUpperCase()}</Text>
+            <Text maxFontSizeMultiplier={TIGHT_SCALE} style={styles.chipDate}>{Number(value.slice(-2))}</Text>
+            <View style={[styles.chipDot, { backgroundColor: busy ? palette.ink : 'transparent' }]} />
+          </Pressable>
+        );
+      })}
+      <Pressable accessibilityRole="button" accessibilityLabel="Month view" onPress={onMonth} style={({ pressed }) => [styles.chip, styles.monthChip, pressed && styles.pressed]}>
+        <Icon name="calendar" size={22} color={palette.ink} strokeWidth={2.2} />
+      </Pressable>
+    </ScrollView>
   );
 }
 
@@ -126,11 +200,11 @@ export function CalendarView({ trip, day, stopFilter, month, onMonth, onSelectDa
           {months.length > 1 ? [-1, 1].map(direction => (
             <Pressable key={direction} accessibilityRole="button" accessibilityLabel={direction < 0 ? 'Previous month' : 'Next month'} disabled={!months[index + direction]} onPress={() => step(direction)}
               style={({ pressed }) => [styles.monthButton, !months[index + direction] && styles.disabled, pressed && styles.pressed]}>
-              <Icon name={direction < 0 ? 'back' : 'arrow'} size={19} color={colors.muted} />
+              <Icon name={direction < 0 ? 'back' : 'arrow'} size={19} color={palette.ink} strokeWidth={2.2} />
             </Pressable>
           )) : null}
           <Pressable accessibilityRole="button" accessibilityLabel="Edit trip dates" onPress={onEditDates} style={({ pressed }) => [styles.monthButton, pressed && styles.pressed]}>
-            <Icon name="edit" size={19} color={colors.muted} />
+            <Icon name="edit" size={19} color={palette.ink} strokeWidth={2.2} />
           </Pressable>
         </View>
       </View>
@@ -167,13 +241,15 @@ export function CalendarView({ trip, day, stopFilter, month, onMonth, onSelectDa
         <View style={styles.agendaHeading}>
           <Pressable accessibilityRole="button" onPress={() => onOpenDay(day)} style={({ pressed }) => [styles.agendaOpen, pressed && styles.pressed]}>
             <Text style={styles.agendaTitle}>{formatDay(day)}</Text>
-            <Icon name="arrow" size={16} color="#777777" />
+            <Icon name="arrow" size={16} color={palette.violet} strokeWidth={2.4} />
           </Pressable>
         </View>
         <DropZone kind="day" id={day} day={day}>
-          {events.map(event => <DropZone key={event.key} kind="row" id={event.key} day={day}><EventRow event={event} {...handlers} /></DropZone>)}
+          {events.length ? <View style={styles.dayCard}>
+            {events.map((event, position) => <DropZone key={event.key} kind="row" id={event.key} day={day}><EventRow event={event} last={position === events.length - 1} {...handlers} /></DropZone>)}
+          </View> : null}
         </DropZone>
-        {!events.length ? <OpenDay label="Add a plan" onPress={() => onAddPlan(day)} /> : null}
+        {!events.length ? <DashedButton label="Free day so far" trailing="+ Add" onPress={() => onAddPlan(day)} /> : null}
       </View>
     </View>
   );
@@ -181,52 +257,53 @@ export function CalendarView({ trip, day, stopFilter, month, onMonth, onSelectDa
 
 const cellSize = { flexBasis: '12.6%', flexGrow: 1, height: 48 } as const;
 const styles = StyleSheet.create({
-  pressed: { backgroundColor: colors.pressed },
+  flex: { flex: 1 },
+  pressed: { backgroundColor: palette.sand },
   disabled: { opacity: 0.25 },
-  // .open-day: a dashed prompt box, text at the left.
-  openDay: { minHeight: 48, marginTop: 6, paddingVertical: 11, paddingHorizontal: 12, borderWidth: 1, borderStyle: 'dashed', borderColor: '#e5cfc5', borderRadius: sq(22), borderCurve: 'continuous', justifyContent: 'center' },
-  openDayText: { fontFamily: fonts.semibold, fontSize: 14, color: colors.action },
-  timeline: { paddingBottom: 20 },
-  // .trip-timeline::before: a 1px rail from the first marker to the last.
-  rail: { position: 'absolute', left: 5, top: 23, bottom: 24 + 20, width: 1, backgroundColor: '#e4e6ea' },
-  daySection: { marginBottom: 8 },
-  dayHeading: { height: 46, flexDirection: 'row', alignItems: 'center', backgroundColor: colors.white },
-  dayHeadingEmpty: { height: 44 },
-  // 5pt dot inside a 2pt white ring, centered on the rail.
-  dayMarker: { position: 'absolute', left: 1, width: 9, height: 9, borderWidth: 2, borderColor: colors.white, boxSizing: 'border-box' },
-  dayButton: { marginLeft: 24, height: 44, flexDirection: 'row', alignItems: 'center', gap: 7, borderRadius: sq(22), borderCurve: 'continuous' },
-  dayTitle: { fontFamily: fonts.bold, fontSize: 17, lineHeight: 20.4, letterSpacing: -0.35, color: '#292929' },
-  dayTitleEmpty: { fontFamily: fonts.medium, fontSize: 15, lineHeight: 18, letterSpacing: -0.35, color: '#85888e' },
-  chevronRight: { transform: [{ rotate: '-90deg' }] },
-  timelineItem: { marginLeft: 23 },
-  dayCards: { paddingTop: 14, gap: 12, paddingBottom: 20 },
-  dayCardList: { gap: 12 },
-  inFlight: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: sq(22), borderCurve: 'continuous', backgroundColor: colors.soft },
-  inFlightText: { fontFamily: fonts.medium, fontSize: 13, color: colors.muted },
-  findPlaces: { minHeight: 120, gap: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#ececec', borderRadius: sq(30), borderCurve: 'continuous' },
-  findPlacesText: { fontFamily: fonts.semibold, fontSize: 15, color: colors.ink },
-  monthToolbar: { height: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  timeline: { gap: 6 },
+  daySection: { gap: 8, paddingBottom: 8 },
+  dayHeading: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  openDay: { fontFamily: typefaces.bold, fontSize: 13, color: palette.violet },
+  dayCard: { paddingVertical: 2, borderRadius: 20, borderCurve: 'continuous', borderWidth: strokes.thin, borderColor: palette.line, backgroundColor: palette.paper, overflow: 'hidden' },
+  // "Wed 18 · on to Porto": an ink pill on an ink rule.
+  travelDivider: { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 10 },
+  travelLine: { flex: 1, height: 2, backgroundColor: palette.ink },
+  travelPill: { overflow: 'hidden', paddingVertical: 6, paddingHorizontal: 12, borderRadius: radii.pill, backgroundColor: palette.ink, fontFamily: typefaces.bold, fontSize: 13, color: palette.paper },
+  dayView: { gap: 14 },
+  dayContext: { marginTop: 4, fontFamily: typefaces.semibold, fontSize: 13, color: palette.muted },
+  dayCardList: { gap: 10 },
+  inFlight: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: radii.md, borderCurve: 'continuous', backgroundColor: palette.sand },
+  inFlightText: { fontFamily: typefaces.semibold, fontSize: 13, color: palette.ink },
+  strip: { marginHorizontal: -20 },
+  stripContent: { paddingHorizontal: 20, paddingVertical: 2, gap: CHIP_GAP },
+  chip: { width: CHIP, height: 70, gap: 1, alignItems: 'center', justifyContent: 'center', borderRadius: radii.md, borderCurve: 'continuous', borderWidth: strokes.thin, borderColor: palette.line, backgroundColor: palette.paper },
+  chipOn: { borderWidth: strokes.mid, borderColor: palette.ink, backgroundColor: palette.pink },
+  chipDay: { fontFamily: typefaces.bold, fontSize: 11, color: palette.ink },
+  chipDate: { fontFamily: typefaces.display, fontSize: 22, lineHeight: 26, color: palette.ink },
+  chipDot: { width: 5, height: 5, borderRadius: 3 },
+  monthChip: { borderStyle: 'dashed', borderColor: palette.ink, backgroundColor: 'transparent' },
+  monthToolbar: { minHeight: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   monthHeading: { flexShrink: 1 },
-  monthLabel: { fontFamily: fonts.semibold, fontSize: 21, lineHeight: 25.2, letterSpacing: -0.6, color: '#262626' },
-  monthRange: { marginTop: 5, fontFamily: fonts.regular, fontSize: 13, lineHeight: 18, color: '#777777' },
-  monthControls: { flexDirection: 'row', alignItems: 'center' },
-  monthButton: { width: 44, height: 44, borderRadius: sq(22), borderCurve: 'continuous', alignItems: 'center', justifyContent: 'center' },
+  monthLabel: { fontFamily: typefaces.display, fontSize: 24, lineHeight: 28, letterSpacing: -0.6, color: palette.ink },
+  monthRange: { marginTop: 4, fontFamily: typefaces.semibold, fontSize: 13, lineHeight: 18, color: palette.muted },
+  monthControls: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  monthButton: { width: 44, height: 44, borderRadius: 22, borderWidth: strokes.thin, borderColor: palette.ink, backgroundColor: palette.paper, alignItems: 'center', justifyContent: 'center' },
   stopKey: { marginTop: 12, flexDirection: 'row', flexWrap: 'wrap', columnGap: 12, rowGap: 4 },
-  stopKeyRow: { flexBasis: '45%', flexGrow: 1, minHeight: 32, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: sq(22), borderCurve: 'continuous' },
-  stopDot: { width: 6, height: 6, borderRadius: sq(1), borderCurve: 'continuous' },
-  stopKeyName: { flexShrink: 1, fontFamily: fonts.semibold, fontSize: 13, lineHeight: 16.25, color: colors.ink },
+  stopKeyRow: { flexBasis: '45%', flexGrow: 1, minHeight: 32, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: radii.pill },
+  stopDot: { width: 9, height: 9, borderRadius: 3 },
+  stopKeyName: { flexShrink: 1, fontFamily: typefaces.bold, fontSize: 13, lineHeight: 16, color: palette.ink },
   grid: { marginTop: 8, paddingTop: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
-  weekday: { flexBasis: '12.6%', flexGrow: 1, height: 20, textAlign: 'center', fontFamily: fonts.medium, fontSize: 11, lineHeight: 18, color: '#888888' },
-  cell: { ...cellSize, borderRadius: sq(22), borderCurve: 'continuous', borderWidth: 1, borderColor: 'transparent', alignItems: 'center' },
+  weekday: { flexBasis: '12.6%', flexGrow: 1, height: 20, textAlign: 'center', fontFamily: typefaces.bold, fontSize: 11, lineHeight: 18, color: palette.muted },
+  cell: { ...cellSize, borderRadius: 14, borderCurve: 'continuous', borderWidth: strokes.thin, borderColor: 'transparent', alignItems: 'center' },
   outside: { paddingTop: 5 },
-  outsideDate: { padding: 5, paddingTop: 5, fontFamily: fonts.regular, fontSize: 15, lineHeight: 22, color: '#aaaaaa' },
-  tripCell: { paddingTop: 3, backgroundColor: colors.soft },
-  activeCell: { backgroundColor: '#fff2eb', borderColor: '#f5b293' },
-  cellStop: { position: 'absolute', top: 6, right: 5, width: 4, height: 4, borderRadius: sq(1), borderCurve: 'continuous' },
-  cellDate: { fontFamily: fonts.semibold, fontSize: 16, lineHeight: 22, color: '#292929' },
-  cellCount: { marginTop: 1, paddingHorizontal: 2, fontFamily: fonts.medium, fontSize: 12, lineHeight: 14, color: colors.muted },
-  agenda: { marginTop: 14, paddingTop: 10, paddingBottom: 12, borderTopWidth: 1, borderTopColor: '#eeeeee' },
-  agendaHeading: { height: 44, flexDirection: 'row', alignItems: 'center' },
-  agendaOpen: { height: 44, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: sq(22), borderCurve: 'continuous' },
-  agendaTitle: { fontFamily: fonts.bold, fontSize: 17, letterSpacing: -0.3, color: '#292929' },
+  outsideDate: { padding: 5, fontFamily: typefaces.medium, fontSize: 15, lineHeight: 22, color: palette.faint },
+  tripCell: { paddingTop: 3, backgroundColor: palette.paper, borderColor: palette.line },
+  activeCell: { backgroundColor: palette.pink, borderColor: palette.ink, borderWidth: strokes.mid },
+  cellStop: { position: 'absolute', top: 6, right: 5, width: 5, height: 5, borderRadius: 2 },
+  cellDate: { fontFamily: typefaces.display, fontSize: 16, lineHeight: 22, color: palette.ink },
+  cellCount: { marginTop: 1, paddingHorizontal: 2, fontFamily: typefaces.bold, fontSize: 11, lineHeight: 14, color: palette.ink },
+  agenda: { marginTop: 14, paddingTop: 10, paddingBottom: 12, gap: 8, borderTopWidth: strokes.thin, borderTopColor: palette.line },
+  agendaHeading: { minHeight: 44, flexDirection: 'row', alignItems: 'center' },
+  agendaOpen: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: radii.pill },
+  agendaTitle: { fontFamily: typefaces.display, fontSize: 20, color: palette.ink },
 });
