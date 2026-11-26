@@ -85,18 +85,18 @@ export function TripsProvider({ children }: { children: ReactNode }) {
   const [homeStatus, setHomeStatus] = useState('');
   const statusTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  const sync = useMemo(() => createCloudSync({
-    storage: AsyncStorage,
-    request: restRequest,
-    onConflict: () => showHomeStatus('This trip was changed on another device, so the latest version is shown.'),
-  }), []);
-
   // Matches the site's home notice: shown for five seconds.
   const showHomeStatus = useCallback((message: string) => {
     clearTimeout(statusTimer.current);
     setHomeStatus(message);
     if (message) statusTimer.current = setTimeout(() => setHomeStatus(''), 5000);
   }, []);
+
+  const sync = useMemo(() => createCloudSync({
+    storage: AsyncStorage,
+    request: restRequest,
+    onConflict: () => showHomeStatus('This trip was changed on another device, so the latest version is shown.'),
+  }), [showHomeStatus]);
 
   const refresh = useCallback(async (user: Account | null) => {
     setTrips(await sync.readTrips(user?.id ?? null));

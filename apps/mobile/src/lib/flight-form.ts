@@ -60,7 +60,6 @@ export function transportInput(form: FlightForm, mode = 'Flight') {
 // flights to choose from or a note above the manual fields.
 export type LookupResult = { flights: FlightData[] } | { note: string };
 export const lookupNotes = {
-  notConnected: 'Flight lookup is not connected. Enter your ticket details below.',
   finding: 'Finding your flight…',
   unavailable: 'Flight lookup could not connect. Enter your ticket details below.',
   none: 'No flight found for this departure date. Enter your ticket details below.',

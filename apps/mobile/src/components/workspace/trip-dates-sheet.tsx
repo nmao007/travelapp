@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/text';
 import { calendarMonth } from '@trippilot/core/date-range';
 import { changeTripDates, dateOffset, offsetDate, shiftTripDays } from '@trippilot/core/trip-dates';
-import { calendarStopOnDay, calendarStops } from '@trippilot/core/calendar-stops';
+import { calendarStops } from '@trippilot/core/calendar-stops';
 import { scheduleUnassigned } from '@trippilot/core/place-model';
 import { setStopDates, stopSchedule } from '@trippilot/core/trip-model';
 import { Icon } from '../icons';

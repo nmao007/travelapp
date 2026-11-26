@@ -11,7 +11,17 @@
 // symbols so crash reports show readable stack traces. The app sends crash
 // reports whenever EXPO_PUBLIC_SENTRY_DSN is set (src/lib/crash-reports.ts);
 // this only makes them readable.
+//
+// EXPO_PUBLIC_API_URL: the deployed site's https address. EAS doesn't upload
+// .env (it's gitignored), so EAS builds read it from the project's EAS
+// environment variables (eas env:create, preview and production). A build
+// without it would point the app at localhost and nothing would load on a
+// phone, so it stops here instead.
 module.exports = ({ config }) => {
+  const api = process.env.EXPO_PUBLIC_API_URL || '';
+  if (process.env.EAS_BUILD_PROFILE && !/^https:\/\//.test(api)) {
+    throw new Error(`EXPO_PUBLIC_API_URL must be the deployed site's https:// address for EAS builds (got "${api}"). Add it with: npx eas-cli@latest env:create --name EXPO_PUBLIC_API_URL --environment production --environment preview --visibility plaintext`);
+  }
   const iosKey = process.env.GOOGLE_MAPS_IOS_KEY || '';
   const androidKey = process.env.GOOGLE_MAPS_ANDROID_KEY || '';
   const sentry = process.env.SENTRY_ORG && process.env.SENTRY_PROJECT

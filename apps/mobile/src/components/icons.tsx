@@ -1,7 +1,6 @@
 import { memo } from 'react';
 import { View, type StyleProp, type ViewStyle } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
-import { SvgXml } from 'react-native-svg';
+import Svg, { Path, SvgXml } from 'react-native-svg';
 import { placeArt } from '@trippilot/core/place-art';
 import { symbols, type SymbolName } from './icon-symbols';
 

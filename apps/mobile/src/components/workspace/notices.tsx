@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet } from 'react-native';
 import { Text } from '@/components/text';
 import Animated, { FadeInDown, FadeOutDown } from 'react-native-reanimated';
 import { tabBarSpace } from './chrome';

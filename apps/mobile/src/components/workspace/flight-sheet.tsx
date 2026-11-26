@@ -8,6 +8,7 @@ import { tripStops } from '@trippilot/core/trip-model';
 import { Icon } from '../icons';
 import { Dropdown } from '../popover';
 import { BottomSheet } from '../sheet';
+import { loadConfig } from '@/lib/config';
 import { findFlights } from '@/lib/flights';
 import { flightForm, formWithFlight, legs, lookupNotes, transportInput, type Flight, type FlightData, type FlightForm, type Leg, type LegForm, type LookupResult } from '@/lib/flight-form';
 import { autocomplete, newSession, placeDetails, placeZone, type Suggestion } from '@/lib/places';
@@ -21,8 +22,8 @@ type Removal = { trip: Trip; removal: unknown };
 
 // The site's #transport-dialog on phones (openTransport, searchFlight and the
 // #transport-form submit in itinerary-ui.js), for flights only. Typing a flight
-// number with a departure date looks it up; when lookup isn't connected (no
-// AERODATABOX_API_KEY on the server) the same fields are filled in by hand.
+// number with a departure date looks it up; when lookup is off (no
+// AERODATABOX_API_KEY on the server) the sheet is just the form, filled in by hand.
 // The workspace mounts it for each flight it opens and drops it once closed.
 export function FlightSheet({ trip, editing, onClose, commit, onSaved, onRemoved }: {
   trip: Trip; editing: { segment: Flight | null; day: string }; onClose(): void; commit(trip: Trip): void;
@@ -50,6 +51,9 @@ export function FlightSheet({ trip, editing, onClose, commit, onSaved, onRemoved
     const flightNumber = normalizeFlightNumber(number);
     if (!flightNumber || !date) return;
     const controller = new AbortController(); request.current = controller;
+    // With lookup off the sheet is a plain form: no "Finding…" flash.
+    const lookupOn = await loadConfig().then(config => config.flightLookup, () => false);
+    if (!lookupOn || controller.signal.aborted) return;
     setLookup('loading');
     try {
       const result = await findFlights(flightNumber, date, controller.signal);

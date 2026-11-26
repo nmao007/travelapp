@@ -28,7 +28,7 @@ Each milestone ends with something you can try in the iOS Simulator (`npx expo r
 - [x] **Add a flight by number and date**: the app looks it up and puts it on the right day in the timeline and calendar, showing local departure and arrival times. Edit and remove it too. Convert the site's code: `/api/flights`, `flight-model.js`, `flight-window.js`, `itinerary-model.js`.
 - [x] "Add flight" goes under the Plan tab's +, not a Travel tab.
 
-For now flights are entered by hand (tested in the iOS Simulator). Lookup turns on by itself once the server has an AeroDataBox key (`AERODATABOX_API_KEY`); the free plan doesn't allow commercial use, so a public launch needs a paid plan (Starter, $19/month, when checked) or stays with manual entry.
+For now flights are entered by hand (tested in the iOS Simulator). Lookup turns on by itself once the server has an AeroDataBox key (`AERODATABOX_API_KEY`); the free plan doesn't allow commercial use, so a public launch needs a paid plan (Starter, $19/month, when checked) or stays with manual entry. **Decided: launch with manual entry.** With lookup off the flight sheet is just the form (no "not connected" message); setting the key later turns lookup on with no app update.
 
 ## Milestone 3: Polish the loop
 

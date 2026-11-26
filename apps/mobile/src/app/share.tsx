@@ -52,7 +52,7 @@ export default function ShareScreen() {
   if (!url) {
     return (
       <View style={[styles.screen, styles.center, { paddingTop: insets.top }]}>
-        <Text style={styles.muted}>Elsewhere couldn't find a link to save.</Text>
+        <Text style={styles.muted}>Elsewhere couldn&apos;t find a link to save.</Text>
         <Pressable accessibilityRole="button" onPress={close} style={({ pressed }) => [styles.secondary, pressed && styles.pressed]}><Text style={styles.secondaryText}>Close</Text></Pressable>
       </View>
     );

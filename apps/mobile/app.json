@@ -13,6 +13,9 @@
         "com.apple.security.application-groups": [
           "group.app.elsewhere.mobile"
         ]
+      },
+      "config": {
+        "usesNonExemptEncryption": false
       }
     },
     "android": {
