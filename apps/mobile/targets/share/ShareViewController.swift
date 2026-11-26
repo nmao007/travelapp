@@ -9,7 +9,8 @@ import UniformTypeIdentifiers
 // so saving works offline and while signed out.
 //
 // The app writes "shareContext" (API address and trips) to the app group; see
-// src/lib/share-inbox.tsx. Fonts are the app's DM Sans, bundled in this folder.
+// src/lib/share-inbox.tsx. Fonts are the app's Bricolage Grotesque, Instrument
+// Serif and Inter, bundled in this folder (licenses in Fonts-OFL.txt).
 
 private let appGroup = "group.app.elsewhere.mobile"
 private let inboxKey = "importInbox"
@@ -174,10 +175,9 @@ final class ShareModel: ObservableObject {
 // MARK: - Look (values from src/lib/theme.ts)
 
 enum Palette {
-  static let ink = Color(hex: 0x242424), title = Color(hex: 0x313541), muted = Color(hex: 0x666666), meta = Color(hex: 0x7D8290)
-  static let action = Color(hex: 0xC34E1F), accent = Color(hex: 0xF36B32), accentPressed = Color(hex: 0xBA4C1B)
-  static let tint = Color(hex: 0xFFF2EB), tintLine = Color(hex: 0xFFD9BE), line = Color(hex: 0xECECEC), soft = Color(hex: 0xF5F6F8)
-  static let label = Color(hex: 0x5D6270), success = Color(hex: 0x19765E)
+  // The redesign (src/lib/design.ts).
+  static let ink = Color(hex: 0x1A1033), cream = Color(hex: 0xFFF6E9), muted = Color(hex: 0x5B4F73), lilac = Color(hex: 0xCFC7E6)
+  static let yellow = Color(hex: 0xFFE14D), pink = Color(hex: 0xFF3D8B), orange = Color(hex: 0xFF7A1A), violet = Color(hex: 0x3B2BFF), cover = Color(hex: 0x2A2140)
 }
 
 enum Fonts {
@@ -192,18 +192,22 @@ enum Fonts {
       }
     }
   }
-  static func dm(_ weight: String, _ size: CGFloat) -> Font {
-    if let name = names["DMSans_\(weight)"] { return .custom(name, fixedSize: size) }
-    return .system(size: size)
+  private static func named(_ file: String, _ size: CGFloat, fallback: Font.Weight) -> Font {
+    if let name = names[file] { return .custom(name, fixedSize: size) }
+    return .system(size: size, weight: fallback)
   }
+  static func display(_ size: CGFloat) -> Font { named("BricolageGrotesque_800ExtraBold", size, fallback: .heavy) }
+  static func serif(_ size: CGFloat) -> Font { named("InstrumentSerif_400Regular_Italic", size, fallback: .regular) }
+  // weight: "500Medium", "600SemiBold", "700Bold" or "800ExtraBold".
+  static func inter(_ weight: String, _ size: CGFloat) -> Font { named("Inter_\(weight)", size, fallback: .semibold) }
 
-  // Text in DM Sans with emoji drawn in the system font: fonts registered by
+  // Text in Inter with emoji drawn in the system font: fonts registered by
   // the extension don't fall back to Apple Color Emoji on their own.
   static func text(_ string: String, _ weight: String, _ size: CGFloat) -> Text {
     var result = Text(""), run = "", runIsEmoji = false
     func flush() {
       guard !run.isEmpty else { return }
-      result = result + Text(run).font(runIsEmoji ? .system(size: size) : dm(weight, size))
+      result = result + Text(run).font(runIsEmoji ? .system(size: size) : inter(weight, size))
       run = ""
     }
     for character in string {
@@ -220,101 +224,144 @@ extension Color {
   init(hex: UInt32) { self.init(red: Double((hex >> 16) & 0xFF) / 255, green: Double((hex >> 8) & 0xFF) / 255, blue: Double(hex & 0xFF) / 255) }
 }
 
+// Chips that wrap onto as many lines as they need.
+struct Flow: Layout {
+  var spacing: CGFloat = 8
+  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    rows(proposal.width ?? .infinity, subviews).last.map { CGSize(width: proposal.width ?? $0.width, height: $0.y + $0.height) } ?? .zero
+  }
+  func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+    var x = bounds.minX, y = bounds.minY, line: CGFloat = 0
+    for view in subviews {
+      let size = view.sizeThatFits(.unspecified)
+      if x > bounds.minX && x + size.width > bounds.maxX { x = bounds.minX; y += line + spacing; line = 0 }
+      view.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(width: min(size.width, bounds.width), height: size.height))
+      x += size.width + spacing; line = max(line, size.height)
+    }
+  }
+  private func rows(_ width: CGFloat, _ subviews: Subviews) -> [(width: CGFloat, y: CGFloat, height: CGFloat)] {
+    var result: [(width: CGFloat, y: CGFloat, height: CGFloat)] = [], x: CGFloat = 0, y: CGFloat = 0, line: CGFloat = 0
+    for view in subviews {
+      let size = view.sizeThatFits(.unspecified)
+      if x > 0 && x + size.width > width { y += line + spacing; x = 0; line = 0 }
+      x += size.width + spacing; line = max(line, size.height)
+      result.append((width: x, y: y, height: line))
+    }
+    return result
+  }
+}
+
 // MARK: - Screen
 
 struct ShareSheet: View {
   @ObservedObject var model: ShareModel
   // iOS always shows a share extension as a full-height sheet, so the title
   // stays at the top and everything else sits at the bottom, within thumb
-  // reach. Taller content scrolls.
+  // reach. Taller content scrolls. The screen is ink with two suns in the
+  // corner, like the redesign's share screen.
   var body: some View {
-    VStack(spacing: 0) {
-      header
-      GeometryReader { space in
-        ScrollView {
-          VStack(alignment: .leading, spacing: 0) {
-            Spacer(minLength: 0)
-            switch model.phase {
-            case .loading: ProgressView().frame(maxWidth: .infinity, minHeight: 160)
-            case .failed(let message): Text(message).font(Fonts.dm("400Regular", 15)).foregroundColor(Palette.muted).padding(16).frame(maxWidth: .infinity, minHeight: 120)
-            case .ready: form
-            case .saved(let message): saved(message)
+    ZStack(alignment: .topTrailing) {
+      Palette.ink.ignoresSafeArea()
+      Circle().fill(Palette.violet).frame(width: 240, height: 240).offset(x: 90, y: -90).accessibilityHidden(true)
+      Circle().fill(Palette.orange).frame(width: 70, height: 70).offset(x: -40, y: 40).accessibilityHidden(true)
+      VStack(spacing: 0) {
+        header
+        GeometryReader { space in
+          ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+              switch model.phase {
+              case .loading: ProgressView().tint(.white).frame(maxWidth: .infinity, minHeight: 160)
+              case .failed(let message): Text(message).font(Fonts.inter("600SemiBold", 15)).foregroundColor(Palette.lilac).padding(20).frame(maxWidth: .infinity, minHeight: 120)
+              case .ready: form(minHeight: space.size.height)
+              case .saved(let message): saved(message).frame(minHeight: space.size.height)
+              }
             }
           }
-          .padding(.bottom, 8)
-          .frame(minHeight: space.size.height, alignment: .bottom)
+          .scrollBounceBehavior(.basedOnSize)
         }
-        .scrollBounceBehavior(.basedOnSize)
       }
     }
-    .background(Color.white.ignoresSafeArea())
   }
 
   private var header: some View {
-    HStack(spacing: 16) {
-      Text("Save to Elsewhere").font(Fonts.dm("600SemiBold", 20)).foregroundColor(Color(hex: 0x252525)).tracking(-0.5)
+    HStack {
+      Button("Cancel", action: model.cancel).font(Fonts.inter("600SemiBold", 16)).foregroundColor(.white).frame(minWidth: 56, minHeight: 44, alignment: .leading)
       Spacer()
-      Button(action: model.cancel) {
-        Image(systemName: "xmark").font(.system(size: 14, weight: .semibold)).foregroundColor(Color(hex: 0x555555))
-          .frame(width: 44, height: 44).background(Palette.soft).clipShape(Circle())
-      }.accessibilityLabel("Close")
+      Text("elsewhere").font(Fonts.display(20)).tracking(-0.5).foregroundColor(.white).accessibilityAddTraits(.isHeader)
+      Spacer()
+      Color.clear.frame(width: 56, height: 44)
     }
-    .padding(.horizontal, 16).padding(.top, 16)
+    .padding(.horizontal, 20).padding(.top, 12)
   }
 
-  private var form: some View {
-    VStack(alignment: .leading, spacing: 18) {
+  private func form(minHeight: CGFloat) -> some View {
+    VStack(alignment: .leading, spacing: 20) {
+      (Text("Ooh, ").font(Fonts.display(44)) + Text("good find.").font(Fonts.serif(48)).foregroundColor(Palette.pink))
+        .foregroundColor(.white).tracking(-1.5).lineSpacing(-4).accessibilityAddTraits(.isHeader)
       previewCard
       if let places = model.preview?.places, !places.isEmpty {
-        VStack(alignment: .leading, spacing: 8) {
-          Text("Place").font(Fonts.dm("600SemiBold", 14)).foregroundColor(Palette.label)
-          ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) { ForEach(places, id: \.self) { place in chip(place) } }
-          }
+        section("SPOTTED IN THIS VIDEO") { ForEach(places, id: \.self) { place in placeChip(place) } }
+      }
+      section("SAVE TO") {
+        ForEach(model.trips, id: \.self) { trip in
+          tripChip(trip.dates.isEmpty ? trip.name : "\(trip.name) · \(trip.dates)", selected: model.trip == trip) { model.trip = trip; model.newTrip = false }
         }
+        tripChip("+ New trip", selected: model.newTrip, dashed: true) { model.trip = nil; model.newTrip = true }
+        tripChip("Decide later", selected: model.trip == nil && !model.newTrip) { model.trip = nil; model.newTrip = false }
       }
-      VStack(alignment: .leading, spacing: 8) {
-        Text("Trip").font(Fonts.dm("600SemiBold", 14)).foregroundColor(Palette.label)
-        tripPicker
+      if model.trips.isEmpty {
+        Text("Open Elsewhere once to choose a trip here.").font(Fonts.inter("500Medium", 13)).foregroundColor(Palette.lilac)
       }
+      Spacer(minLength: 8)
       Button(action: model.save) {
-        Text("Save idea").font(Fonts.dm("600SemiBold", 16)).foregroundColor(.white)
-          .frame(maxWidth: .infinity, minHeight: 50)
-          .background(Palette.accent)
-          .clipShape(RoundedRectangle(cornerRadius: 14.3, style: .continuous))
+        Text(saveLabel).font(Fonts.display(20)).foregroundColor(Palette.ink).lineLimit(1).minimumScaleFactor(0.7)
+          .frame(maxWidth: .infinity, minHeight: 62).padding(.horizontal, 16)
+          .background(Palette.orange).clipShape(Capsule())
+          .overlay(Capsule().stroke(.white, lineWidth: 2.5))
+          .padding(4).overlay(Capsule().stroke(Palette.orange, lineWidth: 2))
       }
     }
-    .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 24)
+    .padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 24)
+    .frame(minHeight: minHeight, alignment: .top)
+  }
+
+  private var saveLabel: String {
+    if let trip = model.trip { return "Save to \(trip.name) ✦" }
+    return model.newTrip ? "Save and start a trip ✦" : "Save for later ✦"
+  }
+
+  private func section<Content: View>(_ title: String, @ViewBuilder _ content: () -> Content) -> some View {
+    VStack(alignment: .leading, spacing: 10) {
+      Text(title).font(Fonts.inter("800ExtraBold", 13)).tracking(0.8).foregroundColor(Palette.yellow).accessibilityAddTraits(.isHeader)
+      Flow { content() }
+    }
   }
 
   private var previewCard: some View {
-    HStack(alignment: .top, spacing: 12) {
-      ZStack(alignment: .bottomLeading) {
-        Palette.tint
-        Group {
-          if let image = model.preview?.image, let url = URL(string: image), !image.isEmpty {
-            AsyncImage(url: url) { phase in
-              if let picture = phase.image { picture.resizable().scaledToFill() } else { ProgressView() }
-            }
-          } else if model.preview == nil && !model.previewFailed {
-            ProgressView()
-          } else {
-            Image(systemName: "play.rectangle").font(.system(size: 26)).foregroundColor(Palette.action)
+    HStack(alignment: .center, spacing: 14) {
+      Group {
+        if let image = model.preview?.image, let url = URL(string: image), !image.isEmpty {
+          AsyncImage(url: url) { phase in
+            if let picture = phase.image { picture.resizable().scaledToFill() } else { ProgressView().tint(.white) }
           }
+        } else if model.preview == nil && !model.previewFailed {
+          ProgressView().tint(.white)
+        } else {
+          Image(systemName: "play.fill").font(.system(size: 22)).foregroundColor(.white.opacity(0.8))
         }
-        .frame(width: 84, height: 112).clipped()
-        Text(model.providerName).font(Fonts.dm("600SemiBold", 10)).foregroundColor(.white)
-          .padding(.horizontal, 6).padding(.vertical, 2).background(Color(hex: 0x20201F).opacity(0.72))
-          .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous)).padding(6)
       }
-      .frame(width: 84, height: 112).clipShape(RoundedRectangle(cornerRadius: 10.4, style: .continuous))
-      VStack(alignment: .leading, spacing: 4) {
-        Fonts.text(captionText, "700Bold", 16).foregroundColor(Palette.title).lineLimit(3)
-        if let creator = creatorText { Text(creator).font(Fonts.dm("400Regular", 13)).foregroundColor(Palette.meta).lineLimit(1) }
-        if model.previewFailed { Text("No preview right now. The link is saved as it is.").font(Fonts.dm("400Regular", 12)).foregroundColor(Palette.muted) }
+      .frame(width: 72, height: 96).background(Palette.cover).clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+      .accessibilityHidden(true)
+      VStack(alignment: .leading, spacing: 6) {
+        Text(model.providerName).font(Fonts.inter("700Bold", 11)).foregroundColor(.white)
+          .padding(.horizontal, 9).padding(.vertical, 3).background(Palette.ink).clipShape(Capsule())
+        Fonts.text(captionText, "700Bold", 15).foregroundColor(Palette.ink).lineLimit(3)
+        if let creator = creatorText { Text(creator).font(Fonts.inter("600SemiBold", 12)).foregroundColor(Palette.muted).lineLimit(1) }
+        if model.previewFailed { Text("No preview right now. The link is saved as it is.").font(Fonts.inter("500Medium", 12)).foregroundColor(Palette.muted) }
       }
       Spacer(minLength: 0)
     }
+    .padding(12).background(Color.white).clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
   }
 
   private var captionText: String {
@@ -332,50 +379,37 @@ struct ShareSheet: View {
     return parts.isEmpty ? nil : parts.joined(separator: " · ")
   }
 
-  private func chip(_ place: PlaceChoice) -> some View {
+  // A place the caption names: pink when chosen.
+  private func placeChip(_ place: PlaceChoice) -> some View {
     let selected = model.place == place
     return Button { model.place = selected ? nil : place } label: {
-      HStack(spacing: 5) {
-        Image(systemName: selected ? "mappin.circle.fill" : "mappin").font(.system(size: 13, weight: .semibold))
-        Text(place.name).font(Fonts.dm("500Medium", 14)).lineLimit(1)
-      }
-      .foregroundColor(selected ? Palette.action : Palette.ink)
-      .padding(.horizontal, 12).frame(minHeight: 40)
-      .background(selected ? Palette.tint : Color.white)
-      .overlay(RoundedRectangle(cornerRadius: 13, style: .continuous).stroke(selected ? Palette.tintLine : Palette.line, lineWidth: 1))
-      .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+      Text(selected ? "✓ \(place.name)" : place.name).font(Fonts.inter(selected ? "800ExtraBold" : "700Bold", 14)).lineLimit(1)
+        .foregroundColor(selected ? Palette.ink : .white)
+        .padding(.horizontal, 16).frame(minHeight: 44)
+        .background(selected ? Palette.pink : Color.clear).clipShape(Capsule())
+        .overlay(Capsule().stroke(selected ? Palette.pink : .white, lineWidth: 2))
     }
     .accessibilityAddTraits(selected ? .isSelected : [])
   }
 
-  private var tripPicker: some View {
-    Menu {
-      ForEach(model.trips, id: \.self) { trip in
-        Button { model.trip = trip; model.newTrip = false } label: { Text(trip.dates.isEmpty ? trip.name : "\(trip.name) · \(trip.dates)") }
-      }
-      Button { model.trip = nil; model.newTrip = true } label: { Label("New trip", systemImage: "plus") }
-      Button { model.trip = nil; model.newTrip = false } label: { Text("Decide later") }
-    } label: {
-      HStack(spacing: 10) {
-        Image(systemName: "suitcase").font(.system(size: 16)).foregroundColor(Palette.action)
-        VStack(alignment: .leading, spacing: 2) {
-          Text(model.trip?.name ?? (model.newTrip ? "New trip" : "Decide later")).font(Fonts.dm("600SemiBold", 16)).foregroundColor(Palette.ink).lineLimit(1)
-          Text(model.trip.map { $0.dates.isEmpty ? "Ideas tab" : $0.dates } ?? (model.newTrip ? "Pick the destination in Elsewhere" : model.trips.isEmpty ? "Open Elsewhere once to choose a trip here" : "Add it to a trip in the app"))
-            .font(Fonts.dm("400Regular", 13)).foregroundColor(Palette.muted).lineLimit(1)
-        }
-        Spacer()
-        Image(systemName: "chevron.up.chevron.down").font(.system(size: 13, weight: .semibold)).foregroundColor(Palette.meta)
-      }
-      .padding(.horizontal, 12).frame(minHeight: 56)
-      .overlay(RoundedRectangle(cornerRadius: 14.3, style: .continuous).stroke(Palette.line, lineWidth: 1))
+  // A trip to save to: yellow when chosen; "New trip" is dashed.
+  private func tripChip(_ label: String, selected: Bool, dashed: Bool = false, action: @escaping () -> Void) -> some View {
+    Button(action: action) {
+      Text(label).font(Fonts.inter(selected ? "800ExtraBold" : "700Bold", 15)).lineLimit(1)
+        .foregroundColor(selected ? Palette.ink : .white)
+        .padding(.horizontal, 18).frame(minHeight: 48)
+        .background(selected ? Palette.yellow : Color.clear).clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
+          .stroke(selected ? Palette.yellow : .white, style: StrokeStyle(lineWidth: 2, dash: dashed && !selected ? [6, 4] : [])))
     }
+    .accessibilityAddTraits(selected ? .isSelected : [])
   }
 
   private func saved(_ message: String) -> some View {
-    VStack(spacing: 10) {
-      Image(systemName: "checkmark.circle.fill").font(.system(size: 40)).foregroundColor(Palette.success)
-      Text(message).font(Fonts.dm("600SemiBold", 17)).foregroundColor(Palette.ink).multilineTextAlignment(.center)
+    VStack(spacing: 14) {
+      Image(systemName: "checkmark.circle.fill").font(.system(size: 48)).foregroundColor(Palette.yellow)
+      Text(message).font(Fonts.display(26)).foregroundColor(.white).multilineTextAlignment(.center)
     }
-    .frame(maxWidth: .infinity, minHeight: 160).padding(.bottom, 24)
+    .frame(maxWidth: .infinity).padding(24)
   }
 }

@@ -21,6 +21,7 @@ Each milestone ends with something you can try in the iOS Simulator (`npx expo r
 - [x] Milestone 3, polish: offline start, keyboard, larger text, haptics, small iPhones
 - [x] Adding to a day: the Plan tab's + and an empty day open "Add to" (`add-sheet.tsx`): search real places ranked around that day's destination, or put in one of the trip's saved ideas; writing a plan without a place is the fallback. The map opens framed on the trip's pins.
 - [x] Ideas tab: "Add an idea" saves a real place (searched around the trip), pastes a link, or writes a note, without putting it on a day (`idea-sheet.tsx`)
+- [x] Redesign (Claude Design canvas "Elsewhere — maximalist redesign"): new look everywhere, including the iOS share extension. Tokens in `src/lib/design.ts`, building blocks in `src/components/ui`. New features the canvas shows (Today view, Someday shelf, first-open screen, cover photos, Google sign-in, account settings, booking status) are not built.
 
 ## Milestone 2: Booked flights in the plan
 
