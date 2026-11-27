@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Elsewhere · Save places from videos, plan your trip</title>
+  <meta name="description" content="Save the places you see in TikTok and Instagram videos, see them on a map, put them into your days, and keep your flights in the same plan.">
+  <meta name="theme-color" content="#FFF6E9">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 26'%3E%3Ccircle cx='13' cy='13' r='7' fill='%23FF3D8B'/%3E%3Cpath d='M13 1v3M13 22v3M1 13h3M22 13h3M4.5 4.5l2 2M19.5 19.5l2 2M21.5 4.5l-2 2M6.5 19.5l-2 2' stroke='%23FF7A1A' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/site.css">
+  <style>
+    /* The home page: the app's redesign (apps/mobile/src/lib/design.ts) on the web. */
+    .hero { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 56px; align-items: center; padding: 40px 0 72px; }
+    .eyebrow { display: inline-block; transform: rotate(-3deg); margin: 0 0 18px; padding: 6px 14px; border: 2px solid var(--ink); border-radius: 999px; background: var(--yellow); font: 800 13px/1 var(--sans); letter-spacing: 1.4px; text-transform: uppercase; box-shadow: 3px 3px 0 var(--ink); }
+    h1 { margin: 0; font: 800 clamp(56px, 9vw, 104px)/0.92 var(--display); letter-spacing: -0.045em; }
+    h1 em { display: block; font: italic 400 1.08em/1 var(--serif); letter-spacing: -0.01em; color: var(--pink); }
+    .lede { max-width: 30em; margin: 24px 0 32px; font-size: 19px; line-height: 1.55; color: var(--muted); }
+    .cta { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+    .button { display: inline-flex; align-items: center; gap: 10px; min-height: 56px; padding: 0 26px; border: 2px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--cream); font: 700 17px/1 var(--sans); text-decoration: none; box-shadow: 4px 4px 0 var(--orange); }
+    .button.soon { cursor: default; }
+    .note { font-size: 14px; color: var(--muted); }
+
+    /* A trip card like the app's home screen, with a saved video pinned to it. */
+    .stage { position: relative; }
+    .trip { position: relative; margin: 70px 24px 12px 0; padding: 26px 26px 24px; border: 2.5px solid var(--ink); border-radius: 28px; background: var(--blue); color: #fff; box-shadow: 8px 8px 0 var(--ink); transform: rotate(2deg); }
+    .trip .tag { display: inline-block; transform: rotate(-4deg); padding: 6px 12px; border: 2px solid var(--ink); border-radius: 999px; background: var(--yellow); color: var(--ink); font: 800 12px/1 var(--sans); letter-spacing: 1.4px; }
+    .trip h2 { margin: 14px 0 18px; font: 800 64px/0.95 var(--display); letter-spacing: -0.045em; }
+    .trip .meta { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; font-weight: 600; }
+    .trip .count { padding: 7px 14px; border-radius: 999px; background: #fff; color: var(--ink); font-weight: 700; font-size: 14px; }
+    .plans { margin-top: 20px; display: grid; gap: 8px; }
+    .plan { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 16px; background: rgba(255, 255, 255, 0.14); font-weight: 600; }
+    .plan time { width: 64px; font-size: 13px; opacity: 0.8; }
+    .dot { width: 12px; height: 12px; flex: none; border: 2px solid var(--ink); border-radius: 4px; }
+    .video { position: absolute; right: -8px; top: 0; width: 168px; padding: 9px; border: 2.5px solid var(--ink); border-radius: 22px; background: var(--paper); box-shadow: 6px 6px 0 var(--ink); transform: rotate(6deg); }
+    .video .cover { height: 92px; border-radius: 14px; background: linear-gradient(160deg, var(--orange), var(--pink) 60%, var(--violet)); position: relative; }
+    .video .cover::after { content: ''; position: absolute; left: 50%; top: 50%; width: 0; height: 0; margin: -11px 0 0 -7px; border-style: solid; border-width: 11px 0 11px 18px; border-color: transparent transparent transparent #fff; }
+    .video p { margin: 10px 4px 4px; font-size: 13px; line-height: 1.35; font-weight: 600; }
+    .video .chip { display: inline-flex; align-items: center; gap: 6px; margin: 4px; padding: 5px 10px; border-radius: 999px; background: var(--sand); font-size: 12px; font-weight: 700; }
+
+    /* How it works: the four colored tiles from the app's "Add to" sheet. */
+    .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; padding-bottom: 88px; }
+    .step { padding: 22px 20px 24px; border: 2.5px solid var(--ink); border-radius: 26px; box-shadow: 5px 5px 0 var(--ink); }
+    .step:nth-child(1) { background: var(--pink); }
+    .step:nth-child(2) { background: var(--orange); }
+    .step:nth-child(3) { background: var(--mint); }
+    .step:nth-child(4) { background: var(--violet); color: #fff; }
+    .step .num { font: 800 15px/1 var(--display); opacity: 0.75; }
+    .step h3 { margin: 40px 0 8px; font: 800 26px/1.05 var(--display); letter-spacing: -0.03em; }
+    .step p { margin: 0; font-size: 15px; line-height: 1.45; font-weight: 500; }
+
+    @media (max-width: 900px) {
+      .hero { grid-template-columns: 1fr; gap: 40px; padding-top: 16px; }
+      .stage { max-width: 460px; }
+      .steps { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 520px) {
+      .steps { grid-template-columns: 1fr; }
+      .step h3 { margin-top: 24px; }
+      .trip { margin-right: 12px; padding: 22px 18px 18px; }
+      .plan { font-size: 14px; }
+      .button { padding: 0 20px; font-size: 15px; }
+      .trip h2 { font-size: 52px; }
+      .video { width: 140px; }
+      .video p { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="/" aria-label="Elsewhere home">
+      <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><circle cx="13" cy="13" r="7" fill="#FF3D8B"/><path d="M13 1v3M13 22v3M1 13h3M22 13h3M4.5 4.5l2 2M19.5 19.5l2 2M21.5 4.5l-2 2M6.5 19.5l-2 2" stroke="#FF7A1A" stroke-width="2.4" stroke-linecap="round"/></svg>
+      elsewhere
+    </a>
+    <nav><a href="/support">Help</a></nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div>
+        <p class="eyebrow">Trip planner for iPhone ✦</p>
+        <h1>Where to <em>next?</em></h1>
+        <p class="lede">Save the places you see in TikTok and Instagram videos, see them on a map, put them into your days, and keep your booked flights in the same plan.</p>
+        <div class="cta">
+          <span class="button soon" aria-disabled="true">
+            <svg width="18" height="22" viewBox="0 0 18 22" aria-hidden="true"><path fill="currentColor" d="M14.9 11.7c0-2.7 2.2-4 2.3-4.1-1.3-1.8-3.2-2.1-3.9-2.1-1.7-.2-3.2 1-4.1 1-.8 0-2.1-1-3.5-.9-1.8 0-3.5 1.1-4.4 2.7-1.9 3.3-.5 8.1 1.3 10.8.9 1.3 2 2.7 3.4 2.7 1.4-.1 1.9-.9 3.5-.9s2.1.9 3.5.9c1.5 0 2.4-1.3 3.3-2.6 1-1.5 1.4-3 1.5-3.1-.1 0-2.9-1.1-2.9-4.4ZM12.3 3.6c.7-.9 1.3-2.2 1.1-3.5-1.1.1-2.4.7-3.2 1.6-.7.8-1.3 2.1-1.1 3.4 1.2.1 2.4-.6 3.2-1.5Z"/></svg>
+            Coming soon to the App Store
+          </span>
+          <span class="note">Free · No ads · No tracking</span>
+        </div>
+      </div>
+
+      <div class="stage" aria-hidden="true">
+        <div class="trip">
+          <span class="tag">TOMORROW ✦</span>
+          <h2>Lisbon</h2>
+          <div class="meta"><span>Nov 27 – Nov 29</span><span class="count">4 plans · 3 ideas</span></div>
+          <div class="plans">
+            <div class="plan"><time>7:10 AM</time><span class="dot" style="background:#3B2BFF"></span>TP1351 · LHR → LIS</div>
+            <div class="plan"><time>any</time><span class="dot" style="background:#FF7A1A"></span>Time Out Market</div>
+            <div class="plan"><time>any</time><span class="dot" style="background:#2FE6B0"></span>Miradouro da Graça</div>
+          </div>
+        </div>
+        <div class="video">
+          <div class="cover"></div>
+          <p>best pastéis in lisbon, no contest 🥐</p>
+          <span class="chip">📍 Pastéis de Belém</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="steps" aria-label="How it works">
+      <article class="step"><span class="num">01</span><h3>Share a video in</h3><p>In TikTok, Instagram or Safari, tap Share → Elsewhere. It finds the place.</p></article>
+      <article class="step"><span class="num">02</span><h3>See it on a map</h3><p>Every saved spot and plan gets a pin, so you can see what's close together.</p></article>
+      <article class="step"><span class="num">03</span><h3>Put it in your days</h3><p>Add saved ideas to a day, set times, and drag plans around as the trip changes.</p></article>
+      <article class="step"><span class="num">04</span><h3>Flights in the plan</h3><p>Add your booked flights and they show up on the right days, in local time.</p></article>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <span>© 2026 Elsewhere</span>
+    <nav><a href="/privacy">Privacy</a><a href="/support">Support</a></nav>
+  </footer>
+</body>
+</html>

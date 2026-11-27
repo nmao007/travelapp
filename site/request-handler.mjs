@@ -289,7 +289,14 @@ export async function handleRequest(request, response) {
     }
     return;
   }
-  if (pathname === '/' || pathname === '/index.html' || pathname === '/preview') {
+  // The home page introduces the iPhone app; the device preview moved to /preview.
+  if (pathname === '/' || pathname === '/index.html') {
+    const body = await readFile(join(root, 'dist', 'landing.html'));
+    response.writeHead(200, { 'content-type': mime['.html'], 'cache-control': 'no-store' });
+    response.end(body);
+    return;
+  }
+  if (pathname === '/preview') {
     const body = await readFile(join(root, 'preview.html'));
     response.writeHead(200, { 'content-type': mime['.html'], 'cache-control': 'no-store' });
     response.end(body);
@@ -332,6 +339,7 @@ export async function handleRequest(request, response) {
   assets.set('/privacy', 'privacy.html');
   assets.set('/support', 'support.html');
   assets.set('/legal.css', 'legal.css');
+  assets.set('/site.css', 'site.css');
   const asset = assets.get(pathname);
   if (!asset) { response.writeHead(404); response.end('Not found'); return; }
   try {

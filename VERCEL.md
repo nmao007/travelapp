@@ -6,7 +6,7 @@ This configuration deploys the `site` app, including its device previews, and it
 
 Import `nmao007/travelapp` into Vercel. Keep the root directory at `./` and use the **Other** framework preset. The tracked `vercel.json` selects the build command and output directory. Use Node.js **24.x**.
 
-The build generates browser modules from the shared domain code and copies only the app's public assets into `vercel-static`. `/` and `/preview` open the device preview; `/app` serves the app. API requests are handled by one Node function. Local `.env.local` files are never part of the static output and are not read on Vercel.
+The build generates browser modules from the shared domain code and copies only the app's public assets into `vercel-static`. `/` is the home page for the iPhone app (`site/dist/landing.html`), `/preview` opens the device preview, `/app` serves the web app, and `/privacy` and `/support` are the pages the App Store listing links to. API requests are handled by one Node function. Local `.env.local` files are never part of the static output and are not read on Vercel.
 
 ## Environment variables
 

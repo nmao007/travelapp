@@ -1,0 +1,22 @@
+/* Shared by the home page, privacy and support: the app's redesign tokens
+   (apps/mobile/src/lib/design.ts) and fonts, with the same header and footer. */
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Instrument+Serif:ital@1&family=Inter:wght@400;500;600;700;800&display=swap');
+:root {
+  --cream: #FFF6E9; --paper: #FFFFFF; --sand: #F1E6D3; --line: #EADCC6;
+  --ink: #1A1033; --muted: #5B4F73; --yellow: #FFE14D; --pink: #FF3D8B; --pink-text: #C2185B;
+  --orange: #FF7A1A; --blue: #2457D6; --violet: #3B2BFF; --mint: #2FE6B0;
+  --display: 'Bricolage Grotesque', system-ui, sans-serif;
+  --serif: 'Instrument Serif', Georgia, serif;
+  --sans: 'Inter', system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--cream); color: var(--ink); font: 16px/1.6 var(--sans); -webkit-text-size-adjust: 100%; }
+a { color: var(--violet); }
+main, .top, .foot { width: 100%; max-width: 1120px; margin: 0 auto; padding-left: 24px; padding-right: 24px; }
+.top { display: flex; align-items: center; justify-content: space-between; height: 76px; }
+.brand { display: inline-flex; align-items: center; gap: 8px; font: 800 26px/1 var(--display); letter-spacing: -1px; color: var(--ink); text-decoration: none; }
+.top nav a, .foot nav a { font-weight: 700; font-size: 15px; color: var(--ink); text-decoration: none; }
+.top nav a { display: inline-flex; align-items: center; height: 44px; padding: 0 18px; border: 1.5px solid var(--ink); border-radius: 999px; background: var(--paper); }
+.foot { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding-top: 28px; padding-bottom: 40px; border-top: 1.5px solid var(--line); color: var(--muted); font-size: 14px; }
+.foot nav { display: flex; gap: 20px; }
+.foot nav a:hover, .top nav a:hover { text-decoration: underline; }
